@@ -15,7 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from urllib.error import URLError
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
-from urllib.request import HTTPRedirectHandler, Request, HTTPSHandler, build_opener
+from urllib.request import HTTPRedirectHandler, Request, HTTPSHandler, ProxyHandler, build_opener
 from zoneinfo import ZoneInfo
 
 from import_report import parse_report
@@ -322,6 +322,7 @@ def fetch_bytes(url, *, limit=None):
         context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
 
     opener = build_opener(
+        ProxyHandler({}),
         HTTPSOnlyRedirectHandler,
         HTTPSHandler(context=context),
     )
