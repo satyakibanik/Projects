@@ -75,6 +75,110 @@ def parse_report(report_bytes, source_file):
                             for row in range(13, 38)],
                 ))
 
+    # P3 lists three side-by-side blocks of substations and their maximum
+    # served load/time. Keep the source time because each station peaks at a
+    # different hour.
+    substations = []
+    p3 = workbook["P3"]
+    for row in range(17, p3.max_row + 1):
+        for name_col, load_col, time_col in ((3, 4, 5), (7, 8, 9), (11, 12, 13)):
+            name = p3.cell(row, name_col).value
+            load = p3.cell(row, load_col).value
+            if name and isinstance(load, (int, float)):
+                substations.append(dict(name=str(name).strip(), load_mw=float(load),
+                                        time=str(p3.cell(row, time_col).value or "—")[:5]))
+
+    # Voltage sheet contains two parallel station lists. Class headings apply
+    # independently to both blocks and are repeated in the source workbook.
+    voltages = []
+    voltage_sheet = workbook["Voltage"]
+    voltage_classes = [None, None]
+    for row in range(7, voltage_sheet.max_row + 1):
+        for block, start_col in enumerate((1, 6)):
+            class_label = voltage_sheet.cell(row, start_col).value
+            if isinstance(class_label, str) and "kV" in class_label:
+                voltage_classes[block] = class_label.strip()
+                continue
+            name = voltage_sheet.cell(row, start_col).value
+            maximum = voltage_sheet.cell(row, start_col + 1).value
+            minimum = voltage_sheet.cell(row, start_col + 3).value
+            if name and isinstance(maximum, (int, float)) and isinstance(minimum, (int, float)):
+                def voltage_time(value):
+                    return value.strftime("%H:%M") if hasattr(value, "strftime") else str(value or "—")[:5]
+                voltages.append(dict(
+                    name=str(name).strip(), voltage_class=voltage_classes[block] or "Unknown",
+                    max_kv=float(maximum), max_time=voltage_time(voltage_sheet.cell(row, start_col + 2).value),
+                    min_kv=float(minimum), min_time=voltage_time(voltage_sheet.cell(row, start_col + 4).value),
+                ))
+
+    # P1's availability tables and event log are published as two columns of
+    # report content; combine wrapped event description lines into one entry.
+    planned_shutdowns, forced_shutdowns = [], []
+    for row in range(74, 81):
+        planned_name, planned_capacity = summary_sheet.cell(row, 4).value, summary_sheet.cell(row, 7).value
+        forced_name, forced_capacity = summary_sheet.cell(row, 9).value, summary_sheet.cell(row, 12).value
+        if planned_name and isinstance(planned_capacity, (int, float)):
+            planned_shutdowns.append(dict(name=str(planned_name).strip(), capacity_mw=float(planned_capacity)))
+        if forced_name and isinstance(forced_capacity, (int, float)):
+            forced_shutdowns.append(dict(name=str(forced_name).strip(), capacity_mw=float(forced_capacity)))
+    events = []
+    event_row = None
+    for row in range(85, summary_sheet.max_row + 1):
+        outage = summary_sheet.cell(row, 2).value
+        restoration = summary_sheet.cell(row, 3).value
+        description = summary_sheet.cell(row, 4).value
+        if description:
+            if outage or restoration or event_row is None:
+                event_row = dict(outage_time=str(outage or "—")[:5],
+                                 restoration_time=str(restoration or "—")[:5],
+                                 description=str(description).strip())
+                events.append(event_row)
+            else:
+                event_row["description"] += " " + str(description).strip()
+        elif outage or restoration:
+            event_row = None
+
+    # EWIC hourly active-power flows. Positive values are west-to-east and
+    # negative values are east-to-west, as noted in the workbook itself.
+    ewic = []
+    ewic_sheet = workbook["EWIC"]
+    for row in range(9, min(35, ewic_sheet.max_row + 1)):
+        raw_time = ewic_sheet.cell(row, 1).value
+        if raw_time is None:
+            continue
+        time_text = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
+        ewic.append(dict(time=time_text, ishwardi_ghorashal=number(ewic_sheet.cell(row, 2).value),
+                         sirajganj_sreepur=number(ewic_sheet.cell(row, 4).value),
+                         gopalganj_aminbazar=number(ewic_sheet.cell(row, 6).value)))
+
+    # Forecast includes one row per generating unit followed by area totals
+    # and a system total. The system total row provides the peak summaries.
+    forecast_sheet = workbook["Forecast"]
+    forecast_plants = []
+    system_forecast = {}
+    for row in range(11, forecast_sheet.max_row + 1):
+        name = forecast_sheet.cell(row, 2).value
+        if forecast_sheet.cell(row, 1).value == "System Total" or name == "System Total":
+            system_forecast = dict(
+                forecast_day_mw=number(forecast_sheet.cell(row, 10).value),
+                forecast_evening_mw=number(forecast_sheet.cell(row, 11).value),
+                effective_day_mw=number(forecast_sheet.cell(row, 12).value),
+                effective_evening_mw=number(forecast_sheet.cell(row, 13).value),
+            )
+        elif name and not str(name).strip().lower().endswith("area total") and isinstance(forecast_sheet.cell(row, 6).value, (int, float)):
+            forecast_plants.append(dict(
+                name=str(name).strip(), fuel=str(forecast_sheet.cell(row, 3).value or "—"),
+                producer=str(forecast_sheet.cell(row, 4).value or "—"),
+                capacity_mw=number(forecast_sheet.cell(row, 6).value),
+                actual_day_mw=number(forecast_sheet.cell(row, 8).value),
+                actual_evening_mw=number(forecast_sheet.cell(row, 9).value),
+                forecast_day_mw=number(forecast_sheet.cell(row, 10).value),
+                forecast_evening_mw=number(forecast_sheet.cell(row, 11).value),
+                effective_day_mw=number(forecast_sheet.cell(row, 12).value),
+                effective_evening_mw=number(forecast_sheet.cell(row, 13).value),
+                remarks=str(forecast_sheet.cell(row, 14).value or "—").strip(),
+            ))
+
     data = dict(
         date=date,
         source_file=source_file,
@@ -94,6 +198,15 @@ def parse_report(report_bytes, source_file):
         regions=regions,
         plants=plants,
         imports=imports,
+        substations=substations,
+        voltages=voltages,
+        operations=dict(planned_shutdowns=planned_shutdowns, forced_shutdowns=forced_shutdowns,
+                        events=events, ewic=ewic,
+                        east_west=dict(energy_east_to_west_kwh=number(summary_sheet["E53"].value),
+                                       energy_west_to_east_kwh=number(summary_sheet["E54"].value),
+                                       peak_west_to_east_mw=number(summary_sheet["E55"].value),
+                                       max_west_to_east_mw=number(summary_sheet["E56"].value))),
+        forecast=dict(plants=forecast_plants, totals=system_forecast),
     )
 
     assert abs(sum(plant["energy_mwh"] for plant in plants) - data["summary"]["energy_mwh"]) < 0.1, \
