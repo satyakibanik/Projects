@@ -4,9 +4,9 @@ Personal site
 
 ## Bangladesh Electric Grid Dashboard
 
-[Open the BEGD dashboard](https://satyakibanik.github.io/satyakibanik/begd/)
+[Open the BEGD dashboard](https://satyakibanik.github.io/Projects/begd/)
 
-BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National Load Dispatch Centre (NLDC) daily operating reports. It summarizes Bangladesh’s electricity demand, generation, fuel mix, load shedding, regional supply, and cross-border imports.
+BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National Load Dispatch Centre (NLDC) daily operating reports. It summarizes Bangladesh’s electricity demand, generation, fuel mix, load shedding, regional supply, cross-border imports, substation load and voltage, operations, and generation forecasts.
 
 ### Dashboard views
 
@@ -15,13 +15,16 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 - **Regions** — regional energy and fuel mix alongside evening-peak demand and load shedding.
 - **Imports** — hourly MW and daily energy by cross-border route, with imports’ share of reported national energy.
 - **Real time** — ERP demand, generation, and India-import readings dated today in Bangladesh time.
+- **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class.
+- **Operations detail** — planned and forced shutdowns, the P1 event log, and hourly east–west interconnector power flows.
+- **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details.
 - **Comparisons and download** — optional adjacent-day and highest-generation comparisons, chart controls, and JSON export.
 
 All times use Bangladesh time (Asia/Dhaka). Workbook publication date can differ from its operating date. The static Pages build contains supported reports from the latest two weeks and refreshes approximately hourly; GitHub may delay or drop scheduled runs. Real-time panels use only source rows dated today and do not backfill older readings. The data bundle is generated during deployment and is not committed to the repository.
 
 ### Data sources
 
-BEGD’s daily views are parsed from Power Grid Bangladesh PLC / NLDC workbooks in the [Power Grid ERP daily report archive](https://erp.powergrid.gov.bd/w/report/eyJpdiI6IldsU2ZQTGkvbkRnQU9FMjZ5UHhmeGc9PSIsInZhbHVlIjoiQzhONVl5ZGxRY3E3T3ZVNCtLZGt1Zz09IiwibWFjIjoiN2JiNTI5MzNhOWIxZDVjY2NkMmFlZWU4ZDU1N2I4OWZlYjNlZWM1ZGU4NzRiNWU4ZjQ3ZDc1ODRlMTk3MDc0YyIsInRhZyI6IiJ9/show_report). The parser reads P1 (national summary, fuel mix, and regions), P2 (plant records), P4 (hourly demand, generation, and load shedding), and GenLog (imports).
+BEGD’s daily views are parsed from Power Grid Bangladesh PLC / NLDC workbooks in the [Power Grid ERP daily report archive](https://erp.powergrid.gov.bd/w/report/eyJpdiI6IldsU2ZQTGkvbkRnQU9FMjZ5UHhmeGc9PSIsInZhbHVlIjoiQzhONVl5ZGxRY3E3T3ZVNCtLZGt1Zz09IiwibWFjIjoiN2JiNTI5MzNhOWIxZDVjY2NkMmFlZWU4ZDU1N2I4OWZlYjNlZWM1ZGU4NzRiNWU4ZjQ3ZDc1ODRlMTk3MDc0YyIsInRhZyI6IiJ9/show_report). The parser reads P1 (national summary, fuel mix, regions, shutdowns, and event log), P2 (plant records), P3 (substation load), P4 (hourly demand, generation, and load shedding), GenLog (imports), Voltage (substation voltage), EWIC (east–west flows), and Forecast (day and evening generation availability).
 
 Real-time readings and the highest-generation comparison use these Power Grid ERP pages:
 
@@ -36,6 +39,7 @@ Real-time readings and the highest-generation comparison use these Power Grid ER
 - Power readings are in MW; daily energy totals are in MWh or GWh. Hourly MW samples are not added up to calculate daily MWh.
 - Generation-side demand, substation-side demand, and reported load shedding are distinct measures.
 - Regional figures are evening-peak snapshots rather than full-day demand.
+- Substation load times, voltage ranges, unit shutdown lists, events, and generation forecasts are reported workbook values.
 - Zero plant output alone does not establish an outage.
 
 ### Publishing
