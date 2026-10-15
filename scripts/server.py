@@ -541,14 +541,18 @@ def get_report(report_id):
         if cached and time.time() - cached[0] < REPORT_CACHE_SECONDS:
             return cached[1]
 
+    return parse_report_item(report)
+
+
+def parse_report_item(report):
     workbook = fetch_bytes(report["download_url"], limit=MAX_REPORT_BYTES)
     result = parse_report(workbook, report["name"])
-    result["report_id"] = report_id
+    result["report_id"] = report["id"]
     result["report_name"] = report["name"]
     result["published_date"] = report["published_date"]
     result["source_url"] = report["download_url"]
     with cache_lock:
-        report_data_cache[report_id] = (time.time(), result)
+        report_data_cache[report["id"]] = (time.time(), result)
     return result
 
 
@@ -579,6 +583,43 @@ def get_adjacent_report(report_id, offset):
         if adjacent["date"] == target_date.isoformat():
             return adjacent
     raise LookupError("No adjacent operating-day report is available")
+
+
+def get_historical_report_for_date(target_date):
+    """Fetch only the older archive pages needed to find one operating day."""
+    first_page, source_page_count = fetch_listing_page(1)
+    if not first_page:
+        raise LookupError("The Power Grid archive has no report rows")
+
+    lower_bound = target_date - datetime.timedelta(days=4)
+    candidates = []
+    for page in range(1, (source_page_count or 1) + 1):
+        rows = first_page if page == 1 else fetch_listing_page(page)[0]
+        candidates.extend(
+            item for item in rows
+            if abs((datetime.date.fromisoformat(item["published_date"])
+                    - target_date).days) <= 4
+        )
+        page_dates = [datetime.date.fromisoformat(item["published_date"])
+                      for item in rows]
+        # The archive is newest-first. Once a full page reaches dates older
+        # than the matching publication window, no later page can match.
+        if page_dates and min(page_dates) < lower_bound:
+            break
+
+    candidates.sort(key=lambda item: (
+        abs((datetime.date.fromisoformat(item["published_date"])
+             - (target_date + datetime.timedelta(days=1))).days),
+        -int(item["id"]),
+    ))
+    for candidate in candidates:
+        try:
+            report = parse_report_item(candidate)
+        except Exception:
+            continue
+        if report["date"] == target_date.isoformat():
+            return report
+    raise LookupError("No report was found for the highest-generation operating day")
 
 
 def get_highest_generation_day():
@@ -617,6 +658,12 @@ def get_highest_generation_day():
             maximum_generation_cache_time = time.time()
 
     target_date = datetime.date.fromisoformat(reference["date"])
+    if target_date.isoformat() < MIN_SUPPORTED_PUBLISHED_DATE:
+        report = get_historical_report_for_date(target_date)
+        report["comparison_source"] = "highest-generation"
+        report["maximum_generation"] = reference
+        return report
+
     reports = [item for item in list_reports()
                if item["published_date"] >= MIN_SUPPORTED_PUBLISHED_DATE]
     candidates = [item for item in reports
