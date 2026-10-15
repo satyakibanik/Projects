@@ -31,7 +31,7 @@ jobs:
         run: |
           curl --fail --silent --show-error --location --proto '=http' --max-time 20 http://crt.sectigo.com/SSL2BUYEMEARSADomainValidationSecureServerCA.crt --output /tmp/erp-issuer.crt
           if openssl x509 -in /tmp/erp-issuer.crt -noout >/dev/null 2>&1; then
-            cp /tmp/erp-issuer.crt /tmp/erp-issuer.pem
+            openssl x509 -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
           else
             openssl x509 -inform DER -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
           fi
