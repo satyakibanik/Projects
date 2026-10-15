@@ -27,10 +27,28 @@ jobs:
           python-version: '3.12'
       - name: Install parser dependencies
         run: python -m pip install -r requirements.txt
-      - name: Inspect Power Grid certificate chain
+      - name: Complete and verify Power Grid TLS chain
         run: |
-          openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
-          openssl x509 -in /tmp/erp-leaf.pem -noout -subject -issuer -dates -ext authorityInfoAccess -text | sed -n '/Authority Information Access/,+8p'
+          curl --fail --silent --show-error --location --max-time 20 \\
+            https://crt.sectigo.com/SSL2BUYEMEARSADomainValidationSecureServerCA.crt \\
+            --output /tmp/erp-issuer.crt
+          if openssl x509 -in /tmp/erp-issuer.crt -noout >/dev/null 2>&1; then
+            cp /tmp/erp-issuer.crt /tmp/erp-issuer.pem
+          else
+            openssl x509 -inform DER -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
+          fi
+          openssl s_client -connect erp.powergrid.gov.bd:443 \\
+            -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null |
+            awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' \\
+              > /tmp/erp-leaf.pem
+          openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt \\
+            -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
+          cat /etc/ssl/certs/ca-certificates.crt /tmp/erp-issuer.pem \\
+            > /tmp/powergrid-ca-bundle.pem
+          echo "CURL_CA_BUNDLE=/tmp/powergrid-ca-bundle.pem" >> "$GITHUB_ENV"
+          curl --fail --silent --show-error --location --max-time 20 \\
+            https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed \\
+            --output /dev/null
       - name: Build static site and hourly ERP data
         run: python scripts/build_pages_data.py
       - name: Configure GitHub Pages
