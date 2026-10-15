@@ -10,14 +10,14 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 
 ### Dashboard views
 
-- **Overview** — hourly generation-side demand and generation; daily fuel mix; reported load shedding; evening-peak demand and generation; and published daily energy totals.
+- **Overview** — hourly generation-side demand and generation, with day and evening generation-availability forecasts from the preceding report plotted at the selected day’s observed demand peaks; daily fuel mix; reported load shedding; evening-peak demand and generation; and published daily energy totals.
 - **Power plants** — plant capacity, peak output, reported energy, producer, region, and source remarks, with search and filters.
 - **Regions** — regional energy and fuel mix alongside evening-peak demand and load shedding.
 - **Imports** — hourly MW and daily energy by cross-border route, with imports’ share of reported national energy.
 - **Real time** — ERP demand, generation, and India-import readings dated today in Bangladesh time.
 - **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class.
 - **Operations detail** — planned and forced shutdowns, the P1 event log, and hourly east–west interconnector power flows.
-- **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details.
+- **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details. These are forecasts of available generation, not demand or dispatched generation.
 - **Comparisons and download** — optional adjacent-day and highest-generation comparisons, chart controls, and JSON export.
 
 All times use Bangladesh time (Asia/Dhaka). Workbook publication date can differ from its operating date. The static Pages build contains supported reports from the latest two weeks and refreshes approximately hourly; GitHub may delay or drop scheduled runs. Real-time panels use only source rows dated today and do not backfill older readings. The data bundle is generated during deployment and is not committed to the repository.
