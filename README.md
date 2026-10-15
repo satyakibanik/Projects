@@ -3,6 +3,6 @@ Personal site
 
 ## Bangladesh Electric Grid Dashboard
 
-The Bangladesh Electric Grid Dashboard is available at [satyakibanik.github.io/begd](https://satyakibanik.github.io/begd/). It presents Power Grid Bangladesh daily report views for national operations, power plants, regions, and cross-border imports.
+The live dashboard is at [satyakibanik-begd-live.onrender.com/begd](https://begd-live-satyakibanik.onrender.com/begd/). It presents current Power Grid Bangladesh daily report views for national operations, power plants, regions, and cross-border imports.
 
-The dashboard files live in `begd/`. Its live report and real-time data depend on the Python API in the BEGD source project. GitHub Pages serves static files and cannot run that API, so the live data views require the site and API to be hosted together on an API-capable service. The API is not included in this static site repository.
+The dashboard and Python API run together as a Render web service. After merging this repository's `render.yaml`, create a Render Blueprint from this repository and apply it. The blueprint builds the Python service and exposes the dashboard and live API on the same origin. The regular GitHub Pages homepage links to the Render-hosted dashboard.
