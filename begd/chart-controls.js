@@ -87,7 +87,8 @@ function setupCharts(view) {
             rect.setAttribute('height', Math.max(0, 218 - y(value)));
           });
         } else {
-          group.querySelector('polyline').setAttribute('points', model.rows.filter(row => typeof row[series.key] === 'number').map(row => `${model.x(row)},${y(row[series.key])}`).join(' '));
+          const points = series.pointsOnly ? '' : model.rows.filter(row => typeof row[series.key] === 'number').map(row => `${model.x(row)},${y(row[series.key])}`).join(' ');
+          group.querySelector('polyline').setAttribute('points', points);
           group.querySelectorAll('circle').forEach(circle => circle.setAttribute('cy', y(model.rows[Number(circle.dataset.rowIndex)][series.key])));
         }
       });
