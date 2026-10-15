@@ -683,7 +683,13 @@ def get_highest_generation_day():
             report["comparison_source"] = "highest-generation"
             report["maximum_generation"] = reference
             return report
-    raise LookupError("No supported report is available for the highest-generation day")
+    try:
+        report = get_historical_report_for_date(target_date)
+    except LookupError:
+        raise LookupError("No supported report is available for the highest-generation day")
+    report["comparison_source"] = "highest-generation"
+    report["maximum_generation"] = reference
+    return report
 
 
 class DashboardHandler(SimpleHTTPRequestHandler):
