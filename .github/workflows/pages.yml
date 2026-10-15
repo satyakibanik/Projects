@@ -38,6 +38,19 @@ jobs:
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
           openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           cat /etc/ssl/certs/ca-certificates.crt /tmp/erp-issuer.pem > /tmp/powergrid-ca-bundle.pem
+          openssl verify -partial_chain -CAfile /tmp/powergrid-ca-bundle.pem /tmp/erp-leaf.pem
+          python - <<'PY'
+          import os
+          import socket
+          import ssl
+          host = "erp.powergrid.gov.bd"
+          context = ssl.create_default_context()
+          context.load_verify_locations(cafile="/tmp/powergrid-ca-bundle.pem")
+          context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+          with socket.create_connection((host, 443), timeout=20) as connection:
+              with context.wrap_socket(connection, server_hostname=host) as secure:
+                  print("Verified ERP TLS peer:", secure.getpeercert()["issuer"])
+          PY
           echo "BEGD_ERP_INTERMEDIATE_CERT=/tmp/powergrid-ca-bundle.pem" >> "$GITHUB_ENV"
       - name: Build static site and hourly ERP data
         run: python scripts/build_pages_data.py
