@@ -70,6 +70,8 @@ function overview(){
 }
 let selectedPlantName=null,plantStatusFilter='all';
 const normalizedPlantName=name=>String(name||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+const basePlantName=name=>normalizedPlantName(name).replace(/(?:gas|hsd|hfo|diesel|coal)$/,'');
+function matchPlant(items,name){return items?.find(item=>normalizedPlantName(item.name)===normalizedPlantName(name))||items?.find(item=>basePlantName(item.name)===basePlantName(name))}
 function plantUnits(){return data.plant_units?.length?data.plant_units:data.plants.map(plant=>({...plant,status:plant.peak_mw>0?'running':'no-output',hourly:[]}))}
 function plants(){const units=plantUnits();return `<section class="panel full plants-panel"><div class="panel-head"><div><h2>All plants</h2><p>GenLog hourly output for every generating unit named in the report</p></div><span class="tag">${units.length} GENERATING UNITS</span></div><div class="plant-filters" id="plant-status-filter" aria-label="Filter plants by output"><button type="button" class="plant-filter active" data-status="all">All</button><button type="button" class="plant-filter" data-status="running">Generating</button><button type="button" class="plant-filter" data-status="no-output">No output</button></div><div class="toolbar"><input id="plant-search" type="search" placeholder="Search a plant, e.g. Payra, Ghorasal, Solar…" aria-label="Search power plants"></div><p class="count" id="plant-count"></p><div class="plant-layout"><ul class="plant-list" id="plant-list" aria-label="Generating units"></ul><section class="plant-detail" id="plant-detail" aria-live="polite"><p class="plant-detail-empty">Select a plant to see its 24-hour output and daily figures.</p></section></div><p class="note">Hourly output, peak, and daily energy come from GenLog. “No output” describes the reported readings and does not establish an outage.</p></section>`}
 function updatePlants(){
@@ -78,7 +80,7 @@ function updatePlants(){
  const running=units.filter(plant=>plant.status==='running').length;
  $('#plant-count').textContent=`${rows.length} shown · ${running} generating · ${units.length-running} with no reported output`;
  const list=$('#plant-list');
- list.innerHTML=rows.map(plant=>`<li data-plant="${encodeURIComponent(plant.name)}" class="${plant.name===selectedPlantName?'active':''}" tabindex="0" role="button" aria-pressed="${plant.name===selectedPlantName}"><span>${esc(plant.name)}</span><span class="peak">${plant.status==='no-output'?'<span class="plant-status-badge">0 MW</span>':`${fmt(plant.utilization_pct,0)}%`}</span></li>`).join('')||'<li class="plant-empty">No plants match these filters.</li>';
+ list.innerHTML=rows.map(plant=>`<li data-plant="${encodeURIComponent(plant.name)}" class="${plant.name===selectedPlantName?'active':''}" tabindex="0" role="button" aria-pressed="${plant.name===selectedPlantName}"><span>${esc(plant.name)}</span><span class="peak">${plant.status==='no-output'?'<span class="plant-status-badge">0 MW</span>':`${fmt(plant.utilization_ratio_pct??plant.utilization_pct,0)}%`}</span></li>`).join('')||'<li class="plant-empty">No plants match these filters.</li>';
  list.querySelectorAll('[data-plant]').forEach(item=>{
   const select=()=>showPlantDetail(decodeURIComponent(item.dataset.plant));
   item.addEventListener('click',select);
@@ -104,7 +106,19 @@ function showPlantDetail(name){
   series.push({key,name:`${dayLabel(day)} · ${shortDate(report.date)}`,color});
  }
  const curve=rows.length?chart(rows,series):'<p class="plant-detail-empty">Hourly GenLog readings are unavailable for this report.</p>';
- $('#plant-detail').innerHTML=`<div class="plant-detail-heading"><div><h3>${esc(name)}</h3><span class="plant-status ${plant.status==='running'?'is-running':''}">${status}</span></div><span class="tag">GENLOG · MW / BST</span></div><p class="plant-metric-date">Metrics for operating day ${esc(shortDate(data.date))}</p><div class="plant-metrics"><div><span>Working capacity</span><strong>${fmt(plant.capacity_mw,1)} MW</strong><small>Capacity reported in GenLog</small></div><div><span>Peak output</span><strong>${fmt(plant.peak_mw,1)} MW</strong><small>Highest hourly GenLog reading</small></div><div><span>Utilization</span><strong>${fmt(plant.utilization_pct,1)}%</strong><small>Peak output ÷ working capacity × 100</small></div><div><span>Daily energy</span><strong>${fmt(plant.energy_mwh,1)} MWh</strong><small>GenLog total for the day</small></div></div><div class="plant-output-chart">${curve}</div>`;
+ const p2=matchPlant(data.plants,name),forecast=matchPlant(data.forecast?.plants,name);
+ const installed=plant.installed_capacity_mw??p2?.installed_capacity_mw??forecast?.capacity_mw;
+ const present=plant.present_capacity_mw??p2?.present_capacity_mw??p2?.capacity_mw;
+ const hourlyValues=(plant.hourly||[]).filter(point=>typeof point.mw==='number');
+ const peak=plant.peak_generation_mw??plant.peak_mw??(hourlyValues.length?Math.max(...hourlyValues.map(point=>point.mw)):null);
+ const energy=plant.energy_mwh??p2?.energy_mwh;
+ const operatingHours=plant.operating_hours??hourlyValues.filter(point=>point.time.endsWith(':00')&&point.mw>0).length;
+ const capacityFactor=installed>0&&energy!=null?energy/(installed*24)*100:null;
+ const puf=installed>0&&energy!=null&&operatingHours>0?energy/(installed*operatingHours)*100:null;
+ const utilizationRatio=installed>0&&peak!=null?peak/installed*100:null;
+ const fuel=plant.fuel??forecast?.fuel??'—',producer=plant.producer??forecast?.producer??p2?.producer??'—';
+ const reading=(title,value,unit,description)=>`<div><span>${title}</span><strong>${value}${unit?` ${unit}`:''}</strong><small>${description}</small></div>`;
+ $('#plant-detail').innerHTML=`<div class="plant-detail-heading"><div><h3>${esc(name)}</h3><span class="plant-status ${plant.status==='running'?'is-running':''}">${status}</span></div><span class="tag">GENLOG · MW / BST</span></div><p class="plant-metric-date">Metrics for operating day ${esc(shortDate(data.date))}</p><div class="plant-metrics">${reading('Installed Capacity',fmt(installed,1),'MW','Installed capacity listed in P2')}${reading('Present capacity',fmt(present,1),'MW','Present capacity listed in P2')}${reading('Peak Generation today',fmt(peak,1),'MW','Highest hourly GenLog output')}${reading('Capacity Factor / Utilization',fmt(capacityFactor,1),'%','GenLog energy ÷ (installed MW × 24 h)')}${reading('Plant Utilization Factor (PUF)',fmt(puf,1),'%','Energy ÷ (installed MW × operating hours) · '+operatingHours+' h above zero')}${reading('Utilization ratio',fmt(utilizationRatio,1),'%','Peak generation ÷ installed capacity')}${reading('Energy generated today',fmt(energy,1),'MWh','GenLog total for the operating day')}${reading('Fuel',esc(fuel),'','Fuel matched from Forecast')}${reading('Producer',esc(producer),'','Producer matched from Forecast')}</div><div class="plant-output-chart">${curve}</div>`;
  setupCharts('plants');
 }
 function regions(){
