@@ -61,8 +61,43 @@ def parse_report(report_bytes, source_file):
             demand_mw=row[6].value,
         ))
 
-    imports = []
     generation_log = workbook["GenLog"]
+    plant_units = []
+    for col in range(2, generation_log.max_column + 1):
+        name = str(generation_log.cell(11, col).value or "").strip()
+        if not name or name.lower().endswith("total"):
+            continue
+        if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
+            continue
+
+        raw_capacity = generation_log.cell(12, col).value
+        capacity = number(raw_capacity)
+        if capacity is None and isinstance(raw_capacity, str):
+            import re
+            match = re.search(r"[-+]?\d[\d,]*(?:\.\d+)?", raw_capacity)
+            capacity = float(match.group(0).replace(",", "")) if match else None
+
+        hourly = []
+        for row in range(13, 38):
+            raw_time, mw = generation_log.cell(row, 1).value, generation_log.cell(row, col).value
+            if raw_time is None:
+                continue
+            time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
+            hourly.append(dict(time=time, mw=number(mw)))
+        values = [row["mw"] for row in hourly if row["mw"] is not None]
+        peak = max(values) if values else None
+        energy_kwh = number(generation_log.cell(38, col).value)
+        plant_units.append(dict(
+            name=name,
+            capacity_mw=capacity,
+            peak_mw=peak,
+            utilization_pct=peak / capacity * 100 if peak is not None and capacity else None,
+            energy_mwh=energy_kwh / 1000 if energy_kwh is not None else None,
+            status="running" if any(value > 0 for value in values) else "no-output",
+            hourly=hourly,
+        ))
+
+    imports = []
     for col in range(2, generation_log.max_column + 1):
         name = str(generation_log.cell(11, col).value or "")
         if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
@@ -203,6 +238,7 @@ def parse_report(report_bytes, source_file):
         hourly=hourly,
         regions=regions,
         plants=plants,
+        plant_units=plant_units,
         imports=imports,
         substations=substations,
         voltages=voltages,
