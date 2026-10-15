@@ -311,8 +311,7 @@ def fetch_bytes(url, *, limit=None):
     command.append(url)
     response = subprocess.run(command, capture_output=True, timeout=40, check=False)
     if response.returncode:
-        detail = response.stderr.decode("utf-8", errors="replace").strip().splitlines()
-        detail = detail[-1][:240] if detail else "no response details"
+        detail = response.stderr.decode("utf-8", errors="replace").strip()[:600] or "no response details"
         raise RuntimeError(f"Power Grid request failed (curl {response.returncode}): {detail}")
     body = response.stdout
     if limit and len(body) > limit:
