@@ -39,7 +39,10 @@ jobs:
           openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           cat /tmp/erp-issuer.pem /etc/ssl/certs/ca-certificates.crt > /tmp/powergrid-ca-bundle.pem
           openssl x509 -in /tmp/erp-issuer.pem -noout -subject -issuer -ext basicConstraints -fingerprint -sha256
-          openssl verify -partial_chain -trusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
+          for ip in $(getent ahostsv4 erp.powergrid.gov.bd | awk '{print $1}' | sort -u); do
+            echo "Checking ERP address $ip"
+            openssl s_client -connect "$ip:443" -servername erp.powergrid.gov.bd -CAfile /tmp/erp-issuer.pem -partial_chain -verify_hostname erp.powergrid.gov.bd -verify_return_error </dev/null 2>&1 | grep -E 'Verification:|Verify return code|verify error'
+          done
           python - <<'PY'
           import os
           import socket
