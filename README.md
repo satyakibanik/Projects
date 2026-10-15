@@ -1,2 +1,2 @@
-# sbanik.github.io
+# satyakibanik.github.io
 Personal site
