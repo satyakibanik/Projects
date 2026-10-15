@@ -3,6 +3,10 @@ Personal site
 
 ## Bangladesh Electric Grid Dashboard
 
-The live dashboard is at [satyakibanik-begd-live.onrender.com/begd](https://begd-live-satyakibanik.onrender.com/begd/). It presents current Power Grid Bangladesh daily report views for national operations, power plants, regions, and cross-border imports.
+The Bangladesh Electric Grid Dashboard is available at [satyakibanik.github.io/begd](https://satyakibanik.github.io/begd/). It presents Power Grid Bangladesh daily report views for national operations, power plants, regions, imports, and current-day readings.
 
-The dashboard and Python API run together as a Render web service. After merging this repository's `render.yaml`, create a Render Blueprint from this repository and apply it. The blueprint builds the Python service and exposes the dashboard and live API on the same origin. The regular GitHub Pages homepage links to the Render-hosted dashboard.
+GitHub Actions rebuilds and publishes the Pages site hourly from Power Grid Bangladesh's public ERP archive. The generated report bundle is included in the Pages deployment artifact, not committed as report JSON files in this repository.
+
+After merging the Pages workflow, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions**. Scheduled runs publish the latest two weeks of supported daily reports and current-day readings. The latest report, real-time readings, and available comparisons update hourly.
+
+The workflow is scheduled at 17 minutes past each hour. GitHub may delay or drop scheduled runs during busy periods, so the refresh is approximately hourly rather than guaranteed to run at an exact time.
