@@ -46,6 +46,7 @@ jobs:
           cat /etc/ssl/certs/ca-certificates.crt /tmp/erp-issuer.pem \
             > /tmp/powergrid-ca-bundle.pem
           export CURL_CA_BUNDLE=/tmp/powergrid-ca-bundle.pem
+          openssl verify -CAfile /tmp/powergrid-ca-bundle.pem /tmp/erp-leaf.pem
           echo "CURL_CA_BUNDLE=/tmp/powergrid-ca-bundle.pem" >> "$GITHUB_ENV"
           echo "Using CA bundle: $CURL_CA_BUNDLE"
           curl --verbose --fail --location --noproxy '*' --cacert /tmp/powergrid-ca-bundle.pem --max-time 20 \
