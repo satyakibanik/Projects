@@ -4,16 +4,18 @@ import argparse
 import html.parser
 import json
 import math
+import os
 import pathlib
 import re
-import shutil
-import subprocess
+import ssl
 import threading
 import time
 from threading import Thread
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from urllib.error import URLError
 from urllib.parse import parse_qs, urlencode, urljoin, urlparse
+from urllib.request import HTTPRedirectHandler, Request, HTTPSHandler, build_opener
 from zoneinfo import ZoneInfo
 
 from import_report import parse_report
@@ -296,28 +298,46 @@ class ListingParser(html.parser.HTMLParser):
             self.row = None
 
 
+class HTTPSOnlyRedirectHandler(HTTPRedirectHandler):
+    def redirect_request(self, request, file_pointer, code, message, headers, new_url):
+        if urlparse(new_url).scheme != "https":
+            raise URLError("Power Grid redirected to a non-HTTPS URL")
+        return super().redirect_request(
+            request, file_pointer, code, message, headers, new_url,
+        )
+
+
 def fetch_bytes(url, *, limit=None):
     parsed = urlparse(url)
     if parsed.scheme != "https" or parsed.hostname != "erp.powergrid.gov.bd":
         raise ValueError("Report URL is outside the Power Grid archive")
-    curl = shutil.which("curl")
-    if not curl:
-        raise RuntimeError("The system curl command is required for verified HTTPS access")
-    command = [curl, "--fail", "--silent", "--show-error", "--location",
-               "--proto", "=https", "--proto-redir", "=https",
-               "--max-time", "35", "--user-agent", USER_AGENT]
-    if limit:
-        command.extend(["--max-filesize", str(limit)])
-    command.append(url)
-    response = subprocess.run(command, capture_output=True, timeout=40, check=False)
-    if response.returncode:
-        detail = response.stderr.decode("utf-8", errors="replace").strip()[:600] or "no response details"
-        raise RuntimeError(f"Power Grid request failed (curl {response.returncode}): {detail}")
-    body = response.stdout
+
+    context = ssl.create_default_context()
+    issuer_path = os.environ.get("BEGD_ERP_INTERMEDIATE_CERT")
+    if issuer_path:
+        # The workflow validates this intermediate against the system roots
+        # before exporting the path. Partial-chain trust lets Python complete
+        # the ERP server's omitted intermediate while still verifying TLS.
+        context.load_verify_locations(cafile=issuer_path)
+        context.verify_flags |= ssl.VERIFY_X509_PARTIAL_CHAIN
+
+    opener = build_opener(
+        HTTPSOnlyRedirectHandler,
+        HTTPSHandler(context=context),
+    )
+    request = Request(url, headers={"User-Agent": USER_AGENT})
+    try:
+        with opener.open(request, timeout=40) as response:
+            body = response.read(limit + 1) if limit else response.read()
+    except URLError as error:
+        reason = getattr(error, "reason", error)
+        raise RuntimeError(
+            f"Power Grid request failed: {type(reason).__name__}: {reason}"
+        ) from error
+
     if limit and len(body) > limit:
         raise ValueError("Report file is larger than the allowed limit")
     return body
-
 
 def parse_listing(body, *, require_count=True):
     parser = ListingParser()
@@ -366,7 +386,7 @@ def fetch_listing_page(page):
     for attempt in range(2):
         try:
             return parse_listing(fetch_bytes(url), require_count=(page == 1))
-        except (RuntimeError, TimeoutError, subprocess.TimeoutExpired, ValueError):
+        except (RuntimeError, TimeoutError, ValueError):
             if attempt == 1:
                 raise
             time.sleep(0.7)
