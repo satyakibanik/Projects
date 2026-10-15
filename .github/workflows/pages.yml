@@ -37,9 +37,6 @@ jobs:
           fi
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
           openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
-          cat /tmp/erp-issuer.pem /etc/ssl/certs/ca-certificates.crt > /tmp/powergrid-ca-bundle.pem
-            echo "Checking ERP address $ip"
-            openssl s_client -connect "$ip:443" -servername erp.powergrid.gov.bd -CAfile /tmp/erp-issuer.pem -partial_chain -verify_hostname erp.powergrid.gov.bd -verify_return_error </dev/null 2>&1 | grep -E 'Verification:|Verify return code|verify error'
           python - <<'PY'
           import os
           import socket
