@@ -154,6 +154,12 @@ def parse_report(report_bytes, source_file):
     # Forecast includes one row per generating unit followed by area totals
     # and a system total. The system total row provides the peak summaries.
     forecast_sheet = workbook["Forecast"]
+    raw_forecast_date = forecast_sheet["C6"].value
+    if isinstance(raw_forecast_date, (datetime.datetime, datetime.date)):
+        forecast_date = (raw_forecast_date.date() if isinstance(raw_forecast_date, datetime.datetime)
+                         else raw_forecast_date).isoformat()
+    else:
+        forecast_date = datetime.datetime.strptime(str(raw_forecast_date), "%d-%m-%Y").date().isoformat()
     forecast_plants = []
     system_forecast = {}
     for row in range(11, forecast_sheet.max_row + 1):
@@ -206,7 +212,7 @@ def parse_report(report_bytes, source_file):
                                        energy_west_to_east_kwh=number(summary_sheet["E54"].value),
                                        peak_west_to_east_mw=number(summary_sheet["E55"].value),
                                        max_west_to_east_mw=number(summary_sheet["E56"].value))),
-        forecast=dict(plants=forecast_plants, totals=system_forecast),
+        forecast=dict(date=forecast_date, plants=forecast_plants, totals=system_forecast),
     )
 
     assert abs(sum(plant["energy_mwh"] for plant in plants) - data["summary"]["energy_mwh"]) < 0.1, \
