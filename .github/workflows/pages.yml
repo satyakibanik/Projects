@@ -38,7 +38,8 @@ jobs:
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
           openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           cat /tmp/erp-issuer.pem /etc/ssl/certs/ca-certificates.crt > /tmp/powergrid-ca-bundle.pem
-          openssl verify -partial_chain -CAfile /tmp/powergrid-ca-bundle.pem /tmp/erp-leaf.pem
+          openssl x509 -in /tmp/erp-issuer.pem -noout -subject -issuer -ext basicConstraints -fingerprint -sha256
+          openssl verify -partial_chain -trusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           python - <<'PY'
           import os
           import socket
