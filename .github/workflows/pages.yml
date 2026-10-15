@@ -27,6 +27,10 @@ jobs:
           python-version: '3.12'
       - name: Install parser dependencies
         run: python -m pip install -r requirements.txt
+      - name: Inspect Power Grid certificate chain
+        run: |
+          openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
+          openssl x509 -in /tmp/erp-leaf.pem -noout -subject -issuer -dates -ext authorityInfoAccess -ext subjectAltName
       - name: Build static site and hourly ERP data
         run: python scripts/build_pages_data.py
       - name: Configure GitHub Pages
