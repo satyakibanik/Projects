@@ -51,9 +51,14 @@ def parse_listing_item(item):
 
 
 def write_data_bundle(output_dir):
-    records = available_reports()
-    reports_by_id = {}
     failures = []
+    try:
+        records = available_reports()
+    except Exception as error:
+        print(f"Report archive unavailable: {type(error).__name__}")
+        records = []
+        failures.append(f"archive: {type(error).__name__}")
+    reports_by_id = {}
     with ThreadPoolExecutor(max_workers=3) as pool:
         futures = {pool.submit(parse_listing_item, item): item for item in records}
         for future in as_completed(futures):
@@ -63,8 +68,6 @@ def write_data_bundle(output_dir):
                 reports_by_id[report["report_id"]] = report
             except Exception as error:
                 failures.append(f"{item['published_date']}: {type(error).__name__}")
-    if not reports_by_id:
-        raise RuntimeError("No supported daily workbooks could be downloaded")
 
     reports = [{key: item[key] for key in ("id", "name", "published_date")}
                for item in records if item["id"] in reports_by_id]
