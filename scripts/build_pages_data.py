@@ -55,7 +55,7 @@ def write_data_bundle(output_dir):
     try:
         records = available_reports()
     except Exception as error:
-        print(f"Report archive unavailable: {type(error).__name__}")
+        print(f"Report archive unavailable: {type(error).__name__}: {error}")
         records = []
         failures.append(f"archive: {type(error).__name__}")
     reports_by_id = {}
@@ -88,12 +88,12 @@ def write_data_bundle(output_dir):
         reports_by_id[highest["report_id"]] = highest
         by_date[highest["date"]] = ((0, -int(highest["report_id"])), highest["report_id"])
     except Exception as error:
-        print(f"Highest-generation comparison unavailable: {type(error).__name__}")
+        print(f"Highest-generation comparison unavailable: {type(error).__name__}: {error}")
 
     try:
         current_day = server.get_current_day()
     except Exception as error:
-        print(f"Current-day readings unavailable: {type(error).__name__}")
+        print(f"Current-day readings unavailable: {type(error).__name__}: {error}")
         current_day = {"updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                        "today_date": dt.datetime.now(dt.timezone(dt.timedelta(hours=6))).date().isoformat(),
                        "demand_hourly": [], "generation_hourly": [], "imports": [],
