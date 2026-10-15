@@ -45,6 +45,7 @@ jobs:
             -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           cat /etc/ssl/certs/ca-certificates.crt /tmp/erp-issuer.pem \
             > /tmp/powergrid-ca-bundle.pem
+          export CURL_CA_BUNDLE=/tmp/powergrid-ca-bundle.pem
           echo "CURL_CA_BUNDLE=/tmp/powergrid-ca-bundle.pem" >> "$GITHUB_ENV"
           curl --fail --silent --show-error --location --max-time 20 \
             https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed \
