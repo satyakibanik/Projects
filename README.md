@@ -4,7 +4,7 @@ Personal site
 
 ## Bangladesh Electric Grid Dashboard
 
-[Open the BEGD dashboard](https://satyakibanik.github.io/begd/)
+[Open the BEGD dashboard](https://satyakibanik.github.io/satyakibanik/begd/)
 
 BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National Load Dispatch Centre (NLDC) daily operating reports. It summarizes Bangladesh’s electricity demand, generation, fuel mix, load shedding, regional supply, and cross-border imports.
 
