@@ -1,0 +1,136 @@
+const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
+const colors={Gas:'#1976b9',Coal:'#759398',HFO:'#c48722',HSD:'#b95442',Hydro:'#347baf',Solar:'#e6de97',Imports:'#acb69a',Wind:'#b5d7da'};
+let data, request=0;
+let currentDayData=null, currentDayRequest=0, currentDayError=null;
+const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
+let dispatchChartStyle='line', shedChartStyle='bar'; const dispatchVisibility=new Map();
+let chartId=0; const chartData=new Map();
+const comparisonSources=()=>[
+ ['yesterday',comparisonData.yesterday,'#a77cc1','#81a2cb'],
+ ['tomorrow',comparisonData.tomorrow,'#ed8065','#54b9a4'],
+ ['highest',comparisonData.highest,'#d9ae70','#d2834b'],
+].filter(([,report])=>report);
+const dayLabel=day=>({current:'Current day',yesterday:'Yesterday',tomorrow:'Tomorrow',highest:'Highest generation day'}[day]||day);
+function comparedRows(baseRows, sources, fields){
+ const rows=baseRows.map(row=>({...row})),series=[];
+ for(const [day,report,demandColor,generationColor] of sources){
+  const byTime=new Map((report.hourly||[]).map(row=>[row.time,row]));
+  for(const field of fields){
+   const key=`${field.key}_${day}`,family=field.key==='generation_mw'?'generation':field.key==='demand_mw'?'demand':null;series.push({key,name:`${field.name} · ${dayLabel(day)}`,color:field.key==='generation_mw'?generationColor:demandColor,bar:field.bar||false,dash:family==='demand'||field.key==='shed_mw',family,source:day});
+   rows.forEach(row=>{const other=byTime.get(row.time);row[key]=other?other[field.key]:null});
+  }
+ }
+ return {rows,series};
+}
+function metric(label,value,unit,note){return `<div class="metric"><div class="label">${label}</div><div class="value">${value}<span>${unit}</span></div><small>${note}</small></div>`}
+function chartScale(rows,series){
+ const values=rows.flatMap(r=>series.map(s=>r[s.key])).filter(v=>typeof v==="number"&&Number.isFinite(v));
+ if(!values.length)return {min:0,max:1,step:0.25};
+ const low=Math.min(...values),high=Math.max(...values),bar=series.some(s=>s.bar);
+ const padding=Math.max((high-low)*0.08,Math.abs(high)*0.002,0.5);
+ let min=bar?Math.min(0,low):Math.max(low>=0?0:-Infinity,low-padding),max=high+padding;
+ const rough=(max-min)/4,power=10**Math.floor(Math.log10(rough));
+ const step=[1,2,2.5,5,10].map(n=>n*power).find(n=>n>=rough);
+ const boundary=step/5;min=Math.floor(min/boundary)*boundary;max=Math.ceil(max/boundary)*boundary;
+ if(max<=min)max=min+step;
+ return {min,max,step};
+}
+function chartLegend(series,balanceLegend,wrapLegend){
+ const swatch=s=>`<i class="series-swatch${s.dash?' dashed':''}" style="--series-color:${s.color}"></i>`;
+ if(!balanceLegend)return `<div class="legend${wrapLegend?' legend-wrap':''}">${series.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;
+ const sources=['selected','yesterday','tomorrow','highest'].filter(source=>series.some(s=>s.source===source));
+ const master=(family,label)=>{const items=series.filter(s=>s.family===family),checked=items.filter(s=>dispatchVisibility.get(s.key)!==false).length;return `<label><input type="checkbox" data-toggle-family="${family}" ${checked===items.length?'checked':''}>${label}</label>`};
+ const rows=sources.map(source=>`<div class="dispatch-legend-row">${['generation','demand'].map(family=>{const item=series.find(s=>s.source===source&&s.family===family);return item?`<label><input type="checkbox" data-toggle-series="${item.key}" data-series-family="${family}" ${dispatchVisibility.get(item.key)!==false?'checked':''}>${swatch(item)}<span data-series-label="${esc(item.key)}" tabindex="0">${esc(item.name)}</span></label>`:'<span></span>'}).join('')}</div>`).join('');
+ return `<div class="legend dispatch-legend"><div class="dispatch-legend-master">${master('generation','All generation')}${master('demand','All demand')}</div><div class="dispatch-legend-rows">${rows}</div></div>`;
+}
+function chart(rows,series,options={}){
+ const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:null;
+ const plotSeries=selectedStyle?series.map(item=>({...item,bar:selectedStyle==='bar'})):series;
+ const W=800,H=250,L=58,R=15,T=14,B=32,scale=chartScale(rows,plotSeries);
+ const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
+ const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
+ const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
+ for(const s of plotSeries){body+=`<g data-series="${s.key}">`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} MW</title></rect>`}}else{body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" ${s.dash?'stroke-dasharray="6 4"':''} points="${rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ')}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="3" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} MW</title></circle>`}}body+=`</g>`}
+ rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" MW").join(", "))}"/>`});
+ const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}"><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option></select></label></div>`:'';
+ return `<div class="interactive-chart" data-chart="${id}">${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in megawatts"><title>${esc(series.map(s=>s.name).join(" and "))} in MW</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(series,options.balanceLegend,options.wrapLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
+
+}
+const panel=(title,subtitle,body,tag='MW')=>`<section class="panel"><div class="panel-head"><div><h2>${title}</h2><p>${subtitle}</p></div><span class="tag">${tag}</span></div>${body}</section>`;
+function fuelStrip(report,label){return `<div><div class="comparison-strip-label">${label} · ${report.date}</div><div class="composition-strip">${Object.entries(report.fuels).filter(([,v])=>v>0).map(([fuel,value])=>`<div style="width:${value/report.summary.energy_mwh*100}%;background:${colors[fuel]}" title="${fuel}: ${fmt(value/report.summary.energy_mwh*100,1)}%"></div>`).join('')}</div></div>`}
+function overview(){
+ const s=data.summary,sources=comparisonSources(),dispatch=comparedRows(data.hourly,sources,[{key:'demand_mw',name:'Demand'},{key:'generation_mw',name:'Generation'}]),shed=comparedRows(data.hourly,sources,[{key:'shed_mw',name:'Load shedding',bar:true}]);
+ const dispatchSeries=[{key:'demand_mw',name:'Demand · selected day',color:'#c48722',family:'demand',source:'selected',dash:true},{key:'generation_mw',name:'Generation · selected day',color:'#1976b9',family:'generation',source:'selected'},...dispatch.series];
+ const shedSeries=[{key:'shed_mw',name:'Load shedding · selected day',color:'#b95442',bar:true,dash:true},...shed.series.map(series=>({...series,bar:true}))];
+ const fuelSources=[['Selected day',data],...sources.map(([day,report])=>[dayLabel(day),report])];
+ return `<div class="dispatch-layout"><section class="dispatch-main"><div class="dispatch-heading"><span class="section-number">01 / SYSTEM DISPATCH</span><span class="tag">MW · BST</span></div><h2 class="dispatch-title">Demand and generation</h2>${chart(dispatch.rows,dispatchSeries,{balanceLegend:true,styleSetting:'dispatch'})}<div class="dispatch-bottom"><span>00:00 — 23:00</span><p>Generation-side readings. The demand–generation gap is distinct from reported load shedding.</p></div></section><aside class="dispatch-readings"><div class="section-number">DAILY TOTALS & PEAKS</div>${metric("Evening peak demand",fmt(s.peak_demand_mw),"MW","Generation side · 19:30")}${metric("Peak generation",fmt(s.peak_generation_mw),"MW","Includes cross-border imports")}${metric("Energy not served",fmt(s.unserved_mwh/1000,2),"GWh","Published daily energy total")}${metric("Energy generated",fmt(s.energy_mwh/1000,2),"GWh","Published total · including imports")}</aside></div><div class="energy-band"><div><div class="section-number">02 / ENERGY COMPOSITION</div><h2>Fuel mix</h2><p>Share of reported daily energy</p></div><div class="composition"><div class="comparison-strips">${fuelSources.map(([label,report])=>fuelStrip(report,label)).join('')}</div><div class="composition-key">${Object.entries(data.fuels).map(([f,v])=>`<div><i style="background:${colors[f]}"></i><span>${f}</span><strong>${v>0&&v/s.energy_mwh*100<0.1?"&lt;0.1":fmt(v/s.energy_mwh*100,1)}<small>%</small></strong></div>`).join('')}</div></div></div><div class="grid lower-grid">${panel("Reported load shedding","Power curtailed at each published reading",chart(shed.rows,shedSeries,{styleSetting:'shed'}))}${panel("Operating statistics","Additional published operating figures",`<div class="context-reading"><span>Maximum temperature</span><strong>${fmt(s.temperature_c,1)} °C</strong></div><div class="context-reading"><span>Imported energy share</span><strong>${fmt(s.import_mwh/s.energy_mwh*100,1)}%</strong></div><div class="context-reading"><span>Plant / import entries</span><strong>${fmt(data.plants.length)}</strong></div><div class="context-reading"><span>Operating regions</span><strong>${data.regions.length}</strong></div>`,"REPORT NOTES")}</div>`
+}
+function plants(){return `<section class="panel full"><div class="panel-head"><div><h2>Power station directory</h2><p>Present capacity, evening-peak output, and reported daily energy</p></div><span class="tag">${data.plants.length} SOURCE ENTRIES</span></div><div class="toolbar"><input id="search" type="search" placeholder="Search a plant, producer, or remark" aria-label="Search power plants"><select id="region" aria-label="Filter region"><option value="">All regions</option>${data.regions.map(r=>`<option>${esc(r.name)}</option>`).join('')}</select><select id="sort" aria-label="Sort plants"><option value="energy_mwh">Daily energy ↓</option><option value="peak_mw">Peak generation ↓</option><option value="capacity_mw">Present capacity ↓</option></select></div><p class="count" id="count"></p><div class="table-wrap"><table><thead><tr><th>Power station</th><th>Region / producer</th><th class="num">Capacity MW</th><th class="num">Peak MW</th><th class="num">Energy MWh</th><th>Reported remark</th></tr></thead><tbody id="plant-rows"></tbody></table></div><p class="note">Import entries are retained as listed in the report. Remarks are source text; zero generation does not by itself mean a forced outage.</p></section>`}
+function updatePlants(){const q=$('#search').value.toLowerCase(),region=$('#region').value,key=$('#sort').value;const rows=data.plants.filter(p=>(!region||p.region===region)&&[p.name,p.producer,p.remarks].join(' ').toLowerCase().includes(q)).sort((a,b)=>(b[key]??-1)-(a[key]??-1));$('#count').textContent=`${rows.length} of ${data.plants.length} entries`;$('#plant-rows').innerHTML=rows.length?rows.map(p=>`<tr><td class="name">${esc(p.name)}</td><td>${esc(p.region)}<br><span class="muted">${esc(p.producer)}</span></td><td class="num">${fmt(p.capacity_mw,1)}</td><td class="num">${fmt(p.peak_mw,1)}</td><td class="num">${fmt(p.energy_mwh,1)}</td><td class="remarks">${esc(p.remarks)}</td></tr>`).join(''):'<tr><td colspan="6" class="empty">No entries match these filters.</td></tr>'}
+function regions(){
+ const sources=comparisonSources(),reports=[['Selected day',data],...sources.map(([day,report])=>[day,report])];
+ const maxEnergy=Math.max(...reports.flatMap(([,report])=>report.regions.map(region=>region.energy_mwh)));
+ const cards=data.regions.map(region=>{
+  const bars=sources.map(([day,report])=>{
+   const match=report.regions.find(item=>item.name===region.name),energy=match?.energy_mwh||0,color=day==='yesterday'?'#a77cc1':day==='tomorrow'?'#54b9a4':'#d2834b';
+   return `<div class="region-compare-row"><div class="region-compare-head"><span>${dayLabel(day)}</span><strong>${fmt(energy/1000,2)} GWh</strong></div><div class="track"><div class="fill" style="background:${color};width:${energy/maxEnergy*100}%"></div></div></div>`;
+  }).join('');
+  return `<section class="panel region-card"><div class="panel-head"><h3>${esc(region.name)}</h3><span class="tag">${fmt(region.energy_mwh/data.summary.energy_mwh*100,1)}% of energy</span></div><div class="label">Daily generation · includes assigned imports</div><div class="value">${fmt(region.energy_mwh/1000,2)}<span>GWh</span></div><div class="track"><div class="fill" style="background:var(--green);width:${region.energy_mwh/maxEnergy*100}%"></div></div>${bars?`<div class="region-compare">${bars}</div>`:''}<div class="mini"><span>Evening demand</span><strong>${fmt(region.demand_mw)} MW</strong></div><div class="mini"><span>Reported load shedding</span><strong>${fmt(region.shed_mw)} MW</strong></div></section>`;
+ }).join('');
+ const fuelHead=Object.keys(data.fuels).map(fuel=>`<th class="num">${fuel}</th>`).join('');
+ const fuelRows=data.regions.map(region=>`<tr><td class="name">${esc(region.name)}</td>${Object.values(region.fuels).map(value=>`<td class="num">${fmt(value/1000,2)}</td>`).join('')}</tr>`).join('');
+ const fuelTable=`<div class="table-wrap"><table><thead><tr><th>Region</th>${fuelHead}</tr></thead><tbody>${fuelRows}</tbody></table></div><p class="note">Demand and load shedding are regional evening-peak snapshots at 19:30. Do not compare their sum directly with generation-side national demand.</p>`;
+ return `<div class="region-grid">${cards}</div>${panel('Regional fuel mix','Published daily energy by operating region',fuelTable,'GWh')}`;
+}
+function importMatch(report,name){
+ const exact=report.imports.find(item=>item.name===name);if(exact)return exact;
+ const token=name.toLowerCase().match(/bheramara|tripura|adani|nepal|hvdc/)?.[0];
+ return token?report.imports.find(item=>item.name.toLowerCase().includes(token)):null;
+}
+function imports(){
+ const s=data.summary,sources=comparisonSources();
+ const graphs=data.imports.map(item=>{
+  const rows=item.hourly.map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
+  for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color})}
+  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series))
+ });
+ return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',data.imports.length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div><div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, daily energy totals and the selected-day curve come from the chosen workbook.</p>`
+}
+function realTime(){
+ if(!currentDayData)return `<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
+ const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
+ const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
+ const demandPanel=rows.length?panel('Demand, supply & load shedding',`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings`,chart(rows,[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true}])):'';
+ const fuelSeries=[['total_mw','Total generation','#263238'],['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color}));
+ const generationPanel=generation.length?panel('Generation by source',`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`,chart(generation,fuelSeries)):'';
+ const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
+ const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
+ const importRows=importTimes.map(time=>({time,...Object.fromEntries(availableRoutes.map((route,index)=>[`import_${index}`,route.hourly.find(row=>row.time===time)?.mw??null]))}));
+ const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length]}));
+ const importsPanel=availableRoutes.length?panel('Cross-border imports',`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`,chart(importRows,importSeries,{wrapLegend:true})):'';
+ const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
+ const panels=`${demandPanel}${generationPanel}${importsPanel}`;
+ return `<p class="note" id="current-status" role="status">Today only · ${esc(today)} Bangladesh time · refreshed ${esc(updated)}. Only sources with readings dated today are shown. GitHub Actions rebuilds this data hourly.</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
+}
+function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#date').closest('label').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;$('#download').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='plants'){['search','region','sort'].forEach(id=>$('#'+id).addEventListener('input',updatePlants));updatePlants()}}
+async function load(reportId){const id=++request;try{const r=await fetch(`/api/report?id=${encodeURIComponent(reportId)}`,{cache:'no-store'});if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(body.error||'Report could not be loaded')}const next=await r.json();if(id!==request)return false;if(data&&data.report_id!==next.report_id){for(const day of ['yesterday','tomorrow','highest']){comparisonRequests[day]++;comparisonData[day]=null;$(`#${day}-status`).textContent=$(`#source-${day}`).checked?'Loading…':'Off'}}data=next;$('#error').hidden=true;render();for(const day of ['yesterday','tomorrow','highest'])if($(`#source-${day}`).checked&&$(`#${day}-status`).textContent==='Waiting for report')loadComparison(day);return true}catch(e){if(id!==request)return false;$('#error').hidden=false;$('#error').textContent=e.message;$('#content').innerHTML='';return false}}
+async function loadComparison(day){
+ const checkbox=$(`#source-${day}`),status=$(`#${day}-status`),id=++comparisonRequests[day];
+ if(!checkbox.checked){comparisonData[day]=null;status.textContent='Off';if(data)render();return}
+ if(!data){status.textContent='Waiting for report';return}
+ const reportId=data.report_id;status.textContent='Loading…';
+ try{const url=day==='highest'?'/api/highest-generation':`/api/neighbor?id=${encodeURIComponent(reportId)}&offset=${day==='yesterday'?-1:1}`;const response=await fetch(url,{cache:'no-store'});if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.error||'No report found')};const report=await response.json();if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;comparisonData[day]=report;const maximum=report.maximum_generation;status.textContent=day==='highest'&&maximum?`Loaded · ${report.date} · ${fmt(maximum.generation_mw)} MW at ${maximum.time}`:`Loaded · ${report.date}`;render()}
+ catch(error){if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;comparisonData[day]=null;status.textContent='Unavailable';render()}
+}
+async function loadCurrentDay(){
+ const id=++currentDayRequest;
+ try{const response=await fetch('/api/current-day',{cache:'no-store'});if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.error||'Live readings unavailable')}const next=await response.json();if(id!==currentDayRequest)return;currentDayData=next;currentDayError=null;if(data&&location.hash==='#realtime')render()}
+ catch(error){if(id!==currentDayRequest)return;currentDayData=null;currentDayError=error;if(data&&location.hash==='#realtime')render()}
+}
+loadCurrentDay();window.setInterval(loadCurrentDay,180000);
+$('#source-yesterday').addEventListener('change',()=>loadComparison('yesterday'));$('#source-tomorrow').addEventListener('change',()=>loadComparison('tomorrow'));
+$('#source-highest').addEventListener('change',()=>loadComparison('highest'));
+$('#date').addEventListener('change',async e=>{const status=$('#date-status'),previous=status.textContent;status.textContent='Loading selected report…';const loaded=await load(e.target.value);if(loaded){await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$(`#source-${day}`).checked).map(loadComparison))}status.textContent=previous});window.addEventListener('hashchange',render);$('#download').addEventListener('click',()=>{if(!data)return;const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'}));a.download=`begd-${data.date}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)});
+async function refreshDateList(){try{const r=await fetch('/api/reports',{cache:'no-store'});if(!r.ok)throw Error('Hourly data bundle unavailable. Check the latest GitHub Actions run.');const archive=await r.json(),reports=archive.reports||[],select=$('#date'),selected=select.value;const label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});if(document.activeElement!==select&&reports.length){select.innerHTML=reports.map(report=>`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`).join('');if(selected&&reports.some(report=>report.id===selected))select.value=selected;else if(!data){select.value=reports[0].id;await load(reports[0].id)}}if(archive.error)$('#date-status').textContent=`${archive.error} Loaded ${fmt(archive.count)} reports.`;else if(archive.complete)$('#date-status').textContent=`${fmt(archive.count)} recent reports · updated ${new Date(archive.updated_at).toLocaleTimeString('en-GB',{timeZone:'Asia/Dhaka'})} BST`;else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500)}catch(e){$('#error').hidden=false;$('#error').textContent=e.message;$('#date-status').textContent='Report archive unavailable'}}refreshDateList();
