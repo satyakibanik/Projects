@@ -679,7 +679,7 @@ class DashboardHandler(SimpleHTTPRequestHandler):
         except LookupError as error:
             self.send_json(404, {"error": str(error)})
             return
-        except (RuntimeError, TimeoutError, subprocess.TimeoutExpired, ValueError,
+        except (RuntimeError, TimeoutError, ValueError,
                 AssertionError, KeyError, IndexError) as error:
             print(f"Report request failed: {type(error).__name__}: {error}")
             self.send_json(502, {
