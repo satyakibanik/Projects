@@ -1,6 +1,6 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
-const colors={Gas:'#1976b9',Coal:'#759398',HFO:'#c48722',HSD:'#b95442',Hydro:'#347baf',Solar:'#e6de97',Imports:'#acb69a',Wind:'#b5d7da'};
+const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
 let data, request=0;
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
@@ -209,7 +209,7 @@ function regions(){
  const fuelTable=`<div class="table-wrap"><table><thead><tr><th>Region</th>${fuelHead}</tr></thead><tbody>${fuelRows}</tbody></table></div><p class="note">Demand and load shedding are regional evening-peak snapshots at 21:00, as reported in the P1 sheet. Do not compare their sum directly with generation-side national demand.</p>`;
  const fuelTypes=Object.keys(data.fuels||{});
  if(!selectedRegionalFuel||!fuelTypes.includes(selectedRegionalFuel))selectedRegionalFuel=fuelTypes[0]||null;
- const fuelOptions=fuelTypes.map(fuel=>'<button type="button" class="regional-fuel-option" data-regional-fuel="'+esc(fuel)+'" aria-pressed="'+(fuel===selectedRegionalFuel)+'">'+esc(fuel)+'</button>').join('');
+ const fuelOptions=fuelTypes.map(fuel=>'<button type="button" class="regional-fuel-option" data-regional-fuel="'+esc(fuel)+'" aria-pressed="'+(fuel===selectedRegionalFuel)+'" style="--fuel-color:'+esc(colors[fuel]||'#a0b1b6')+'"><span class="fuel-key-swatch" aria-hidden="true"></span>'+esc(fuel)+'</button>').join('');
  const fuelExplorer=fuelTypes.length?'<div class="regional-fuel-explorer"><div class="regional-fuel-options" role="group" aria-label="Choose a fuel type">'+fuelOptions+'</div><div class="regional-fuel-visual"><p data-regional-fuel-selected>'+esc(selectedRegionalFuel)+' · generation by region, highest to lowest</p><div data-regional-fuel-chart>'+regionalFuelBarChart(selectedRegionalFuel)+'</div></div></div>':'<p class="empty">No regional fuel data is available.</p>';
  return `<div class="region-grid">${cards}</div>${panel('Regional fuel mix','Published daily energy by operating region',fuelTable,'GWh')}${panel('Regional generation by fuel type','Select a fuel type to compare daily generation across regions',fuelExplorer,'MKWHr')}`;
 }
@@ -255,7 +255,7 @@ function realTime(){
  const demandCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings${forecastRows.length?` · ${forecastSource}`:''}`;
  const demandPanel=rows.length?panel('Demand, supply & load shedding',demandCaption,chart(demandChartRows,demandSeries)):'';
  const totalGenerationSeries={key:'total_mw',name:'Total generation',color:'#263238'};
- const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
+ const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const generationRowsByTime=new Map(generation.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
  for(const point of forecastRows){const row=generationRowsByTime.get(point.time)||{time:point.time,total_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;generationRowsByTime.set(point.time,row)}
