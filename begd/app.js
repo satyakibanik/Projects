@@ -378,7 +378,8 @@ function stackedAreaChart(rows,series){
  const x=row=>L+(parseInt(row.time)*60+parseInt(row.time.slice(3)))/1380*(W-L-R);
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
- chartData.set(id,{rows,series,x,stackedArea:true,enCurve:true});
+ const stackSeries=series.filter(item=>item.key!=='shortage_mw').concat(series.filter(item=>item.key==='shortage_mw'));
+ chartData.set(id,{rows,series:stackSeries,x,stackedArea:true,enCurve:true});
  const hatchDefs='<defs>'+series.map((item,index)=>{const size=8+(index%3)*2,angle=[0,45,90,135][index%4];return '<pattern id="hatch-'+id+'-'+index+'" width="'+size+'" height="'+size+'" patternUnits="userSpaceOnUse" patternTransform="rotate('+angle+')"><rect width="'+size+'" height="'+size+'" fill="'+item.color+'"/><path d="M 0 0 V '+size+'" stroke="#fff" stroke-opacity=".48" stroke-width="2"/></pattern>'}).join('')+'</defs>';
  let body=hatchDefs;
  let tick=0;
@@ -391,7 +392,7 @@ function stackedAreaChart(rows,series){
   body+='<text x="'+position+'" y="'+labelY+'" text-anchor="end" transform="rotate(-45 '+position+' '+labelY+')">'+time+'</text>';
  }
  const cumulative=rows.map(()=>0);
- for(const seriesItem of series){
+ for(const seriesItem of stackSeries){
   const isVisible=dispatchVisibility.get(seriesItem.key)!==false;
   body+='<g data-series="'+esc(seriesItem.key)+'"'+(isVisible?'':' style="display:none"')+'>';
   if(isVisible){
@@ -407,11 +408,11 @@ function stackedAreaChart(rows,series){
  rows.forEach((row,index)=>{
   const left=index===0?L:(x(rows[index-1])+x(row))/2;
   const right=index===rows.length-1?W-R:(x(row)+x(rows[index+1]))/2;
-  const label=series.map(item=>item.name+': '+fmt(row[item.key],2)+' MW').join(', ');
+  const label=stackSeries.slice().reverse().map(item=>item.name+': '+fmt(row[item.key],2)+' MW').join(', ');
   body+='<rect class="chart-hit" data-point="'+index+'" x="'+left+'" y="'+T+'" width="'+(right-left)+'" height="'+(H-T-B)+'" fill="transparent" tabindex="0" role="button" aria-label="'+esc(row.time+': '+label)+'"/>';
  });
  const controls='<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="en-curve"><option value="area" selected>Stacked area</option><option value="line">Line chart</option></select></label></div>';
- return '<div class="interactive-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+chartLegend(series,false,true)+'<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>';
+ return '<div class="interactive-chart en-curve-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+chartLegend(series,false,true)+'<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>';
 }
 function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
