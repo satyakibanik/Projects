@@ -128,3 +128,7 @@ nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9
 .family-legend{display:grid;gap:10px;margin-top:14px}
 .family-legend-master{font-weight:600;color:var(--ink)}
 .family-legend-items{display:flex;flex-wrap:wrap;gap:8px 18px}
+
+/* Keep demand forecast beside demand, with East/West generation beside generation. */
+.dispatch-legend-extras{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:24px;align-items:start}
+.dispatch-legend-extra-column{display:grid;gap:7px;min-width:0}
