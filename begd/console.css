@@ -143,3 +143,13 @@ nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9
 .report-day-nav button:disabled{opacity:.4;cursor:not-allowed}
 .report-day-nav svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 @media(max-width:600px){.report-date-controls>.recent-report-label{display:flex;align-items:center;gap:5px}.recent-report-label>select{max-width:min(42vw,240px);padding:7px 6px;font-size:10px}}
+
+/* Dashboard brand identity */
+.brand{gap:12px;min-width:0}
+.brand-logo{position:relative;display:block;flex:0 0 57px;width:57px;height:48px}
+.brand-logo .mark{position:absolute;top:0;left:0}
+.brand-acronym{position:absolute;top:50%;left:50px;width:48px;transform:translate(-50%,-50%) rotate(-90deg);color:var(--green);font:600 10px/1 var(--mono);letter-spacing:1.2px;text-align:center;white-space:nowrap}
+.brand-title{color:var(--ink);font:600 25px/1 var(--display);letter-spacing:.1px;white-space:nowrap}
+@media(max-width:1100px){.brand{gap:8px}.brand-title{font-size:21px}}
+@media(max-width:800px){header{flex-wrap:wrap;align-items:flex-start;gap:12px}.brand{flex:1 1 100%}.brand-title{font-size:22px}.header-meta{width:100%;align-items:flex-start;flex-direction:column;gap:8px}.report-date-controls{align-items:flex-start;justify-content:flex-start}}
+@media(max-width:600px){header{gap:12px}.brand{flex:1;gap:6px;align-items:center}.brand-logo{flex-basis:48px;width:48px;height:38px;transform:scale(.8);transform-origin:left center;margin-right:-8px}.brand-logo .mark{width:33px;height:38px;font-size:31px;line-height:36px}.brand-acronym{left:38px;width:42px;font-size:8px}.brand-title{max-width:230px;font-size:17px;line-height:.98;white-space:normal}.header-meta{width:100%;gap:6px}.report-date-controls{align-items:flex-start}}
