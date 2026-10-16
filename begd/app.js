@@ -5,7 +5,7 @@ let data, request=0;
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 let previousForecastReport=null, previousForecastRequest=0;
-let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar'; const dispatchVisibility=new Map();
+let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='line'; const dispatchVisibility=new Map();
 let chartId=0; const chartData=new Map();
 let selectedRegionalFuel=null;
 const comparisonSources=()=>[
@@ -194,6 +194,24 @@ function regionalFuelBarChart(fuel){
  rows.forEach((row,index)=>{const center=L+slot*(index+.5),top=y(row.value),barHeight=Math.max(0,H-B-top),x=center-barWidth/2;body+='<rect x="'+x+'" y="'+top+'" width="'+barWidth+'" height="'+barHeight+'" fill="'+color+'"><title>'+esc(row.name)+': '+fmt(row.value,2)+' MKWHr</title></rect><text x="'+center+'" y="'+Math.max(T-4,top-7)+'" text-anchor="middle">'+fmt(row.value,2)+'</text><text x="'+center+'" y="'+(H-B+22)+'" text-anchor="middle">'+esc(row.name)+'</text>'});
  return '<svg class="chart regional-fuel-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(fuel+' generation by region in MKWHr, ranked from highest to lowest')+'">'+body+'</svg>'
 }
+function regionalSnapshotChart(){
+ const rows=(data.regions||[]).map(region=>({name:region.name,generation_mw:Number(region.energy_mwh)/24,demand_mw:Number(region.demand_mw)||0,shed_mw:Number(region.shed_mw)||0}));
+ const series=[{key:'generation_mw',name:'Daily generation',color:'#4e79a7'},{key:'demand_mw',name:'Evening demand',color:'#f28e2b'},{key:'shed_mw',name:'Reported load shedding',color:'#e15759'}];
+ const W=900,H=360,L=68,R=20,T=24,B=66,plotWidth=W-L-R,plotHeight=H-T-B,slot=plotWidth/Math.max(rows.length,1);
+ const maxValue=Math.max(0,...rows.map(row=>regionalSnapshotStyle==='stacked'?series.reduce((sum,item)=>sum+row[item.key],0):Math.max(...series.map(item=>row[item.key]))));
+ const step=Math.max(100,Math.ceil(maxValue/4/100)*100),maxY=step*4,y=value=>H-B-(value/maxY)*plotHeight,x=index=>L+slot*(index+.5);
+ let body='';
+ for(let tick=0;tick<=4;tick++){const value=step*tick,position=y(value);body+='<line class="axis" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text x="'+(L-9)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value)+'</text>'}
+ if(regionalSnapshotStyle==='stacked'){
+  const barWidth=Math.min(54,slot*.58);
+  rows.forEach((row,index)=>{let accumulated=0;for(const item of series){const value=row[item.key],top=y(accumulated+value),bottom=y(accumulated),height=Math.max(0,bottom-top);body+='<rect x="'+(x(index)-barWidth/2)+'" y="'+top+'" width="'+barWidth+'" height="'+height+'" fill="'+item.color+'"><title>'+esc(row.name)+' · '+esc(item.name)+': '+fmt(value)+' MW</title></rect>';accumulated+=value}});
+ }else{
+  for(const item of series){const points=rows.map((row,index)=>x(index)+','+y(row[item.key])).join(' ');body+='<polyline fill="none" stroke="'+item.color+'" stroke-width="2.5" points="'+points+'"/>';rows.forEach((row,index)=>{body+='<circle cx="'+x(index)+'" cy="'+y(row[item.key])+'" r="3.5" fill="'+item.color+'"><title>'+esc(row.name)+' · '+esc(item.name)+': '+fmt(row[item.key])+' MW</title></circle>'})}
+ }
+ rows.forEach((row,index)=>{body+='<text x="'+x(index)+'" y="'+(H-B+24)+'" text-anchor="middle">'+esc(row.name)+'</text>'});
+ const legend=series.map(item=>'<span class="regional-snapshot-key"><i style="background:'+item.color+'"></i>'+esc(item.name)+'</span>').join('');
+ return '<div class="regional-snapshot-chart-wrap"><div class="regional-snapshot-controls"><label>Chart style <select data-regional-snapshot-style aria-label="Regional data chart style"><option value="line" '+(regionalSnapshotStyle==='line'?'selected':'')+'>Line chart</option><option value="stacked" '+(regionalSnapshotStyle==='stacked'?'selected':'')+'>Stacked bar</option></select></label></div><svg class="regional-snapshot-chart" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Regional daily generation, evening demand, and reported load shedding in megawatts"><title>Regional daily generation, evening demand, and reported load shedding in megawatts</title>'+body+'</svg><div class="regional-snapshot-legend" aria-label="Chart series">'+legend+'</div><p class="note">Daily generation is shown as 24-hour average MW (regional daily energy divided by 24); evening demand and load shedding are P1 snapshots at 21:00.</p></div>';
+}
 function regions(){
  const sources=comparisonSources(),reports=[['Selected day',data],...sources.map(([day,report])=>[day,report])];
  const maxEnergy=Math.max(...reports.flatMap(([,report])=>report.regions.map(region=>region.energy_mwh)));
@@ -211,7 +229,7 @@ function regions(){
  if(!selectedRegionalFuel||!fuelTypes.includes(selectedRegionalFuel))selectedRegionalFuel=fuelTypes[0]||null;
  const fuelOptions=fuelTypes.map(fuel=>'<button type="button" class="regional-fuel-option" data-regional-fuel="'+esc(fuel)+'" aria-pressed="'+(fuel===selectedRegionalFuel)+'" style="--fuel-color:'+esc(colors[fuel]||'#a0b1b6')+'"><span class="fuel-key-swatch" aria-hidden="true"></span>'+esc(fuel)+'</button>').join('');
  const fuelExplorer=fuelTypes.length?'<div class="regional-fuel-explorer"><div class="regional-fuel-options" role="group" aria-label="Choose a fuel type">'+fuelOptions+'</div><div class="regional-fuel-visual"><p data-regional-fuel-selected>'+esc(selectedRegionalFuel)+' · generation by region, highest to lowest</p><div data-regional-fuel-chart>'+regionalFuelBarChart(selectedRegionalFuel)+'</div></div></div>':'<p class="empty">No regional fuel data is available.</p>';
- return `<div class="region-grid">${cards}</div>${panel('Regional fuel mix','Published daily energy by operating region',fuelTable,'GWh')}${panel('Regional generation by fuel type','Select a fuel type to compare daily generation across regions',fuelExplorer,'MKWHr')}`;
+ return `<div class="region-grid">${cards}</div>${panel('Regional generation, demand & load shedding','Regional daily generation and 21:00 evening snapshots',regionalSnapshotChart())}${panel('Regional fuel mix','Published daily energy by operating region',fuelTable,'GWh')}${panel('Regional generation by fuel type','Select a fuel type to compare daily generation across regions',fuelExplorer,'MKWHr')}`;
 }
 function importMatch(report,name){
  const exact=report.imports.find(item=>item.name===name);if(exact)return exact;
@@ -349,6 +367,12 @@ function updateForecast(){
  $('#forecast-rows').innerHTML=rows.map(r=>`<tr><td class="name">${esc(r.name)}</td><td>${esc(r.fuel)}</td><td>${esc(r.producer)}</td><td class="num">${fmt(r.capacity_mw,1)}</td><td class="num">${fmt(r.forecast_day_mw,1)}</td><td class="num">${fmt(r.forecast_evening_mw,1)}</td><td class="num">${fmt(r.effective_day_mw,1)}</td><td class="num">${fmt(r.effective_evening_mw,1)}</td><td class="remarks">${esc(r.remarks)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">No units match these filters.</td></tr>';
 }
 function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#date').closest('label').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+document.addEventListener('change',event=>{
+ const control=event.target.closest?.('[data-regional-snapshot-style]');if(!control)return;
+ regionalSnapshotStyle=control.value;
+ const chart=document.querySelector('.regional-snapshot-chart-wrap');
+ if(chart)chart.outerHTML=regionalSnapshotChart();
+});
 document.addEventListener('click',event=>{
  const option=event.target.closest?.('[data-regional-fuel]');if(!option)return;
  selectedRegionalFuel=option.dataset.regionalFuel;
