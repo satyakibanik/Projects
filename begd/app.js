@@ -39,7 +39,7 @@ function chartScale(rows,series){
  return {min,max,step};
 }
 function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
- const swatch=s=>`<i class="series-swatch${s.dash?' dashed':''}" style="--series-color:${s.color}"></i>`;
+ const swatch=s=>`<i class="series-swatch${s.dash?' dashed':''}" style="--series-color:${s.color}${s.hatch?';background-color:'+s.color+';background-image:repeating-linear-gradient('+s.hatchAngle+'deg, transparent 0 3px, rgba(255,255,255,.78) 3px 4px)':''}"></i>`;
  if(familyLegend){
   const family=familyLegend.family,items=series.filter(s=>s.family===family);
   return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
@@ -379,7 +379,8 @@ function stackedAreaChart(rows,series){
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
  chartData.set(id,{rows,series,x,stackedArea:true,enCurve:true});
- let body='';
+ const hatchDefs='<defs>'+series.map((item,index)=>{const size=8+(index%3)*2,angle=[0,45,90,135][index%4];return '<pattern id="hatch-'+id+'-'+index+'" width="'+size+'" height="'+size+'" patternUnits="userSpaceOnUse" patternTransform="rotate('+angle+')"><rect width="'+size+'" height="'+size+'" fill="'+item.color+'"/><path d="M 0 0 V '+size+'" stroke="#fff" stroke-opacity=".48" stroke-width="2"/></pattern>'}).join('')+'</defs>';
+ let body=hatchDefs;
  let tick=0;
  for(let value=0;value<=scale.max;value+=scale.step,tick++){
   const position=y(value);
@@ -398,7 +399,7 @@ function stackedAreaChart(rows,series){
    const upper=rows.map((row,index)=>lower[index]+(Number(row[seriesItem.key])||0));
    const upperPoints=upper.map((value,index)=>x(rows[index])+','+y(value));
    const lowerPoints=lower.map((value,index)=>x(rows[index])+','+y(value)).reverse();
-   body+='<polygon points="'+upperPoints.concat(lowerPoints).join(' ')+'" fill="'+seriesItem.color+'" fill-opacity=".82" stroke="'+seriesItem.color+'" stroke-width="1"><title>'+esc(seriesItem.name)+'</title></polygon>';
+   body+='<polygon points="'+upperPoints.concat(lowerPoints).join(' ')+'" fill="url(#hatch-'+id+'-'+series.indexOf(seriesItem)+')" stroke="'+seriesItem.color+'" stroke-width="1"><title>'+esc(seriesItem.name)+'</title></polygon>';
    upper.forEach((value,index)=>{cumulative[index]=value});
   }
   body+='</g>';
@@ -416,7 +417,7 @@ function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
  if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>Energy Curve data unavailable</h2><p>This archived report does not contain Energy Curve readings.</p></div><span class="tag">ENERGY CURVE</span></div></section>';
  const palette=['#1976b9','#347baf','#5d9bc2','#759398','#4d8e70','#72a984','#b07aa1','#8b72b4','#c48722','#d69a42','#b95442','#cf745c','#597a9d','#7a8da6','#4a9b8a'];
- const generationSeries=(curve.sources||[]).map((source,index)=>({key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],defaultVisible:dispatchVisibility.get(source.key)!==false}));
+ const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,defaultVisible:dispatchVisibility.get(source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
  const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',wrapLegend:true});
  const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
