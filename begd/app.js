@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
 const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
-let data, request=0;
+let data, request=0, archiveReports=[];
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 let previousForecastReport=null, previousForecastRequest=0;
@@ -368,7 +368,7 @@ function updateForecast(){
  $('#forecast-count').textContent=`${rows.length} of ${(data.forecast?.plants||[]).length} generating units`;
  $('#forecast-rows').innerHTML=rows.map(r=>`<tr><td class="name">${esc(r.name)}</td><td>${esc(r.fuel)}</td><td>${esc(r.producer)}</td><td class="num">${fmt(r.capacity_mw,1)}</td><td class="num">${fmt(r.forecast_day_mw,1)}</td><td class="num">${fmt(r.forecast_evening_mw,1)}</td><td class="num">${fmt(r.effective_day_mw,1)}</td><td class="num">${fmt(r.effective_evening_mw,1)}</td><td class="remarks">${esc(r.remarks)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">No units match these filters.</td></tr>';
 }
-function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#date').closest('label').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
  const control=event.target.closest?.('[data-regional-snapshot-style]');if(!control)return;
  regionalSnapshotStyle=control.value;
@@ -413,5 +413,72 @@ async function loadCurrentDay(){
 loadCurrentDay();window.setInterval(loadCurrentDay,180000);
 $('#source-yesterday').addEventListener('change',()=>loadComparison('yesterday'));$('#source-tomorrow').addEventListener('change',()=>loadComparison('tomorrow'));
 $('#source-highest').addEventListener('change',()=>loadComparison('highest'));
-$('#date').addEventListener('change',async e=>{const status=$('#date-status'),previous=status.textContent;status.textContent='Loading selected report…';const loaded=await load(e.target.value);if(loaded){await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$(`#source-${day}`).checked).map(loadComparison))}status.textContent=previous});window.addEventListener('hashchange',render);
-async function refreshDateList(){try{const r=await fetch('/api/reports',{cache:'no-store'});if(!r.ok)throw Error('Power Grid report dates could not be loaded');const archive=await r.json(),reports=archive.reports||[],select=$('#date'),selected=select.value;const label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});if(document.activeElement!==select&&reports.length){select.innerHTML=reports.map(report=>`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`).join('');if(selected&&reports.some(report=>report.id===selected))select.value=selected;else if(!data){select.value=reports[0].id;await load(reports[0].id)}}if(archive.error)$('#date-status').textContent=archive.error;else if(archive.complete)$('#date-status').textContent='';else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500)}catch(e){$('#error').hidden=false;$('#error').textContent=e.message;$('#date-status').textContent='Report archive unavailable'}}refreshDateList();
+async function selectReportById(id){
+ const status=$('#date-status'),previous=status.textContent;
+ status.textContent='Loading selected report…';
+ const loaded=await load(id);
+ if(loaded)await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$('#source-'+day).checked).map(loadComparison));
+ status.textContent=previous;
+}
+function populateArchiveDateControls(reports, preferred={}){
+ const yearSelect=$('#archive-year'),monthSelect=$('#archive-month'),daySelect=$('#archive-day');
+ const older=reports.filter(report=>report.published_date<reports[0]?.published_date);
+ const years=[...new Set(older.map(report=>report.published_date.slice(0,4)))].sort().reverse();
+ const year=years.includes(preferred.year)?preferred.year:'';
+ yearSelect.innerHTML='<option value="">Year</option>'+years.map(value=>`<option value="${value}">${value}</option>`).join('');
+ yearSelect.value=year;
+ const months=[...new Set(older.filter(report=>report.published_date.slice(0,4)===year).map(report=>report.published_date.slice(5,7)))].sort().reverse();
+ const month=months.includes(preferred.month)?preferred.month:'';
+ monthSelect.innerHTML='<option value="">Month</option>'+months.map(value=>{const label=new Date(`${year}-${value}-01T12:00:00+06:00`).toLocaleDateString('en-GB',{month:'long',timeZone:'Asia/Dhaka'});return `<option value="${value}">${label}</option>`}).join('');
+ monthSelect.value=month;monthSelect.disabled=!year;
+ const days=[...new Set(older.filter(report=>report.published_date.slice(0,7)===`${year}-${month}`).map(report=>report.published_date))].sort().reverse();
+ const day=days.includes(preferred.day)?preferred.day:'';
+ daySelect.innerHTML='<option value="">Day</option>'+days.map(value=>`<option value="${value}">${new Date(`${value}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',timeZone:'Asia/Dhaka'})}</option>`).join('');
+ daySelect.value=day;daySelect.disabled=!month;
+}
+$('#date').addEventListener('change',async event=>{
+ const selected=archiveReports.find(report=>String(report.id)===event.target.value);
+ populateArchiveDateControls(archiveReports,selected&&selected.published_date<archiveReports[0]?.published_date?{year:selected.published_date.slice(0,4),month:selected.published_date.slice(5,7),day:selected.published_date}:{});
+ await selectReportById(event.target.value);
+});
+$('#archive-year').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:event.target.value}));
+$('#archive-month').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:$('#archive-year').value,month:event.target.value}));
+$('#archive-day').addEventListener('change',async event=>{
+ const day=event.target.value;if(!day)return;
+ const report=archiveReports.find(item=>item.published_date===day);
+ if(!report)return;
+ const select=$('#date'),label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+ if(![...select.options].some(option=>option.value===String(report.id)))select.insertAdjacentHTML('beforeend',`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`);
+ select.value=String(report.id);
+ await selectReportById(String(report.id));
+});
+window.addEventListener('hashchange',render);
+async function refreshDateList(){
+ try{
+  const response=await fetch('/api/reports',{cache:'no-store'});
+  if(!response.ok)throw Error('Power Grid report dates could not be loaded');
+  const archive=await response.json(),reports=archive.reports||[],select=$('#date');
+  archiveReports=reports;
+  const latest=reports.reduce((value,report)=>report.published_date>value?report.published_date:value,'');
+  const cutoff=latest?new Date(new Date(`${latest}T12:00:00+06:00`).getTime()-13*86400000).toISOString().slice(0,10):'';
+  const recent=reports.filter(report=>report.published_date>=cutoff);
+  const selectedId=select.value||data?.report_id||'';
+  const selectedReport=reports.find(report=>String(report.id)===String(selectedId));
+  const visible=recent.slice();
+  if(selectedReport&&!visible.some(report=>String(report.id)===String(selectedReport.id)))visible.push(selectedReport);
+  const label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+  if(document.activeElement!==select&&reports.length){
+   select.innerHTML=visible.map(report=>`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`).join('');
+   if(selectedId&&visible.some(report=>String(report.id)===String(selectedId)))select.value=String(selectedId);
+   else if(!data){select.value=String(recent[0].id);await load(String(recent[0].id))}
+  }
+  const active=reports.find(report=>String(report.id)===String(select.value));
+  const archiveDate=active&&active.published_date<cutoff?{year:active.published_date.slice(0,4),month:active.published_date.slice(5,7),day:active.published_date}:{};
+  populateArchiveDateControls(reports,archiveDate);
+  if(archive.error)$('#date-status').textContent=archive.error;
+  else if(archive.complete)$('#date-status').textContent='';
+  else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
+  if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500);
+ }catch(error){$('#error').hidden=false;$('#error').textContent=error.message;$('#date-status').textContent='Report archive unavailable'}
+}
+refreshDateList();
