@@ -55,3 +55,24 @@ The data and visualizations are provided for informational purposes only. Source
 
 The dashboard lives in the `begd/` folder of this repository. The GitHub Actions workflow builds a static data bundle from the ERP archive and deploys the project at the link above. If the link is not available yet, set **Settings → Pages → Build and deployment → Source** to **GitHub Actions** and run the Pages workflow.
 
+
+## Automated checks
+
+The **Tests** GitHub Actions workflow runs on every push and pull request, and
+can also be started manually from the Actions tab. It checks the committed
+checkout with Python 3.12 and 3.13 and Node.js 22. Tests use generated workbooks
+and mocked ERP responses, so they need no credentials or live ERP connection.
+
+Run the same checks locally from the repository root:
+
+```sh
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -p 'test_*.py' -v
+node --test tests/*.test.cjs
+```
+
+Python tests cover workbook units and reconciliation, archive parsing, URL
+validation, current readings, caching, and static bundle generation/fallbacks.
+Browser tests cover static API routes and errors, date navigation, fetch
+passthrough, script syntax, and local HTML asset references. These checks do
+not replace visual browser testing or a live ERP integration check.
