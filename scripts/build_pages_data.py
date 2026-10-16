@@ -154,7 +154,7 @@ def write_data_bundle(output_dir):
     payload = json.dumps(bundle, ensure_ascii=False, separators=(",", ":"))
     payload = payload.replace("<", "\\u003c").replace(">", "\\u003e").replace("&", "\\u0026")
     (output_dir / "live-data.js").write_text(
-        "window.BEGD_STATIC_DATA=" + payload + ";\\n", encoding="utf-8")
+        "window.BEGD_STATIC_DATA=" + payload + ";\n", encoding="utf-8")
 
     index = (DASHBOARD / "index.html").read_text(encoding="utf-8")
     version = built_at[:19].replace("-", "").replace(":", "") + "Z"
