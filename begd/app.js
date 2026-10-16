@@ -414,8 +414,9 @@ function stackedAreaChart(rows,series){
  const controls='<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="en-curve"><option value="area" selected>Stacked area</option><option value="line">Line chart</option></select></label></div>';
  return '<div class="interactive-chart en-curve-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+chartLegend(series,false,true)+'<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>';
 }
-function energyCurveHourlyTable(rows,series){
- const sources=series.slice(),hours=Array.from({length:24},(_,hour)=>({hour,values:Object.fromEntries(sources.map(source=>[source.key,0]))}));
+function energyCurveHourlyTable(rows,series,totals={}){
+ const sources=series.slice(),generationSources=sources.filter(source=>source.key!=='shortage_mw'),shortageSources=sources.filter(source=>source.key==='shortage_mw');
+ const hours=Array.from({length:24},(_,hour)=>({hour,values:Object.fromEntries(sources.map(source=>[source.key,0]))}));
  for(const row of rows){
   const hour=Number(String(row.time).slice(0,2));
   if(!Number.isInteger(hour)||hour<0||hour>=24)continue;
@@ -424,10 +425,35 @@ function energyCurveHourlyTable(rows,series){
    if(Number.isFinite(mw))hours[hour].values[source.key]+=mw*0.5;
   }
  }
+ const sumFor=(values,group)=>group.reduce((sum,source)=>sum+values[source.key],0);
+ const rawTotals=Object.fromEntries(sources.map(source=>[source.key,hours.reduce((sum,hour)=>sum+hour.values[source.key],0)]));
+ const rawGenerated=generationSources.reduce((sum,source)=>sum+rawTotals[source.key],0);
+ const rawShortage=shortageSources.reduce((sum,source)=>sum+rawTotals[source.key],0);
+ const publishedGenerated=Number(totals.energy_generated_mwh),publishedShortage=Number(totals.energy_not_served_mwh);
+ const hasGenerated=Number.isFinite(publishedGenerated)&&publishedGenerated>=0,hasShortage=Number.isFinite(publishedShortage)&&publishedShortage>=0;
+ const generatedScale=hasGenerated&&rawGenerated>0?publishedGenerated/rawGenerated:1;
+ const shortageScale=hasShortage&&rawShortage>0?publishedShortage/rawShortage:1;
+ const roundTenth=value=>Math.round((value+Number.EPSILON)*10)/10;
+ for(const source of sources){
+  const factor=source.key==='shortage_mw'?shortageScale:generatedScale;
+  for(const hour of hours)hour.values[source.key]=roundTenth(hour.values[source.key]*factor);
+ }
  const sourceTotals=Object.fromEntries(sources.map(source=>[source.key,hours.reduce((sum,hour)=>sum+hour.values[source.key],0)]));
- const totalFor=values=>sources.reduce((sum,source)=>sum+values[source.key],0);
- const rowMarkup=hours.map(hour=>'<tr><th scope="row">'+String(hour.hour).padStart(2,'0')+':00–'+String(hour.hour).padStart(2,'0')+':59</th>'+sources.map(source=>'<td>'+fmt(hour.values[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(totalFor(hour.values),1)+'</td></tr>').join('');
- return '<section class="energy-curve-hourly" aria-labelledby="energy-curve-hourly-title"><div class="energy-curve-hourly-heading"><h3 id="energy-curve-hourly-title">Hourly energy by source</h3><p>Half-hourly MW readings converted to MWh · Bangladesh time</p></div><div class="energy-curve-table-wrap" role="region" aria-label="Hourly energy by source table" tabindex="0"><table class="energy-curve-table"><caption>Hourly energy generated and shortage by source, in megawatt-hours</caption><thead><tr><th scope="col">Hour (BST)</th>'+sources.map(source=>'<th scope="col">'+esc(source.name)+'</th>').join('')+'<th scope="col" class="energy-curve-total">Total / hour</th></tr></thead><tbody>'+rowMarkup+'</tbody><tfoot><tr><th scope="row">Daily total</th>'+sources.map(source=>'<td>'+fmt(sourceTotals[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(totalFor(sourceTotals),1)+'</td></tr></tfoot></table></div></section>';
+ const reconcileGroup=(group,target)=> {
+  if(!group.length||!Number.isFinite(target)||target<0)return;
+  const difference=roundTenth(roundTenth(target)-sumFor(sourceTotals,group));
+  if(Math.abs(difference)<0.05)return;
+  const largest=group.slice().sort((a,b)=>sourceTotals[b.key]-sourceTotals[a.key])[0];
+  for(let index=hours.length-1;index>=0;index--){
+   if(hours[index].values[largest.key]!==0){hours[index].values[largest.key]=roundTenth(hours[index].values[largest.key]+difference);break}
+  }
+  sourceTotals[largest.key]=hours.reduce((sum,hour)=>sum+hour.values[largest.key],0);
+ };
+ if(hasGenerated)reconcileGroup(generationSources,publishedGenerated);
+ if(hasShortage)reconcileGroup(shortageSources,publishedShortage);
+ const rowMarkup=hours.map(hour=>'<tr><th scope="row">'+String(hour.hour).padStart(2,'0')+':00–'+String(hour.hour).padStart(2,'0')+':59</th>'+sources.map(source=>'<td>'+fmt(hour.values[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(sumFor(hour.values,generationSources),1)+'</td></tr>').join('');
+ const generatedTotal=sumFor(sourceTotals,generationSources);
+ return '<section class="energy-curve-hourly" aria-labelledby="energy-curve-hourly-title"><div class="energy-curve-hourly-heading"><h3 id="energy-curve-hourly-title">Hourly energy by source</h3><p>Hourly values reconcile to published daily energy totals · MWh · Bangladesh time</p></div><div class="energy-curve-table-wrap" role="region" aria-label="Hourly energy by source table" tabindex="0"><table class="energy-curve-table"><caption>Hourly energy by source, in megawatt-hours. Daily generated and shortage totals reconcile to the report.</caption><thead><tr><th scope="col">Hour (BST)</th>'+sources.map(source=>'<th scope="col">'+esc(source.name)+'</th>').join('')+'<th scope="col" class="energy-curve-total">Generation / hour</th></tr></thead><tbody>'+rowMarkup+'</tbody><tfoot><tr><th scope="row">Daily total</th>'+sources.map(source=>'<td>'+fmt(sourceTotals[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(generatedTotal,1)+'</td></tr></tfoot></table></div></section>';
 }
 function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
@@ -438,7 +464,7 @@ function enCurve(){
  const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
  const chartPanel=(title,subtitle,body,tag)=>'<section class="panel full"><div class="panel-head"><div><h2>'+title+'</h2><p>'+subtitle+'</p></div><span class="tag">'+tag+'</span></div>'+body+'</section>';
- return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart+energyCurveHourlyTable(rows,generationSeries),'MW · BST')+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
+ return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart+energyCurveHourlyTable(rows,generationSeries,totals),'MW · BST')+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
 }
 function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast','en-curve':'Energy Curve'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
