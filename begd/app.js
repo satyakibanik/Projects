@@ -232,11 +232,24 @@ function realTime(){
  if(!currentDayData)return `<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
- const demandPanel=rows.length?panel('Demand, supply & load shedding',`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings`,chart(rows,[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true}])):'';
+ const forecastDate=currentDayData.today_date||currentDayData.date;
+ const forecastRows=data?.forecast?.date===forecastDate?(data.forecast.demand_hourly||[]):[];
+ const forecastSource=forecastRows.length?`${data.report_name||data.source_file||'Daily Report'} · Forecast Scenario · ${shortDate(forecastDate)}`:'';
+ const demandRowsByTime=new Map(rows.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
+ for(const point of forecastRows){const row=demandRowsByTime.get(point.time)||{time:point.time,demand_mw:null,generation_mw:null,shed_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;demandRowsByTime.set(point.time,row)}
+ const demandChartRows=[...demandRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
+ const demandSeries=[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true},...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
+ const demandCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings${forecastRows.length?` · ${forecastSource}`:''}`;
+ const demandPanel=rows.length?panel('Demand, supply & load shedding',demandCaption,chart(demandChartRows,demandSeries)):'';
  const totalGenerationSeries={key:'total_mw',name:'Total generation',color:'#263238'};
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const totalGenerationPanel=generation.length?panel('Total generation',generationDate,chart(generation,[totalGenerationSeries])):'';
+ const generationRowsByTime=new Map(generation.map(row=>[row.time,{...row,forecasted_generation_mw:null}]));
+ for(const point of forecastRows){const row=generationRowsByTime.get(point.time)||{time:point.time,total_mw:null,forecasted_generation_mw:null};row.forecasted_generation_mw=point.generation_mw;generationRowsByTime.set(point.time,row)}
+ const generationChartRows=[...generationRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
+ const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_generation_mw',name:`Forecasted generation · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
+ const totalGenerationCaption=`${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
+ const totalGenerationPanel=generation.length?panel('Total generation',totalGenerationCaption,chart(generationChartRows,generationSeries)):'';
  const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
  const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
  const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
