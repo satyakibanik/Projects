@@ -5,7 +5,7 @@ let data, request=0, archiveReports=[], archiveCutoff='';
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 let previousForecastReport=null, previousForecastRequest=0;
-let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='stacked'; const dispatchVisibility=new Map();
+let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='stacked', enCurveChartStyle='area'; const dispatchVisibility=new Map();
 let chartId=0; const chartData=new Map();
 let selectedRegionalFuel=null;
 const comparisonSources=()=>[
@@ -44,7 +44,7 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
   const family=familyLegend.family,items=series.filter(s=>s.family===family);
   return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
  }
- if(!balanceLegend)return `<div class="legend${wrapLegend?' legend-wrap':''}">${series.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;
+ if(!balanceLegend)return `<div class="legend${wrapLegend?' legend-wrap':''}">${series.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;
  const sources=['selected','yesterday','tomorrow','highest'].filter(source=>series.some(s=>s.source===source));
  const visible=s=>dispatchVisibility.has(s.key)?dispatchVisibility.get(s.key):s.defaultVisible!==false;
  const master=(family,label)=>{const items=series.filter(s=>s.family===family),checked=items.filter(visible).length;return `<label><input type="checkbox" data-toggle-family="${family}" ${checked===items.length?'checked':''}>${label}</label>`};
@@ -55,16 +55,16 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
  return `<div class="legend dispatch-legend"><div class="dispatch-legend-master">${master('generation','All generation')}${master('demand','All demand')}</div><div class="dispatch-legend-rows">${rows}</div>${extras.length?`<div class="dispatch-legend-extras">${extraColumn('generation')}${extraColumn('demand')}</div>`:''}</div>`;
 }
 function chart(rows,series,options={}){
- const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:null;
+ const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:options.styleSetting==='en-curve'?enCurveChartStyle:null;
  const plotSeries=selectedStyle?series.map(item=>({...item,bar:item.pointsOnly||item.fixedLine?false:selectedStyle==='bar'})):series;
- const W=800,H=250,L=58,R=15,T=14,B=32,visibleForScale=options.balanceLegend?plotSeries.filter(item=>dispatchVisibility.has(item.key)?dispatchVisibility.get(item.key):item.defaultVisible!==false):plotSeries,scale=chartScale(rows,visibleForScale.length?visibleForScale:plotSeries);
+ const W=800,H=250,L=58,R=15,T=14,B=32,visibleForScale=(options.balanceLegend||options.styleSetting==='en-curve')?plotSeries.filter(item=>dispatchVisibility.has(item.key)?dispatchVisibility.get(item.key):item.defaultVisible!==false):plotSeries,scale=chartScale(rows,visibleForScale.length?visibleForScale:plotSeries);
  const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
- const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
- for(const s of plotSeries){body+=`<g data-series="${s.key}">`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} MW</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${s.dot?'1 5':s.dash?'6 4':'none'}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointRadius??(s.pointsOnly?5:3)}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} MW</title></circle>`}}body+=`</g>`}
+ for(const s of plotSeries){body+=`<g data-series="${s.key}"${options.styleSetting==='en-curve'&&s.defaultVisible===false?' style="display:none"':''}>`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} MW</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${s.dot?'1 5':s.dash?'6 4':'none'}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointRadius??(s.pointsOnly?5:3)}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} MW</title></circle>`}}body+=`</g>`}
  rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" MW").join(", "))}"/>`});
- const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}"><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option></select></label></div>`:'';
+ const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}">${options.styleSetting==='en-curve'?`<option value="area" ${selectedStyle==='area'?'selected':''}>Stacked area</option><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option>`:`<option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option>`}</select></label></div>`:'';
  return `<div class="interactive-chart" data-chart="${id}">${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in megawatts"><title>${esc(series.map(s=>s.name).join(" and "))} in MW</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(series,options.balanceLegend,options.wrapLegend,options.familyLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
 
 }
@@ -368,19 +368,59 @@ function updateForecast(){
  $('#forecast-count').textContent=`${rows.length} of ${(data.forecast?.plants||[]).length} generating units`;
  $('#forecast-rows').innerHTML=rows.map(r=>`<tr><td class="name">${esc(r.name)}</td><td>${esc(r.fuel)}</td><td>${esc(r.producer)}</td><td class="num">${fmt(r.capacity_mw,1)}</td><td class="num">${fmt(r.forecast_day_mw,1)}</td><td class="num">${fmt(r.forecast_evening_mw,1)}</td><td class="num">${fmt(r.effective_day_mw,1)}</td><td class="num">${fmt(r.effective_evening_mw,1)}</td><td class="remarks">${esc(r.remarks)}</td></tr>`).join('')||'<tr><td colspan="9" class="empty">No units match these filters.</td></tr>';
 }
+function stackedAreaChart(rows,series){
+ const visible=series.filter(item=>dispatchVisibility.get(item.key)!==false);
+ const scaleRows=rows.map(row=>({...row,stack_total:visible.reduce((sum,item)=>sum+(Number(row[item.key])||0),0)}));
+ const scale=chartScale(scaleRows,[{key:'stack_total'}]);
+ const W=800,H=250,L=58,R=15,T=14,B=32;
+ const x=row=>L+(parseInt(row.time)*60+parseInt(row.time.slice(3)))/1380*(W-L-R);
+ const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
+ const id='plot-'+(++chartId);
+ chartData.set(id,{rows,series,x,stackedArea:true,enCurve:true});
+ let body='';
+ for(let tick=0;tick<=4;tick++){
+  const value=scale.min+(scale.max-scale.min)*tick/4,position=y(value);
+  body+='<line class="axis" data-tick-line="'+tick+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text data-tick-label="'+tick+'" x="'+(L-8)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value,2)+'</text>';
+ }
+ for(const hour of [0,6,12,18,23]){
+  const time=String(hour).padStart(2,'0')+':00';
+  body+='<text x="'+x({time})+'" y="'+(H-7)+'" text-anchor="middle">'+time+'</text>';
+ }
+ const cumulative=rows.map(()=>0);
+ for(const seriesItem of series){
+  const isVisible=dispatchVisibility.get(seriesItem.key)!==false;
+  body+='<g data-series="'+esc(seriesItem.key)+'"'+(isVisible?'':' style="display:none"')+'>';
+  if(isVisible){
+   const lower=cumulative.slice();
+   const upper=rows.map((row,index)=>lower[index]+(Number(row[seriesItem.key])||0));
+   const upperPoints=upper.map((value,index)=>x(rows[index])+','+y(value));
+   const lowerPoints=lower.map((value,index)=>x(rows[index])+','+y(value)).reverse();
+   body+='<polygon points="'+upperPoints.concat(lowerPoints).join(' ')+'" fill="'+seriesItem.color+'" fill-opacity=".82" stroke="'+seriesItem.color+'" stroke-width="1"><title>'+esc(seriesItem.name)+'</title></polygon>';
+   upper.forEach((value,index)=>{cumulative[index]=value});
+  }
+  body+='</g>';
+ }
+ rows.forEach((row,index)=>{
+  const left=index===0?L:(x(rows[index-1])+x(row))/2;
+  const right=index===rows.length-1?W-R:(x(row)+x(rows[index+1]))/2;
+  const label=series.map(item=>item.name+': '+fmt(row[item.key],2)+' MW').join(', ');
+  body+='<rect class="chart-hit" data-point="'+index+'" x="'+left+'" y="'+T+'" width="'+(right-left)+'" height="'+(H-T-B)+'" fill="transparent" tabindex="0" role="button" aria-label="'+esc(row.time+': '+label)+'"/>';
+ });
+ const controls='<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="en-curve"><option value="area" selected>Stacked area</option><option value="line">Line chart</option></select></label></div>';
+ return '<div class="interactive-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+chartLegend(series,false,true)+'<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>';
+}
 function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
- if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>En-Curve data unavailable</h2><p>This archived report does not contain En-Curve readings.</p></div><span class="tag">EN-CURVE</span></div></section>';
+ if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>Energy Curve data unavailable</h2><p>This archived report does not contain Energy Curve readings.</p></div><span class="tag">ENERGY CURVE</span></div></section>';
  const palette=['#1976b9','#347baf','#5d9bc2','#759398','#4d8e70','#72a984','#b07aa1','#8b72b4','#c48722','#d69a42','#b95442','#cf745c','#597a9d','#7a8da6','#4a9b8a'];
- const sourceSeries=(curve.sources||[]).filter(source=>source.key!=='shortage_mw').map((source,index)=>({key:source.key,name:source.name,color:palette[index%palette.length]}));
- const generationSeries=[...sourceSeries,{key:'total_generation_mw',name:'Total generation',color:'#163f5c',dash:true}];
- const generationChart=chart(rows,generationSeries,{wrapLegend:true});
- const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage · En-Curve',color:'#bf5b3c',bar:true}]);
+ const generationSeries=(curve.sources||[]).map((source,index)=>({key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],defaultVisible:dispatchVisibility.get(source.key)!==false}));
+ const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',wrapLegend:true});
+ const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
  const chartPanel=(title,subtitle,body,tag)=>'<section class="panel full"><div class="panel-head"><div><h2>'+title+'</h2><p>'+subtitle+'</p></div><span class="tag">'+tag+'</span></div>'+body+'</section>';
- return '<div class="metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','En-Curve daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+metric('Readings',fmt(rows.length),'points','Half-hourly workbook values')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, with total generation overlaid',generationChart,'MW · BST')+chartPanel('Reported shortage','Half-hourly power shortage recorded in the En-Curve sheet',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
+ return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart,'MW · BST')+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
 }
-function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast','en-curve':'En-Curve'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){if(!data)return;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Generation forecast','en-curve':'Energy Curve'}[valid];const reportDate=data.published_date||data.date;const dateLabel=d=>new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});$('#subtitle').textContent=live?'ERP readings for today only · Bangladesh time':`Operating date ${dateLabel(data.date)} · Report published ${dateLabel(reportDate)} · All times Bangladesh time`;$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live;document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants')updatePlants();if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
  const control=event.target.closest?.('[data-regional-snapshot-style]');if(!control)return;
  regionalSnapshotStyle=control.value;
