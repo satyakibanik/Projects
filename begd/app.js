@@ -101,8 +101,8 @@ function updatePlants(){
   const toggle=()=>{const name=decodeURIComponent(row.dataset.plant);selectedPlantName=selectedPlantName===name?null:name;updatePlants()};
   row.addEventListener('click',toggle);row.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();toggle()}});
  });
- $('#plant-rows').querySelectorAll('[data-filter]').forEach(input=>input.addEventListener('input',()=>{plantFilters[input.dataset.filter]=input.value;updatePlants()}));
- document.querySelectorAll('.plant-sort').forEach(button=>button.addEventListener('click',()=>{const key=button.dataset.sort;plantSort=plantSort.key===key?{key,direction:plantSort.direction==='asc'?'desc':'asc'}:{key,direction:['installed','present','peak'].includes(key)?'desc':'asc'};updatePlants()}));
+ $('#plant-rows').querySelectorAll('[data-filter]').forEach(input=>{input.oninput=()=>{plantFilters[input.dataset.filter]=input.value;updatePlants()}});
+ document.querySelectorAll('.plant-sort').forEach(button=>{button.querySelector('span').textContent=plantSort.key===button.dataset.sort?(plantSort.direction==='asc'?'↑':'↓'):'↕';button.onclick=()=>{const key=button.dataset.sort;plantSort=plantSort.key===key?{key,direction:plantSort.direction==='asc'?'desc':'asc'}:{key,direction:['installed','present','peak'].includes(key)?'desc':'asc'};updatePlants()}});
  if(selectedPlantName)showPlantDetail(selectedPlantName);
 }
 function showPlantDetail(name){
