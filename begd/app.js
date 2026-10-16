@@ -91,7 +91,7 @@ document.addEventListener('focusin',event=>{const segment=event.target.closest?.
 document.addEventListener('focusout',event=>{const segment=event.target.closest?.('.fuel-mix-segment'),next=event.relatedTarget?.closest?.('.fuel-mix-segment');if(segment&&(!next||next.closest('.fuel-report-chart')!==segment.closest('.fuel-report-chart'))){const tooltip=segment.closest('.fuel-report-chart')?.querySelector('.fuel-tooltip');if(tooltip)tooltip.hidden=true}});
 function overview(){
  const s=data.summary,sources=comparisonSources(),dispatch=comparedRows(data.hourly,sources,[{key:'demand_mw',name:'Demand'},{key:'generation_mw',name:'Generation'}]),shed=comparedRows(data.hourly,sources,[{key:'shed_mw',name:'Load shedding',bar:true}]);
- const previousForecastRows=previousForecastReport?.date===data.date&&previousForecastReport?.forecast?.date===data.date?(previousForecastReport.forecast.demand_hourly||[]):[];
+ const previousForecastRows=previousForecastReport?.forecast?.date===data.date?(previousForecastReport.forecast.demand_hourly||[]):[];
  const gridByTime=new Map((data.grid_generation||[]).map(point=>[point.time,point]));
  const forecastByTime=new Map(previousForecastRows.map(point=>[point.time,point]));
  const dispatchRowsByTime=new Map(dispatch.rows.map(row=>[row.time,row]));
