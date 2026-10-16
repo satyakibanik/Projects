@@ -1,6 +1,17 @@
 (function () {
   const bundle = window.BEGD_STATIC_DATA;
   const originalFetch = window.fetch.bind(window);
+  const archiveBase = new URL("archive/", document.currentScript.src);
+  const reportMetadata = new Map((bundle?.reports || []).map(report => [String(report.id), report]));
+  async function getReport(id) {
+    if (!id) return null;
+    id = String(id);
+    if (bundle.reports_by_id[id]) return bundle.reports_by_id[id];
+    if (!reportMetadata.has(id)) return null;
+    const response = await originalFetch(new URL(`${encodeURIComponent(id)}.json`, archiveBase), { cache: "no-store" });
+    if (!response.ok) return null;
+    return response.json();
+  }
   const jsonResponse = (data, status = 200) => new Response(JSON.stringify(data), {
     status,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }
@@ -20,8 +31,8 @@
       });
     }
     if (url.pathname === "/api/report") {
-      const report = bundle.reports_by_id[url.searchParams.get("id")];
-      return report ? jsonResponse(report) : failure("That report is not in the current two-week archive.");
+      const report = await getReport(url.searchParams.get("id"));
+      return report ? jsonResponse(report) : failure("That report is not available in the archive.");
     }
     if (url.pathname === "/api/current-day") {
       return jsonResponse(bundle.current_day);
@@ -30,14 +41,14 @@
       return bundle.highest_generation ? jsonResponse(bundle.highest_generation) : failure("Highest-generation report is unavailable in this update.");
     }
     if (url.pathname === "/api/neighbor") {
-      const current = bundle.reports_by_id[url.searchParams.get("id")];
+      const current = await getReport(url.searchParams.get("id"));
       const offset = Number(url.searchParams.get("offset"));
       if (!current || ![-1, 1].includes(offset)) return failure("No adjacent report is available.");
       const target = new Date(`${current.date}T00:00:00Z`);
       target.setUTCDate(target.getUTCDate() + offset);
       const date = target.toISOString().slice(0, 10);
       const reportId = bundle.reports_by_operating_date[date];
-      const report = reportId ? bundle.reports_by_id[reportId] : null;
+      const report = reportId ? await getReport(reportId) : null;
       return report ? jsonResponse(report) : failure("No adjacent operating-day report is available.");
     }
     return failure("Unknown dashboard data endpoint.");
