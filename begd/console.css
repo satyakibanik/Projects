@@ -157,3 +157,13 @@ nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9
 .en-curve-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:900px){.en-curve-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.en-curve-metrics{grid-template-columns:1fr}}
+
+/* Energy Curve: preserve the full plot while placing its ranked legend alongside it. */
+.en-curve-chart{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,280px);grid-template-areas:"style legend" "plot legend" "help legend";column-gap:24px;align-items:start}
+.en-curve-chart>.dispatch-chart-style{grid-area:style}
+.en-curve-chart>.chart{grid-area:plot;width:100%;margin-left:0}
+.en-curve-chart>.legend{grid-area:legend;display:flex;flex-direction:column;align-items:stretch;gap:11px;margin:42px 0 0;max-height:500px;overflow:auto}
+.en-curve-chart>.legend label{display:grid;grid-template-columns:14px 46px minmax(0,1fr);align-items:center;gap:8px;white-space:normal}
+.en-curve-chart>.legend i.series-swatch{display:block;width:46px;height:15px;border:1px solid #ffffff55;box-sizing:border-box}
+.en-curve-chart>.chart-help{grid-area:help}
+@media(max-width:760px){.en-curve-chart{grid-template-columns:minmax(0,1fr);grid-template-areas:"style" "plot" "legend" "help"}.en-curve-chart>.legend{margin:16px 0 0;max-height:280px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 16px}.en-curve-chart>.legend label{grid-template-columns:14px 38px minmax(0,1fr)}.en-curve-chart>.legend i.series-swatch{width:38px;height:14px}}
