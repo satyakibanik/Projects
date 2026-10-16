@@ -232,26 +232,32 @@ function substationRows(report){
 }
 function substations(){
  const rows=data.substations||[],volts=data.voltages||[],classes=[...new Set(volts.map(v=>v.voltage_class))];
- const comparisons=comparisonSources();
- const comparisonHeads=comparisons.map(([day,report])=>`<th colspan="2">${esc(dayLabel(day))}<br><small class="comparison-date">${esc(shortDate(report.date))}</small></th>`).join('');
- return `<div class="metrics">${metric('Substations reporting load',rows.length,'','P3 · daily maximum load')}${metric('Highest served load',fmt(Math.max(...rows.map(r=>r.load_mw)),1),'MW','Across listed grid substations')}${metric('Voltage classes',classes.length,'','400 kV · 230 kV · 132 kV')}${metric('Voltage readings',volts.length,'','Maximum and minimum by station')}</div><section class="panel full"><div class="panel-head"><div><h2>Substation load and voltage</h2><p>Daily maximum served load and voltage range by station and class</p></div><span class="tag">P3 · MW / VOLTAGE · KV</span></div><div class="toolbar"><input id="substation-search" type="search" placeholder="Search substations" aria-label="Search substations"><select id="substation-sort" aria-label="Sort substations"><option value="load_mw">Highest load ↓</option><option value="name">Station name A–Z</option></select><select id="voltage-class" aria-label="Filter voltage class"><option value="">All voltage classes</option>${classes.map(v=>`<option>${esc(v)}</option>`).join('')}</select></div><p class="count" id="substation-count"></p><div class="table-wrap"><table><thead><tr><th rowspan="2">Substation</th><th rowspan="2">Class</th><th colspan="6">Selected report · ${esc(shortDate(data.date))}</th>${comparisonHeads}</tr><tr><th class="num">Maximum load MW</th><th>Peak time</th><th class="num">Maximum kV</th><th>Time</th><th class="num">Minimum kV</th><th>Time</th>${comparisons.map(()=>'<th class="num">Load · MW / time</th><th>Voltage range · kV</th>').join('')}</tr></thead><tbody id="substation-rows"></tbody></table></div><p class="note">Source: P3, “Maximum Load Served by Different Grid Sub-Stations,” and Voltage sheet. Comparison columns show the same station’s reported load peak and voltage range for each selected report.</p></section>`
+ return `<div class="metrics">${metric('Substations reporting load',rows.length,'','P3 · daily maximum load')}${metric('Highest served load',fmt(Math.max(...rows.map(r=>r.load_mw)),1),'MW','Across listed grid substations')}${metric('Voltage classes',classes.length,'','400 kV · 230 kV · 132 kV')}${metric('Voltage readings',volts.length,'','Maximum and minimum by station')}</div><section class="panel full"><div class="panel-head"><div><h2>Substation load and voltage</h2><p>Daily maximum served load and voltage range by station and class</p></div><span class="tag">P3 · MW / VOLTAGE · KV</span></div><div class="toolbar"><input id="substation-search" type="search" placeholder="Search substations" aria-label="Search substations"><select id="substation-sort" aria-label="Sort substations"><option value="load_mw">Highest load ↓</option><option value="name">Station name A–Z</option></select><select id="voltage-class" aria-label="Filter voltage class"><option value="">All voltage classes</option>${classes.map(v=>`<option>${esc(v)}</option>`).join('')}</select></div><p class="count" id="substation-count"></p><div class="table-wrap"><table><thead><tr><th>Substation</th><th>Class</th><th class="num">Maximum load MW</th><th>Peak time · BST</th><th class="num">Maximum kV</th><th>Time · BST</th><th class="num">Minimum kV</th><th>Time · BST</th></tr></thead><tbody id="substation-rows"></tbody></table></div><p class="note">Source: P3, “Maximum Load Served by Different Grid Sub-Stations,” and Voltage sheet. Selected report values appear first; comparison values are listed underneath with their report label.</p></section>`
 }
 function updateSubstations(){
  if(!$('#substation-rows'))return;
  const query=$('#substation-search').value.toLowerCase(),sort=$('#substation-sort').value,voltageClass=$('#voltage-class').value;
- const rows=substationRows(data).filter(row=>(!voltageClass||row.voltage_class===voltageClass)&&row.name.toLowerCase().includes(query)).sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):(b.load_mw??-Infinity)-(a.load_mw??-Infinity));
+ const allRows=substationRows(data);
+ const rows=allRows.filter(row=>(!voltageClass||row.voltage_class===voltageClass)&&row.name.toLowerCase().includes(query)).sort((a,b)=>sort==='name'?a.name.localeCompare(b.name):(b.load_mw??-Infinity)-(a.load_mw??-Infinity));
  const comparisons=comparisonSources();
- $('#substation-count').textContent=`${rows.length} of ${substationRows(data).length} station and voltage-class records`;
- const comparisonCells=(row,report)=>{
+ $('#substation-count').textContent=`${rows.length} of ${allRows.length} station and voltage-class records`;
+ const comparisonValues=(row,field)=>{
   const stationKey=substationKey(row.name);
-  const load=(report.substations||[]).find(item=>substationKey(item.name)===stationKey);
-  const voltage=(report.voltages||[]).find(item=>substationKey(item.name)===stationKey&&(!row.voltage_class||item.voltage_class===row.voltage_class))||(report.voltages||[]).find(item=>substationKey(item.name)===stationKey);
-  const loadValue=load?`${fmt(load.load_mw,1)} MW · ${esc(load.time)}`:'—';
-  const voltageValue=voltage?`${fmt(voltage.min_kv)}–${fmt(voltage.max_kv)}`:'—';
-  const voltageTimes=voltage?`max ${esc(voltage.max_time)} · min ${esc(voltage.min_time)}`:'';
-  return `<td class="num">${loadValue}</td><td>${voltageValue}${voltageTimes?`<br><small class="comparison-date">${voltageTimes}</small>`:''}</td>`;
+  return comparisons.map(([day,report])=>{
+   const label=day==='highest'?'highest gen.':day;
+   const load=(report.substations||[]).find(item=>substationKey(item.name)===stationKey);
+   const voltage=(report.voltages||[]).find(item=>substationKey(item.name)===stationKey&&(!row.voltage_class||item.voltage_class===row.voltage_class));
+   let value;
+   if(field==='load')value=load?`${fmt(load.load_mw,1)} MW`:'—';
+   else if(field==='load_time')value=load?esc(load.time):'—';
+   else if(field==='max_kv')value=voltage?`${fmt(voltage.max_kv)} kV`:'—';
+   else if(field==='max_time')value=voltage?esc(voltage.max_time):'—';
+   else if(field==='min_kv')value=voltage?`${fmt(voltage.min_kv)} kV`:'—';
+   else value=voltage?esc(voltage.min_time):'—';
+   return `<br><small>${value} (${esc(label)})</small>`;
+  }).join('');
  };
- $('#substation-rows').innerHTML=rows.map(row=>`<tr><td class="name">${esc(row.name)}</td><td>${esc(row.voltage_class||'—')}</td><td class="num">${fmt(row.load_mw,1)}</td><td>${esc(row.load_time||'—')}</td><td class="num">${fmt(row.max_kv)}</td><td>${esc(row.max_time||'—')}</td><td class="num">${fmt(row.min_kv)}</td><td>${esc(row.min_time||'—')}</td>${comparisons.map(([,report])=>comparisonCells(row,report)).join('')}</tr>`).join('')||`<tr><td colspan="${8+2*comparisons.length}" class="empty">No substations match these filters.</td></tr>`;
+ $('#substation-rows').innerHTML=rows.map(row=>`<tr><td class="name">${esc(row.name)}</td><td>${esc(row.voltage_class||'—')}</td><td class="num">${fmt(row.load_mw,1)}${comparisonValues(row,'load')}</td><td>${esc(row.load_time||'—')}${comparisonValues(row,'load_time')}</td><td class="num">${fmt(row.max_kv)}${comparisonValues(row,'max_kv')}</td><td>${esc(row.max_time||'—')}${comparisonValues(row,'max_time')}</td><td class="num">${fmt(row.min_kv)}${comparisonValues(row,'min_kv')}</td><td>${esc(row.min_time||'—')}${comparisonValues(row,'min_time')}</td></tr>`).join('')||'<tr><td colspan="8" class="empty">No substations match these filters.</td></tr>';
 }
 function operations(){
  const op=data.operations||{},flows=op.ewic||[],eastWest=op.east_west||{};
