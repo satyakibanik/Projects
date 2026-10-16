@@ -372,8 +372,9 @@ function stackedAreaChart(rows,series){
  const visible=series.filter(item=>dispatchVisibility.get(item.key)!==false);
  const scaleRows=rows.map(row=>({...row,stack_total:visible.reduce((sum,item)=>sum+(Number(row[item.key])||0),0)}));
  const measuredScale=chartScale(scaleRows,[{key:'stack_total'}]);
- const scale={...measuredScale,min:0,max:Math.ceil(measuredScale.max/measuredScale.step)*measuredScale.step};
- const W=800,H=420,L=58,R=15,T=14,B=42;
+ const areaStep=1000;
+ const scale={...measuredScale,min:0,max:Math.ceil(measuredScale.max/areaStep)*areaStep,step:areaStep};
+ const W=800,H=500,L=58,R=15,T=14,B=82;
  const x=row=>L+(parseInt(row.time)*60+parseInt(row.time.slice(3)))/1380*(W-L-R);
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
@@ -384,9 +385,9 @@ function stackedAreaChart(rows,series){
   const position=y(value);
   body+='<line class="axis" data-tick-line="'+tick+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text data-tick-label="'+tick+'" x="'+(L-8)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value)+'</text>';
  }
- for(const hour of [0,6,12,18,23]){
-  const time=String(hour).padStart(2,'0')+':00';
-  body+='<text x="'+x({time})+'" y="'+(H-7)+'" text-anchor="middle">'+time+'</text>';
+ for(let hour=0;hour<24;hour++){
+  const time=String(hour).padStart(2,'0')+':00',position=x({time}),labelY=H-8;
+  body+='<text x="'+position+'" y="'+labelY+'" text-anchor="end" transform="rotate(-45 '+position+' '+labelY+')">'+time+'</text>';
  }
  const cumulative=rows.map(()=>0);
  for(const seriesItem of series){
