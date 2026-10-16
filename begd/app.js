@@ -241,13 +241,14 @@ function realTime(){
  const demandSeries=[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true},...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
  const demandCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings${forecastRows.length?` · ${forecastSource}`:''}`;
  const demandPanel=rows.length?panel('Demand, supply & load shedding',demandCaption,chart(demandChartRows,demandSeries)):'';
- const totalGenerationSeries={key:'total_mw',name:'Total generation',color:'#263238'};
+ const totalGenerationSeries={key:'total_mw',name:'Total generation and Forecasted Demand',color:'#263238'};
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const generationRowsByTime=new Map(generation.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
  for(const point of forecastRows){const row=generationRowsByTime.get(point.time)||{time:point.time,total_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;generationRowsByTime.set(point.time,row)}
+ for(const row of generationRowsByTime.values())row.estimated_load_shedding_mw=typeof row.total_mw==='number'&&typeof row.forecasted_demand_mw==='number'?row.total_mw-row.forecasted_demand_mw:null;
  const generationChartRows=[...generationRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
- const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
+ const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted Demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5},{key:'estimated_load_shedding_mw',name:'Estimated load shedding',color:'#b95442',dash:true}]:[])];
  const totalGenerationCaption=`${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
  const totalGenerationPanel=generation.length?panel('Total generation',totalGenerationCaption,chart(generationChartRows,generationSeries)):'';
  const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
