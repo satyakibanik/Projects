@@ -413,7 +413,27 @@ async function loadCurrentDay(){
 loadCurrentDay();window.setInterval(loadCurrentDay,180000);
 $('#source-yesterday').addEventListener('change',()=>loadComparison('yesterday'));$('#source-tomorrow').addEventListener('change',()=>loadComparison('tomorrow'));
 $('#source-highest').addEventListener('change',()=>loadComparison('highest'));
+function reportDayNavigationTarget(offset){
+ const selected=$('#date').value,ordered=archiveReports.slice().sort((a,b)=>a.published_date.localeCompare(b.published_date));
+ const index=ordered.findIndex(report=>String(report.id)===String(selected));
+ return index<0?null:ordered[index+offset]||null;
+}
+function updateReportDayNavigation(){
+ $('#previous-report').disabled=!reportDayNavigationTarget(-1);
+ $('#next-report').disabled=!reportDayNavigationTarget(1);
+}
+function navigateReportDay(offset){
+ const report=reportDayNavigationTarget(offset);if(!report)return;
+ const select=$('#date'),id=String(report.id);
+ if(![...select.options].some(option=>option.value===id)){
+  const label=new Date(report.published_date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+  const option=document.createElement('option');option.value=id;option.textContent=label+' · '+report.name;select.add(option);
+ }
+ select.value=id;
+ select.dispatchEvent(new Event('change',{bubbles:true}));
+}
 async function selectReportById(id){
+ updateReportDayNavigation();
  const status=$('#date-status'),previous=status.textContent;
  status.textContent='Loading selected report…';
  const loaded=await load(id);
@@ -437,10 +457,13 @@ function populateArchiveDateControls(reports, preferred={}){
  daySelect.value=day;daySelect.disabled=!month;
 }
 $('#date').addEventListener('change',async event=>{
+ updateReportDayNavigation();
  const selected=archiveReports.find(report=>String(report.id)===event.target.value);
  populateArchiveDateControls(archiveReports,selected&&selected.published_date<archiveCutoff?{year:selected.published_date.slice(0,4),month:selected.published_date.slice(5,7),day:selected.published_date}:{});
  await selectReportById(event.target.value);
 });
+$('#previous-report').addEventListener('click',()=>navigateReportDay(-1));
+$('#next-report').addEventListener('click',()=>navigateReportDay(1));
 $('#archive-year').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:event.target.value}));
 $('#archive-month').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:$('#archive-year').value,month:event.target.value}));
 $('#archive-day').addEventListener('change',async event=>{
@@ -476,6 +499,7 @@ async function refreshDateList(){
   const active=reports.find(report=>String(report.id)===String(select.value));
   const archiveDate=active&&active.published_date<cutoff?{year:active.published_date.slice(0,4),month:active.published_date.slice(5,7),day:active.published_date}:{};
   populateArchiveDateControls(reports,archiveDate);
+  updateReportDayNavigation();
   if(archive.error)$('#date-status').textContent=archive.error;
   else if(archive.complete)$('#date-status').textContent='';
   else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
