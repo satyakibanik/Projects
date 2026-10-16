@@ -85,11 +85,63 @@ class WorkbookTests(unittest.TestCase):
         book['P1']['D6'] = '14-10-2026'
         self.assertEqual(parse(book)['date'], '2026-10-14')
 
-    def test_missing_sheet_rejected(self):
+    def test_legacy_workbook_layout_is_parsed(self):
         book = workbook()
+        # The pre-2025 format stored actuals in P2/Generation/L-Curve and
+        # omitted P4, GenLog, and EWIC.
         del book['GenLog']
-        with self.assertRaises(KeyError):
-            parse(book)
+        del book['P4']
+        del book['EWIC']
+        p1 = book['P1']
+        p1['D6'] = dt.datetime(2024, 4, 30)  # legacy historical peak field
+        p1['D12'] = 2.4
+        p1['D9'] = 100
+        p1['D10'] = 110
+        p1['F9'] = dt.time(18, 0)
+        p2 = book['P2']
+        p2['D4'] = dt.datetime(2026, 10, 14)
+        for col in range(2, 11):
+            p2.cell(11, col).value = None
+        p2['C9'] = 'Test Plant'
+        p2['E9'] = 'Public'
+        p2['F9'] = '2 x 100'
+        p2['G9'] = 180
+        p2['I9'] = 2400000
+        p2['J9'] = 'Normal'
+        p2['B10'] = 'Dhaka Area Total'
+        p3 = book['P3']
+        p3['B9'] = 'i) Dhaka area'
+        p3['E9'] = 110
+        generation = book.create_sheet('Generation')
+        generation['B2'] = 'Unit'
+        generation['C2'] = dt.time(0, 0)
+        generation['D2'] = dt.time(1, 0)
+        generation['B3'] = 'Test Plant'
+        generation['C3'] = 90
+        generation['D3'] = 100
+        curve = book.create_sheet('L-Curve')
+        curve['A3'] = 'TIME'
+        curve['B3'] = 'E-W INT.(Export)'
+        curve['C3'] = 'EAST GRID'
+        curve['D3'] = 'WEST GRID'
+        curve['E3'] = 'TOTAL'
+        for row, time, generation_mw in ((4, dt.time(0, 0), 90), (6, dt.time(1, 0), 100)):
+            curve.cell(row, 1, time)
+            curve.cell(row, 2, 0)
+            curve.cell(row, 3, generation_mw * 0.4)
+            curve.cell(row, 4, generation_mw * 0.6)
+            curve.cell(row, 5, generation_mw)
+        book['Forecast']['E3'] = dt.datetime(2026, 10, 15)
+
+        report = parse(book)
+        self.assertEqual(report['date'], '2026-10-14')
+        self.assertEqual(report['forecast']['date'], '2026-10-15')
+        self.assertEqual(report['summary']['energy_mwh'], 2400)
+        self.assertEqual(report['hourly'][1]['generation_mw'], 100)
+        self.assertIsNone(report['hourly'][1]['demand_mw'])
+        self.assertEqual(report['grid_generation'][1]['total_mw'], 100)
+        self.assertEqual(report['regions'][0]['demand_mw'], 110)
+        self.assertEqual(report['plant_units'][0]['hourly'][1]['mw'], 100)
 
 
 class ServerTests(unittest.TestCase):
