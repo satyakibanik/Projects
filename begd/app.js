@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
 const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
-let data, request=0, archiveReports=[];
+let data, request=0, archiveReports=[], archiveCutoff='';
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 let previousForecastReport=null, previousForecastRequest=0;
@@ -422,7 +422,7 @@ async function selectReportById(id){
 }
 function populateArchiveDateControls(reports, preferred={}){
  const yearSelect=$('#archive-year'),monthSelect=$('#archive-month'),daySelect=$('#archive-day');
- const older=reports.filter(report=>report.published_date<reports[0]?.published_date);
+ const older=reports.filter(report=>report.published_date<archiveCutoff);
  const years=[...new Set(older.map(report=>report.published_date.slice(0,4)))].sort().reverse();
  const year=years.includes(preferred.year)?preferred.year:'';
  yearSelect.innerHTML='<option value="">Year</option>'+years.map(value=>`<option value="${value}">${value}</option>`).join('');
@@ -438,7 +438,7 @@ function populateArchiveDateControls(reports, preferred={}){
 }
 $('#date').addEventListener('change',async event=>{
  const selected=archiveReports.find(report=>String(report.id)===event.target.value);
- populateArchiveDateControls(archiveReports,selected&&selected.published_date<archiveReports[0]?.published_date?{year:selected.published_date.slice(0,4),month:selected.published_date.slice(5,7),day:selected.published_date}:{});
+ populateArchiveDateControls(archiveReports,selected&&selected.published_date<archiveCutoff?{year:selected.published_date.slice(0,4),month:selected.published_date.slice(5,7),day:selected.published_date}:{});
  await selectReportById(event.target.value);
 });
 $('#archive-year').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:event.target.value}));
@@ -461,6 +461,7 @@ async function refreshDateList(){
   archiveReports=reports;
   const latest=reports.reduce((value,report)=>report.published_date>value?report.published_date:value,'');
   const cutoff=latest?new Date(new Date(`${latest}T12:00:00+06:00`).getTime()-13*86400000).toISOString().slice(0,10):'';
+  archiveCutoff=cutoff;
   const recent=reports.filter(report=>report.published_date>=cutoff);
   const selectedId=select.value||data?.report_id||'';
   const selectedReport=reports.find(report=>String(report.id)===String(selectedId));
