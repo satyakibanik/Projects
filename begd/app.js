@@ -54,7 +54,7 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
 function chart(rows,series,options={}){
  const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:null;
  const plotSeries=selectedStyle?series.map(item=>({...item,bar:item.pointsOnly||item.fixedLine?false:selectedStyle==='bar'})):series;
- const W=800,H=250,L=58,R=15,T=14,B=32,scale=chartScale(rows,plotSeries);
+ const W=800,H=250,L=58,R=15,T=14,B=32,visibleForScale=options.balanceLegend?plotSeries.filter(item=>dispatchVisibility.has(item.key)?dispatchVisibility.get(item.key):item.defaultVisible!==false):plotSeries,scale=chartScale(rows,visibleForScale.length?visibleForScale:plotSeries);
  const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
