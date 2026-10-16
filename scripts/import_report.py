@@ -4,6 +4,8 @@ import datetime
 import io
 import json
 import pathlib
+import re
+import unicodedata
 
 import openpyxl
 
@@ -20,6 +22,29 @@ def parse_report(report_bytes, source_file):
     date = report_date.isoformat()
 
     number = lambda value: float(value) if isinstance(value, (int, float)) else None
+    def plant_key(name):
+        text = unicodedata.normalize("NFKD", str(name or "")).encode("ascii", "ignore").decode().lower()
+        return re.sub(r"[^a-z0-9]", "", text)
+
+    def installed_capacity(value):
+        if isinstance(value, (int, float)):
+            return float(value)
+        if not isinstance(value, str):
+            return None
+        text = value.replace(",", "").lower().replace("×", "*").replace("x", "*")
+        products = re.findall(r"(\d+(?:\.\d+)?)\s*\*\s*(\d+(?:\.\d+)?)", text)
+        if products:
+            return sum(float(units) * float(mw) for units, mw in products)
+        match = re.search(r"\d+(?:\.\d+)?", text)
+        return float(match.group()) if match else None
+
+    def source_match(mapping, name):
+        key = plant_key(name)
+        if key in mapping:
+            return mapping[key]
+        base = re.sub(r"\s*\((?:gas|hsd|hfo|diesel|coal)\)\s*$", "", str(name or ""), flags=re.I).strip()
+        return mapping.get(plant_key(base))
+
     fuels = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind"]
     regions = []
     for row in range(17, 26):
@@ -46,7 +71,9 @@ def parse_report(report_bytes, source_file):
             pending.append(dict(
                 name=name,
                 producer=row[4].value,
+                installed_capacity_mw=installed_capacity(row[5].value),
                 capacity_mw=number(row[6].value),
+                present_capacity_mw=number(row[6].value),
                 peak_mw=number(row[7].value),
                 energy_mwh=number(row[8].value) / 1000 if number(row[8].value) is not None else None,
                 remarks=str(row[9].value or "—"),
@@ -61,8 +88,70 @@ def parse_report(report_bytes, source_file):
             demand_mw=row[6].value,
         ))
 
-    imports = []
+    p2_by_name = {plant_key(plant["name"]): plant for plant in plants}
+    forecast_sheet = workbook["Forecast"]
+    forecast_by_name = {}
+    for row in range(11, forecast_sheet.max_row + 1):
+        forecast_name = forecast_sheet.cell(row, 2).value
+        if forecast_name and not str(forecast_name).strip().lower().endswith("area total"):
+            forecast_by_name[plant_key(forecast_name)] = dict(
+                fuel=str(forecast_sheet.cell(row, 3).value or "—").strip(),
+                producer=str(forecast_sheet.cell(row, 4).value or "—").strip(),
+            )
+
     generation_log = workbook["GenLog"]
+    plant_units = []
+    for col in range(2, generation_log.max_column + 1):
+        name = str(generation_log.cell(11, col).value or "").strip()
+        if not name or name.lower().endswith("total"):
+            continue
+        if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
+            continue
+
+        raw_capacity = generation_log.cell(12, col).value
+        capacity = number(raw_capacity)
+        if capacity is None and isinstance(raw_capacity, str):
+            match = re.search(r"[-+]?\d[\d,]*(?:\.\d+)?", raw_capacity)
+            capacity = float(match.group(0).replace(",", "")) if match else None
+
+        hourly = []
+        for row in range(13, 38):
+            raw_time, mw = generation_log.cell(row, 1).value, generation_log.cell(row, col).value
+            if raw_time is None:
+                continue
+            time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
+            hourly.append(dict(time=time, mw=number(mw)))
+        values = [row["mw"] for row in hourly if row["mw"] is not None]
+        peak = max(values) if values else None
+        energy_kwh = number(generation_log.cell(38, col).value)
+        p2 = source_match(p2_by_name, name) or {}
+        forecast = source_match(forecast_by_name, name) or {}
+        energy_mwh = energy_kwh / 1000 if energy_kwh is not None else None
+        operating_hours = sum(
+            row["time"].endswith(":00") and row["mw"] is not None and row["mw"] > 0
+            for row in hourly
+        )
+        installed_mw = p2.get("installed_capacity_mw")
+        plant_units.append(dict(
+            name=name,
+            capacity_mw=capacity,
+            installed_capacity_mw=installed_mw,
+            present_capacity_mw=p2.get("present_capacity_mw"),
+            peak_mw=peak,
+            peak_generation_mw=peak,
+            capacity_factor_pct=energy_mwh / (installed_mw * 24) * 100 if energy_mwh is not None and installed_mw else None,
+            puf_pct=energy_mwh / (installed_mw * operating_hours) * 100 if energy_mwh is not None and installed_mw and operating_hours else None,
+            utilization_ratio_pct=peak / installed_mw * 100 if peak is not None and installed_mw else None,
+            operating_hours=int(operating_hours),
+            utilization_pct=peak / capacity * 100 if peak is not None and capacity else None,
+            energy_mwh=energy_mwh,
+            fuel=forecast.get("fuel", "—"),
+            producer=forecast.get("producer", p2.get("producer", "—")),
+            status="running" if any(value > 0 for value in values) else "no-output",
+            hourly=hourly,
+        ))
+
+    imports = []
     for col in range(2, generation_log.max_column + 1):
         name = str(generation_log.cell(11, col).value or "")
         if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
@@ -203,6 +292,7 @@ def parse_report(report_bytes, source_file):
         hourly=hourly,
         regions=regions,
         plants=plants,
+        plant_units=plant_units,
         imports=imports,
         substations=substations,
         voltages=voltages,
