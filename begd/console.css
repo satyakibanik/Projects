@@ -46,7 +46,7 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 .plant-metrics span{display:block;font:8px/1.5 var(--mono);letter-spacing:.4px;text-transform:uppercase;color:var(--muted);text-decoration:none}
 .plant-metric-title{position:relative;width:max-content;max-width:100%;cursor:help;border-bottom:1px dotted var(--muted)}
 .plant-metric-title:focus-visible{outline:1px solid var(--green);outline-offset:3px}
-.plant-metric-title::after{content:attr(data-tooltip);position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;width:min(300px,75vw);padding:9px 11px;background:#0b171e;border:1px solid var(--green);color:#ecede3;font:9px/1.55 var(--body);letter-spacing:0;text-transform:none;white-space:pre-line;box-shadow:0 8px 30px #000c;opacity:0;visibility:hidden;pointer-events:none}
+.plant-metric-title::after{content:attr(data-tooltip);position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;width:min(360px,80vw);padding:10px 12px;background:#0b171e;border:1px solid var(--green);color:#ecede3;font:10px/1.6 var(--body);letter-spacing:0;text-transform:none;white-space:pre-line;box-shadow:0 8px 30px #000c;opacity:0;visibility:hidden;pointer-events:none}
 .plant-metric-title:hover::after,.plant-metric-title:focus-visible::after{opacity:1;visibility:visible}
 .plant-metrics strong{display:block;margin-top:5px;font:500 17px var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
 .plant-output-chart .legend{display:flex;flex-wrap:wrap;gap:8px 16px}
