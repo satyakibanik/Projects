@@ -102,3 +102,18 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 .fuel-composition-row{display:grid;grid-template-columns:minmax(200px,260px) minmax(0,1fr);gap:26px;align-items:center}.fuel-composition-row.is-bar{grid-template-columns:minmax(0,1fr)}.fuel-chart{min-width:0}.fuel-chart-style{justify-content:flex-end;margin:0 0 8px}.fuel-chart .fuel-mix-bar{height:45px;margin:8px 0 14px}.fuel-mix-chart{display:block;width:148px;height:148px;margin:8px auto 14px;overflow:visible}.fuel-mix-pie path{transition:filter .18s}.fuel-mix-pie path:hover{filter:brightness(1.12)}.fuel-ring-label{fill:var(--muted);font:8px var(--mono);letter-spacing:.12em}.fuel-ring-value{fill:var(--ink);font:600 15px var(--display)}@media(max-width:760px){.fuel-composition-row,.fuel-composition-row.is-bar{grid-template-columns:minmax(0,1fr);gap:14px}.fuel-composition-row.is-circular .composition-key{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-composition-row.is-bar .fuel-chart{max-width:none}}
 
 .comparison-strips:empty{display:none}
+
+
+/* Fuel mix: put report figures before consistently styled report charts. */
+.fuel-mix-heading .fuel-chart-style{justify-content:flex-start;margin:16px 0 0}
+.fuel-composition-row,.fuel-composition-row.is-bar,.fuel-composition-row.is-circular{grid-template-columns:minmax(0,1fr);gap:22px;align-items:start}
+.fuel-report-charts{display:grid;gap:12px}
+.fuel-report-charts.is-bar{grid-template-columns:minmax(0,1fr)}
+.fuel-report-charts.is-circular{grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px 18px}
+.fuel-report-chart{min-width:0}
+.fuel-report-chart .comparison-strip-label{margin-bottom:5px}
+.fuel-report-chart .composition-strip{height:30px;margin:0}
+.fuel-report-chart .fuel-mix-chart{margin:0 auto;width:144px;height:144px}
+.fuel-report-chart .fuel-mix-bar{height:30px}
+@media(max-width:760px){.fuel-composition-row.is-circular .composition-key{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-report-charts.is-circular{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}}
+@media(max-width:480px){.fuel-report-charts.is-circular{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-report-chart .fuel-mix-chart{width:130px;height:130px}}
