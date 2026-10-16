@@ -79,9 +79,9 @@ def parse_report(report_bytes, source_file):
                 remarks=str(row[9].value or "—"),
             ))
 
-    hourly = []
+    dispatch_hourly = []
     for row in workbook["P4"].iter_rows(min_row=9, max_row=33):
-        hourly.append(dict(
+        dispatch_hourly.append(dict(
             time=str(row[1].value)[:5],
             generation_mw=row[2].value,
             shed_mw=row[4].value,
@@ -114,14 +114,14 @@ def parse_report(report_bytes, source_file):
             match = re.search(r"[-+]?\d[\d,]*(?:\.\d+)?", raw_capacity)
             capacity = float(match.group(0).replace(",", "")) if match else None
 
-        hourly = []
+        plant_hourly = []
         for row in range(13, 38):
             raw_time, mw = generation_log.cell(row, 1).value, generation_log.cell(row, col).value
             if raw_time is None:
                 continue
             time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-            hourly.append(dict(time=time, mw=number(mw)))
-        values = [row["mw"] for row in hourly if row["mw"] is not None]
+            plant_hourly.append(dict(time=time, mw=number(mw)))
+        values = [row["mw"] for row in plant_hourly if row["mw"] is not None]
         peak = max(values) if values else None
         energy_kwh = number(generation_log.cell(38, col).value)
         p2 = source_match(p2_by_name, name) or {}
@@ -129,7 +129,7 @@ def parse_report(report_bytes, source_file):
         energy_mwh = energy_kwh / 1000 if energy_kwh is not None else None
         operating_hours = sum(
             row["time"].endswith(":00") and row["mw"] is not None and row["mw"] > 0
-            for row in hourly
+            for row in plant_hourly
         )
         installed_mw = p2.get("installed_capacity_mw")
         plant_units.append(dict(
@@ -148,7 +148,7 @@ def parse_report(report_bytes, source_file):
             fuel=forecast.get("fuel", "—"),
             producer=forecast.get("producer", p2.get("producer", "—")),
             status="running" if any(value > 0 for value in values) else "no-output",
-            hourly=hourly,
+            hourly=plant_hourly,
         ))
 
     imports = []
@@ -289,7 +289,7 @@ def parse_report(report_bytes, source_file):
         ),
         fuels={fuel: summary_sheet.cell(26, col).value * 1000
                for col, fuel in enumerate(fuels, 5)},
-        hourly=hourly,
+        hourly=dispatch_hourly,
         regions=regions,
         plants=plants,
         plant_units=plant_units,
