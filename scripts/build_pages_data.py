@@ -117,7 +117,13 @@ def write_data_bundle(output_dir):
 
     index = (DASHBOARD / "index.html").read_text(encoding="utf-8")
     version = built_at[:19].replace("-", "").replace(":", "") + "Z"
-    index = index.replace("live-data.js?build=BUILD_ID", "live-data.js?build=" + version)
+    index = index.replace(
+        '<script src="app.js?v=',
+        '<script src="live-data.js?build=' + version
+        + '"></script><script src="static-api.js"></script>'
+        + '<script src="app.js?v=',
+        1,
+    )
     (output_dir / "index.html").write_text(index, encoding="utf-8")
     print(f"Built {len(reports)} reports and hourly readings at {built_at}")
     if failures:
