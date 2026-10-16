@@ -1,6 +1,5 @@
 # satyakibanik.github.io
 
-Personal site
 
 ## Bangladesh Electric Grid Dashboard
 
@@ -32,6 +31,12 @@ Real-time readings and the highest-generation comparison use these Power Grid ER
 - [Generation by source](https://erp.powergrid.gov.bd/w/generations/view_generations)
 - [India imports](https://erp.powergrid.gov.bd/w/generations/imported_power_india)
 - [Maximum generation](https://erp.powergrid.gov.bd/w/maximum_generations/show_maximum_generations)
+
+### Data attribution and disclaimer
+
+The dashboard’s daily reports and real-time readings are sourced from Power Grid Bangladesh PLC and its National Load Dispatch Centre (NLDC), through the linked ERP workbooks and pages above. This is an independent, unofficial project and is not affiliated with or endorsed by Power Grid Bangladesh PLC. Source data remains attributable to its publisher; dashboard values may be reformatted or calculated from those reports.
+
+The data and visualizations are provided for informational purposes only. Source records may be delayed, incomplete, revised, or affected by parsing errors, and derived figures may differ from the publisher’s definitions. Verify important information against the linked source records. Do not use this dashboard for grid operation, dispatch, safety, or other decisions that require authoritative data.
 
 ### Reading the figures
 
