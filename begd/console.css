@@ -117,3 +117,6 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 .fuel-report-chart .fuel-mix-bar{height:30px}
 @media(max-width:760px){.fuel-composition-row.is-circular .composition-key{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-report-charts.is-circular{grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px}}
 @media(max-width:480px){.fuel-report-charts.is-circular{grid-template-columns:repeat(2,minmax(0,1fr))}.fuel-report-chart .fuel-mix-chart{width:130px;height:130px}}
+
+/* Fuel mix hover details */
+.fuel-report-chart{position:relative}.fuel-mix-segment{cursor:pointer}.fuel-mix-segment:focus-visible{outline:2px solid #111;outline-offset:2px}.fuel-tooltip{position:absolute;top:8px;right:8px;z-index:6;display:grid;grid-template-columns:auto auto;gap:4px 16px;min-width:150px;padding:10px 12px;background:#fff!important;color:#111!important;border:1px solid #111;box-shadow:0 5px 18px #0004;opacity:1!important;pointer-events:none;font:10px/1.4 var(--mono)}.fuel-tooltip[hidden]{display:none!important}.fuel-tooltip strong{grid-column:1/-1;font-size:11px;color:#111}.fuel-tooltip span{color:#111}
