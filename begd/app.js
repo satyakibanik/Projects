@@ -246,11 +246,13 @@ function realTime(){
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const generationRowsByTime=new Map(generation.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
  for(const point of forecastRows){const row=generationRowsByTime.get(point.time)||{time:point.time,total_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;generationRowsByTime.set(point.time,row)}
- for(const row of generationRowsByTime.values())row.estimated_load_shedding_mw=typeof row.total_mw==='number'&&typeof row.forecasted_demand_mw==='number'?row.total_mw-row.forecasted_demand_mw:null;
  const generationChartRows=[...generationRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
- const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted Demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5},{key:'estimated_load_shedding_mw',name:'Estimated load shedding',color:'#b95442',dash:true}]:[])];
+ const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted Demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
  const totalGenerationCaption=`${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
  const totalGenerationPanel=generation.length?panel('Total generation and Forecasted Demand',totalGenerationCaption,chart(generationChartRows,generationSeries)):'';
+ const estimatedShedRows=generationChartRows.map(row=>({...row,estimated_load_shedding_mw:typeof row.total_mw==='number'&&typeof row.forecasted_demand_mw==='number'?Math.max(0,row.forecasted_demand_mw-row.total_mw):null}));
+ const estimatedShedSeries=[{key:'estimated_load_shedding_mw',name:'Estimated load shedding',color:'#b95442',bar:true}];
+ const estimatedShedPanel=forecastRows.length&&generation.length?panel('Estimated load shedding',`${forecastSource} · forecasted demand minus total generation, floored at zero`,chart(estimatedShedRows,estimatedShedSeries,{styleSetting:'shed'})):'';
  const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
  const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
  const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
@@ -264,7 +266,7 @@ function realTime(){
  const totalImportsPanel=availableRoutes.length?panel('Total imports',importCaption,chart(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}])):'';
  const importsByRoutePanel=availableRoutes.length?panel('Imports by route',importCaption,chart(importRows,importSeries,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true})):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
- const panels=`${demandPanel}${totalGenerationPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
+ const panels=`${demandPanel}${totalGenerationPanel}${estimatedShedPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
  return `<p class="note" id="current-status" role="status">Today only · ${esc(today)} Bangladesh time · refreshed ${esc(updated)}. Only sources with readings dated today are shown. Refreshes every three minutes.</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
