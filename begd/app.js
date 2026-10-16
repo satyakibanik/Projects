@@ -194,12 +194,26 @@ function importMatch(report,name){
 }
 function imports(){
  const s=data.summary,sources=comparisonSources();
- const graphs=data.imports.map(item=>{
-  const rows=item.hourly.map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
+ const reports=[data,...sources.map(([,report])=>report)];
+ const importTimes=[...new Set(reports.flatMap(report=>(report.imports||[]).flatMap(item=>(item.hourly||[]).map(row=>row.time))))].sort();
+ const sumImportsAtTime=(report,time)=>{
+  const values=(report.imports||[]).flatMap(item=>(item.hourly||[]).filter(row=>row.time===time).map(row=>row.mw)).filter(value=>typeof value==='number'&&Number.isFinite(value));
+  return values.length?values.reduce((sum,value)=>sum+value,0):null;
+ };
+ const totalRows=importTimes.map(time=>({time,total_mw:sumImportsAtTime(data,time)}));
+ const totalSeries=[{key:'total_mw',name:'Total imports · selected day',color:'#347baf'}];
+ for(const [day,report,color] of sources){
+  const key=`total_mw_${day}`;
+  totalRows.forEach(row=>{row[key]=sumImportsAtTime(report,row.time)});
+  totalSeries.push({key,name:`Total imports · ${dayLabel(day)}`,color});
+ }
+ const totalPanel=`<section class="panel full"><div class="panel-head"><div><h2>Total imports</h2><p>Combined hourly imports across all reported routes</p></div><span class="tag">MW</span></div>${chart(totalRows,totalSeries)}</section>`;
+ const graphs=(data.imports||[]).map(item=>{
+  const rows=(item.hourly||[]).map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
   for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color})}
   return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series))
  });
- return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',data.imports.length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div><div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, daily energy totals and the selected-day curve come from the chosen workbook.</p>`
+ return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
 }
 function realTime(){
  if(!currentDayData)return `<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
