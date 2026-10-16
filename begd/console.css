@@ -120,3 +120,5 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 
 /* Fuel mix hover details */
 .fuel-report-chart{position:relative}.fuel-mix-segment{cursor:pointer}.fuel-mix-segment:focus-visible{outline:2px solid #111;outline-offset:2px}.fuel-tooltip{position:absolute;top:8px;right:8px;z-index:6;display:grid;grid-template-columns:auto auto;gap:4px 16px;min-width:150px;padding:10px 12px;background:#fff!important;color:#111!important;border:1px solid #111;box-shadow:0 5px 18px #0004;opacity:1!important;pointer-events:none;font:10px/1.4 var(--mono)}.fuel-tooltip[hidden]{display:none!important}.fuel-tooltip strong{grid-column:1/-1;font-size:11px;color:#111}.fuel-tooltip span{color:#111}
+
+nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9px;padding-right:9px}nav .nav-live-badge{margin-left:auto;padding:2px 5px;border-radius:4px;background:#147d58;color:#fff;font-size:8px;font-weight:700;letter-spacing:.5px;line-height:1.4}.context-reading.region-names{display:block}.context-reading.region-names strong{display:block;margin-top:6px;font:500 13px/1.65 system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}
