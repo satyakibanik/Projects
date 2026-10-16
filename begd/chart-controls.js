@@ -22,7 +22,11 @@ function setupCharts(view) {
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / 800;
-      tooltip.style.left = `${Math.max(2, Math.min(98, fraction * 100))}%`;
+      const plot = wrapper.querySelector('svg');
+      const plotBounds = plot.getBoundingClientRect(), wrapperBounds = wrapper.getBoundingClientRect();
+      const plotOffset = (plotBounds.left - wrapperBounds.left) / wrapperBounds.width;
+      const plotWidth = plotBounds.width / wrapperBounds.width;
+      tooltip.style.left = `${Math.max(2, Math.min(98, (plotOffset + fraction * plotWidth) * 100))}%`;
       tooltip.style.transform = fraction > .65 ? 'translateX(-100%)' : 'translateX(0)';
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
