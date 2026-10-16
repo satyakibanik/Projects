@@ -32,6 +32,10 @@ Real-time readings and the highest-generation comparison use these Power Grid ER
 - [India imports](https://erp.powergrid.gov.bd/w/generations/imported_power_india)
 - [Maximum generation](https://erp.powergrid.gov.bd/w/maximum_generations/show_maximum_generations)
 
+### License
+
+The project’s original code is licensed under the GNU General Public License v3.0; see [LICENSE.md](LICENSE.md). This license applies to the project code, not to third-party source data or materials, which remain subject to their publishers’ terms.
+
 ### Data attribution and disclaimer
 
 The dashboard’s daily reports and real-time readings are sourced from Power Grid Bangladesh PLC and its National Load Dispatch Centre (NLDC), through the linked ERP workbooks and pages above. This is an independent, unofficial project and is not affiliated with or endorsed by Power Grid Bangladesh PLC. Source data remains attributable to its publisher; dashboard values may be reformatted or calculated from those reports.
