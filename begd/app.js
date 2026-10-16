@@ -5,7 +5,7 @@ let data, request=0;
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 let previousForecastReport=null, previousForecastRequest=0;
-let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='line'; const dispatchVisibility=new Map();
+let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='stacked'; const dispatchVisibility=new Map();
 let chartId=0; const chartData=new Map();
 let selectedRegionalFuel=null;
 const comparisonSources=()=>[
