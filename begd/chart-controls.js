@@ -17,7 +17,8 @@ function setupCharts(view) {
       selected = index;
       const row = model.rows[index];
       const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
-      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + visible.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b>${fmt(row[s.key],2)} MW</b></div>`).join('');
+      const ordered = model.enCurve ? visible.slice().reverse() : visible;
+      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} MW</b></div>`).join('');
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / 800;
