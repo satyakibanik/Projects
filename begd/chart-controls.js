@@ -39,6 +39,7 @@ function setupCharts(view) {
     wrapper.querySelector('[data-chart-style]')?.addEventListener('change', event => {
       if (event.target.dataset.chartStyle === 'dispatch') dispatchChartStyle = event.target.value;
       if (event.target.dataset.chartStyle === 'shed') shedChartStyle = event.target.value;
+      if (event.target.dataset.chartStyle === 'en-curve') enCurveChartStyle = event.target.value;
       render();
     });
     wrapper.querySelectorAll('[data-point]').forEach(hit => {
@@ -65,7 +66,8 @@ function setupCharts(view) {
       });
     }));
     wrapper.querySelectorAll('[data-toggle-series]').forEach(input => input.addEventListener('change', () => {
-      if (input.dataset.seriesFamily) dispatchVisibility.set(input.dataset.toggleSeries, input.checked);
+      if (input.dataset.seriesFamily || model.enCurve) dispatchVisibility.set(input.dataset.toggleSeries, input.checked);
+      if (model.stackedArea) { render(); return; }
       wrapper.querySelector(`[data-series="${input.dataset.toggleSeries}"]`).style.display = input.checked ? '' : 'none';
       const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
       const scale = chartScale(model.rows, visible);
