@@ -36,8 +36,12 @@ function chartScale(rows,series){
  if(max<=min)max=min+step;
  return {min,max,step};
 }
-function chartLegend(series,balanceLegend,wrapLegend){
+function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
  const swatch=s=>`<i class="series-swatch${s.dash?' dashed':''}" style="--series-color:${s.color}"></i>`;
+ if(familyLegend){
+  const family=familyLegend.family,items=series.filter(s=>s.family===family);
+  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
+ }
  if(!balanceLegend)return `<div class="legend${wrapLegend?' legend-wrap':''}">${series.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;
  const sources=['selected','yesterday','tomorrow','highest'].filter(source=>series.some(s=>s.source===source));
  const master=(family,label)=>{const items=series.filter(s=>s.family===family),checked=items.filter(s=>dispatchVisibility.get(s.key)!==false).length;return `<label><input type="checkbox" data-toggle-family="${family}" ${checked===items.length?'checked':''}>${label}</label>`};
@@ -55,7 +59,7 @@ function chart(rows,series,options={}){
  for(const s of plotSeries){body+=`<g data-series="${s.key}">`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} MW</title></rect>`}}else{const points=s.pointsOnly?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" ${s.dash?'stroke-dasharray="6 4"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointsOnly?5:3}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} MW</title></circle>`}}body+=`</g>`}
  rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" MW").join(", "))}"/>`});
  const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}"><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option></select></label></div>`:'';
- return `<div class="interactive-chart" data-chart="${id}">${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in megawatts"><title>${esc(series.map(s=>s.name).join(" and "))} in MW</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(series,options.balanceLegend,options.wrapLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
+ return `<div class="interactive-chart" data-chart="${id}">${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in megawatts"><title>${esc(series.map(s=>s.name).join(" and "))} in MW</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(series,options.balanceLegend,options.wrapLegend,options.familyLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
 
 }
 const panel=(title,subtitle,body,tag='MW')=>`<section class="panel"><div class="panel-head"><div><h2>${title}</h2><p>${subtitle}</p></div><span class="tag">${tag}</span></div>${body}</section>`;
@@ -202,15 +206,24 @@ function realTime(){
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
  const demandPanel=rows.length?panel('Demand, supply & load shedding',`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings`,chart(rows,[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true}])):'';
- const fuelSeries=[['total_mw','Total generation','#263238'],['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color}));
- const generationPanel=generation.length?panel('Generation by source',`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`,chart(generation,fuelSeries)):'';
+ const totalGenerationSeries={key:'total_mw',name:'Total generation',color:'#263238'};
+ const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
+ const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
+ const totalGenerationPanel=generation.length?panel('Total generation',generationDate,chart(generation,[totalGenerationSeries])):'';
+ const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
  const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
  const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
- const importRows=importTimes.map(time=>({time,...Object.fromEntries(availableRoutes.map((route,index)=>[`import_${index}`,route.hourly.find(row=>row.time===time)?.mw??null]))}));
- const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length]}));
- const importsPanel=availableRoutes.length?panel('Cross-border imports',`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`,chart(importRows,importSeries,{wrapLegend:true})):'';
+ const importRows=importTimes.map(time=>{
+  const values=availableRoutes.map((route,index)=>route.hourly.find(row=>row.time===time)?.mw??null);
+  const present=values.filter(value=>typeof value==='number'&&Number.isFinite(value));
+  return {time,total_import_mw:present.length?present.reduce((sum,value)=>sum+value,0):null,...Object.fromEntries(values.map((value,index)=>[`import_${index}`,value]))};
+ });
+ const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length],family:'import'}));
+ const importCaption=`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`;
+ const totalImportsPanel=availableRoutes.length?panel('Total imports',importCaption,chart(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}])):'';
+ const importsByRoutePanel=availableRoutes.length?panel('Imports by route',importCaption,chart(importRows,importSeries,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true})):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
- const panels=`${demandPanel}${generationPanel}${importsPanel}`;
+ const panels=`${demandPanel}${totalGenerationPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
  return `<p class="note" id="current-status" role="status">Today only · ${esc(today)} Bangladesh time · refreshed ${esc(updated)}. Only sources with readings dated today are shown. Refreshes every three minutes.</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
