@@ -40,7 +40,7 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
  const swatch=s=>`<i class="series-swatch${s.dash?' dashed':''}" style="--series-color:${s.color}"></i>`;
  if(familyLegend){
   const family=familyLegend.family,items=series.filter(s=>s.family===family);
-  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>All fuel types</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
+  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
  }
  if(!balanceLegend)return `<div class="legend${wrapLegend?' legend-wrap':''}">${series.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;
  const sources=['selected','yesterday','tomorrow','highest'].filter(source=>series.some(s=>s.source===source));
@@ -210,14 +210,20 @@ function realTime(){
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.HFO],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const totalGenerationPanel=generation.length?panel('Total generation',generationDate,chart(generation,[totalGenerationSeries])):'';
- const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel'}})):'';
+ const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
  const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
  const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
- const importRows=importTimes.map(time=>({time,...Object.fromEntries(availableRoutes.map((route,index)=>[`import_${index}`,route.hourly.find(row=>row.time===time)?.mw??null]))}));
- const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length]}));
- const importsPanel=availableRoutes.length?panel('Cross-border imports',`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`,chart(importRows,importSeries,{wrapLegend:true})):'';
+ const importRows=importTimes.map(time=>{
+  const values=availableRoutes.map((route,index)=>route.hourly.find(row=>row.time===time)?.mw??null);
+  const present=values.filter(value=>typeof value==='number'&&Number.isFinite(value));
+  return {time,total_import_mw:present.length?present.reduce((sum,value)=>sum+value,0):null,...Object.fromEntries(values.map((value,index)=>[`import_${index}`,value]))};
+ });
+ const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length],family:'import'}));
+ const importCaption=`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`;
+ const totalImportsPanel=availableRoutes.length?panel('Total imports',importCaption,chart(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}])):'';
+ const importsByRoutePanel=availableRoutes.length?panel('Imports by route',importCaption,chart(importRows,importSeries,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true})):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
- const panels=`${demandPanel}${totalGenerationPanel}${fuelTypePanel}${importsPanel}`;
+ const panels=`${demandPanel}${totalGenerationPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
  return `<p class="note" id="current-status" role="status">Today only · ${esc(today)} Bangladesh time · refreshed ${esc(updated)}. Only sources with readings dated today are shown. Refreshes every three minutes.</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
