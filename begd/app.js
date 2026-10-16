@@ -59,18 +59,28 @@ function chart(rows,series,options={}){
 
 }
 const panel=(title,subtitle,body,tag='MW')=>`<section class="panel"><div class="panel-head"><div><h2>${title}</h2><p>${subtitle}</p></div><span class="tag">${tag}</span></div>${body}</section>`;
-function fuelStrip(report,label){return `<div class="fuel-report-chart"><div class="comparison-strip-label">${label} · ${report.date}</div>${fuelMixVisualization(report)}</div>`}
+function fuelStrip(report,label){return `<div class="fuel-report-chart"><div class="comparison-strip-label">${label} · ${report.date}</div>${fuelMixVisualization(report)}<div class="fuel-tooltip" role="status" hidden></div></div>`}
 function fuelMixVisualization(report,style=fuelMixStyle){
  const entries=Object.entries(report.fuels).filter(([,value])=>value>0),total=report.summary.energy_mwh;
- if(style==='bar')return '<div class="composition-strip fuel-mix-bar" role="img" aria-label="Fuel mix as a stacked bar">'+entries.map(([fuel,value])=>'<div style="width:'+value/total*100+'%;background:'+colors[fuel]+'" title="'+esc(fuel)+': '+fmt(value/total*100,1)+'%"></div>').join('')+'</div>';
+ if(style==='bar')return '<div class="composition-strip fuel-mix-bar" role="group" aria-label="Fuel mix as a stacked bar">'+entries.map(([fuel,value])=>{const share=value/total;return '<div class="fuel-mix-segment" data-fuel="'+esc(fuel)+'" data-share="'+share+'" data-energy="'+value+'" tabindex="0" role="button" aria-label="'+esc(fuel)+': '+fmt(share*100,1)+'%, '+fmt(value,1)+' MWh" style="width:'+share*100+'%;background:'+colors[fuel]+'"></div>'}).join('')+'</div>';
  const cx=72,cy=72,radius=62,circumference=2*Math.PI*radius;
  if(style==='ring'){
-  let offset=0;const arcs=entries.map(([fuel,value])=>{const share=value/total,length=share*circumference,arc='<circle class="fuel-ring-segment" cx="'+cx+'" cy="'+cy+'" r="'+radius+'" fill="none" stroke="'+colors[fuel]+'" stroke-width="25" stroke-dasharray="'+length+' '+circumference+'" stroke-dashoffset="'+(-offset*circumference)+'" transform="rotate(-90 72 72)"><title>'+esc(fuel)+': '+fmt(share*100,1)+'%</title></circle>';offset+=share;return arc}).join('');
+  let offset=0;const arcs=entries.map(([fuel,value])=>{const share=value/total,length=share*circumference,arc='<circle class="fuel-ring-segment fuel-mix-segment" data-fuel="'+esc(fuel)+'" data-share="'+share+'" data-energy="'+value+'" tabindex="0" role="button" aria-label="'+esc(fuel)+': '+fmt(share*100,1)+'%, '+fmt(value,1)+' MWh" cx="'+cx+'" cy="'+cy+'" r="'+radius+'" fill="none" stroke="'+colors[fuel]+'" stroke-width="25" stroke-dasharray="'+length+' '+circumference+'" stroke-dashoffset="'+(-offset*circumference)+'" transform="rotate(-90 72 72)"/>';offset+=share;return arc}.join('');
   return '<svg class="fuel-mix-chart fuel-mix-ring" viewBox="0 0 144 144" role="img" aria-label="Fuel mix ring chart">'+arcs+'<text x="72" y="69" text-anchor="middle" class="fuel-ring-label">TOTAL</text><text x="72" y="84" text-anchor="middle" class="fuel-ring-value">100%</text></svg>';
  }
- let angle=-Math.PI/2;const slices=entries.map(([fuel,value])=>{const share=value/total,end=angle+share*Math.PI*2,x1=cx+radius*Math.cos(angle),y1=cy+radius*Math.sin(angle),x2=cx+radius*Math.cos(end),y2=cy+radius*Math.sin(end),path='M '+cx+' '+cy+' L '+x1+' '+y1+' A '+radius+' '+radius+' 0 '+(share>0.5?1:0)+' 1 '+x2+' '+y2+' Z';angle=end;return '<path d="'+path+'" fill="'+colors[fuel]+'" stroke="var(--bg)" stroke-width="1"><title>'+esc(fuel)+': '+fmt(share*100,1)+'%</title></path>'}).join('');
+ let angle=-Math.PI/2;const slices=entries.map(([fuel,value])=>{const share=value/total,end=angle+share*Math.PI*2,x1=cx+radius*Math.cos(angle),y1=cy+radius*Math.sin(angle),x2=cx+radius*Math.cos(end),y2=cy+radius*Math.sin(end),path='M '+cx+' '+cy+' L '+x1+' '+y1+' A '+radius+' '+radius+' 0 '+(share>0.5?1:0)+' 1 '+x2+' '+y2+' Z';angle=end;return '<path class="fuel-mix-segment" data-fuel="'+esc(fuel)+'" data-share="'+share+'" data-energy="'+value+'" tabindex="0" role="button" aria-label="'+esc(fuel)+': '+fmt(share*100,1)+'%, '+fmt(value,1)+' MWh" d="'+path+'" fill="'+colors[fuel]+'" stroke="var(--bg)" stroke-width="1"/>'}.join('');
  return '<svg class="fuel-mix-chart fuel-mix-pie" viewBox="0 0 144 144" role="img" aria-label="Fuel mix pie chart">'+slices+'</svg>';
 }
+function showFuelTooltip(segment){
+ const chart=segment.closest('.fuel-report-chart'),tooltip=chart?.querySelector('.fuel-tooltip');
+ if(!tooltip)return;
+ tooltip.innerHTML='<strong>'+esc(segment.dataset.fuel)+'</strong><span>'+fmt(Number(segment.dataset.share)*100,1)+'%</span><span>'+fmt(Number(segment.dataset.energy),1)+' MWh</span>';
+ tooltip.hidden=false;
+}
+document.addEventListener('pointerover',event=>{const segment=event.target.closest?.('.fuel-mix-segment');if(segment)showFuelTooltip(segment)});
+document.addEventListener('pointerout',event=>{const segment=event.target.closest?.('.fuel-mix-segment');if(segment&&!event.relatedTarget?.closest?.('.fuel-mix-segment')){const tooltip=segment.closest('.fuel-report-chart')?.querySelector('.fuel-tooltip');if(tooltip)tooltip.hidden=true}});
+document.addEventListener('focusin',event=>{const segment=event.target.closest?.('.fuel-mix-segment');if(segment)showFuelTooltip(segment)});
+document.addEventListener('focusout',event=>{const segment=event.target.closest?.('.fuel-mix-segment');if(segment){const tooltip=segment.closest('.fuel-report-chart')?.querySelector('.fuel-tooltip');if(tooltip)tooltip.hidden=true}});
 function overview(){
  const s=data.summary,sources=comparisonSources(),dispatch=comparedRows(data.hourly,sources,[{key:'demand_mw',name:'Demand'},{key:'generation_mw',name:'Generation'}]),shed=comparedRows(data.hourly,sources,[{key:'shed_mw',name:'Load shedding',bar:true}]);
  const dispatchRows=dispatch.rows;
