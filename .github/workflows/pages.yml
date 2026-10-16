@@ -21,6 +21,13 @@ jobs:
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+      - name: Restore historical report cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/historical-reports
+          key: begd-historical-reports-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            begd-historical-reports-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
