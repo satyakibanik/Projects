@@ -1,7 +1,7 @@
 (function () {
   const bundle = window.BEGD_STATIC_DATA;
   const originalFetch = window.fetch.bind(window);
-  const archiveBase = new URL("archive/", document.currentScript.src);
+  const archiveBase = new URL("archive/", window.location.href);
   const reportMetadata = new Map((bundle?.reports || []).map(report => [String(report.id), report]));
   async function getReport(id) {
     if (!id) return null;
