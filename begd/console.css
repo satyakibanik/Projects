@@ -191,3 +191,5 @@ nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9
 .energy-curve-table-modes button[aria-pressed="true"]{background:#176ba6;color:#fff}
 .energy-curve-table-modes button:hover{color:var(--ink)}
 @media(max-width:700px){.energy-curve-hourly-heading{display:block}.energy-curve-table-modes{margin-top:12px;width:max-content;max-width:100%}.energy-curve-table-modes button{padding:8px 9px;font-size:8px}}
+
+.energy-curve-table .energy-curve-shortage{color:#e33434!important;font-weight:700}
