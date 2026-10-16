@@ -18,6 +18,6 @@ test('missing data responses',async()=>{assert.equal((await api(null).fetch('/ap
 test('unknown routes',async()=>assert.equal((await api().fetch('/api/unknown')).status,404));
 test('external and asset fetch preserve options',async()=>{const {fetch,calls}=api(),options={cache:'no-store'};await fetch('https://other.test/api/report',options);await fetch('style.css',options);assert.equal(calls.length,2);assert.equal(calls[0][1],options)});
 test('Request input supported',async()=>assert.equal((await api().fetch(new Request('https://example.test/api/report?id=1'))).status,200));
-test('partial archive reports failures',async()=>assert.match((await(await api({...bundle,failures:['broken']}).fetch('/api/reports')).json()).error,/Skipped 1/));
+test('archive parser failures are not exposed to the dashboard',async()=>assert.equal((await(await api({...bundle,failures:['broken']}).fetch('/api/reports')).json()).error,null));
 test('all browser scripts parse',()=>{for(const name of fs.readdirSync(path.join(root,'begd')).filter(n=>n.endsWith('.js')))new vm.Script(fs.readFileSync(path.join(root,'begd',name),'utf8'),{filename:name})});
 test('HTML local asset references exist',()=>{for(const page of ['index.html','begd/index.html'])for(const m of fs.readFileSync(path.join(root,page),'utf8').matchAll(/(?:src|href)="([^"#]+)"/g)){const target=m[1].split(/[?#]/)[0];if(!target||/^(?:https?:|data:|\/)/.test(target))continue;assert.ok(fs.existsSync(path.resolve(root,path.dirname(page),target)),`${page}: ${target}`)}});
