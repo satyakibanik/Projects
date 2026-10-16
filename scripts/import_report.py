@@ -395,6 +395,47 @@ def parse_report(report_bytes, source_file):
                 remarks=str(forecast_sheet.cell(row, 14).value or "—").strip(),
             ))
 
+    # Half-hourly generation by source and shortage from the En-Curve sheet.
+    en_curve = None
+    if "En-Curve" in workbook.sheetnames:
+        en_curve_sheet = workbook["En-Curve"]
+        raw_curve_date = en_curve_sheet.cell(2, 2).value
+        if isinstance(raw_curve_date, (datetime.datetime, datetime.date)):
+            curve_date = (raw_curve_date.date() if isinstance(raw_curve_date, datetime.datetime)
+                          else raw_curve_date).isoformat()
+        else:
+            curve_date = datetime.datetime.strptime(str(raw_curve_date), "%d-%m-%Y").date().isoformat()
+        curve_sources = []
+        for col in range(2, 18):
+            label = str(en_curve_sheet.cell(3, col).value or "").strip()
+            if not label:
+                continue
+            key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") + "_mw"
+            curve_sources.append(dict(key=key, name=label))
+        en_curve_hourly = []
+        for row in range(4, en_curve_sheet.max_row + 1):
+            raw_time = en_curve_sheet.cell(row, 1).value
+            if raw_time is None:
+                continue
+            time_text = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
+            reading = {source["key"]: number(en_curve_sheet.cell(row, col).value)
+                       for source, col in zip(curve_sources, range(2, 18))}
+            generated = sum(value or 0 for key, value in reading.items() if key != "shortage_mw")
+            en_curve_hourly.append(dict(time=time_text, **reading, total_generation_mw=generated))
+        en_curve = dict(
+            date=curve_date,
+            sources=curve_sources,
+            hourly=en_curve_hourly,
+            totals=dict(
+                energy_generated_mwh=number(en_curve_sheet.cell(7, 21).value) * 1000
+                if number(en_curve_sheet.cell(7, 21).value) is not None else None,
+                energy_not_served_mwh=number(en_curve_sheet.cell(8, 21).value) * 1000
+                if number(en_curve_sheet.cell(8, 21).value) is not None else None,
+                total_requirement_mwh=number(en_curve_sheet.cell(9, 21).value) * 1000
+                if number(en_curve_sheet.cell(9, 21).value) is not None else None,
+            ),
+        )
+
     data = dict(
         date=date,
         source_file=source_file,
@@ -413,6 +454,7 @@ def parse_report(report_bytes, source_file):
                 for col, fuel in enumerate(fuels, 5)}),
         hourly=dispatch_hourly,
         grid_generation=grid_curve,
+        en_curve=en_curve,
         regions=regions,
         plants=plants,
         plant_units=plant_units,
