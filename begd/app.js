@@ -74,7 +74,8 @@ function fuelMixVisualization(report,style=fuelMixStyle){
 function showFuelTooltip(segment){
  const chart=segment.closest('.fuel-report-chart'),tooltip=chart?.querySelector('.fuel-tooltip');
  if(!tooltip)return;
- tooltip.innerHTML='<strong>'+esc(segment.dataset.fuel)+'</strong><span>'+fmt(Number(segment.dataset.share)*100,1)+'%</span><span>'+fmt(Number(segment.dataset.energy),1)+' MWh / day</span><span class="fuel-tooltip-average">'+fmt(Number(segment.dataset.energy)/24,1)+' MW average</span>';
+ const averageMw=Number(segment.dataset.energy)/24,averagePower=averageMw<1?fmt(averageMw*1000,0)+' kW':fmt(averageMw,1)+' MW';
+ tooltip.innerHTML='<strong>'+esc(segment.dataset.fuel)+'</strong><span>'+fmt(Number(segment.dataset.share)*100,1)+'%</span><span>'+fmt(Number(segment.dataset.energy),1)+' MWh / day</span><span class="fuel-tooltip-average">'+averagePower+' average over 24 h</span>';
  tooltip.hidden=false;
 }
 document.addEventListener('pointerover',event=>{const segment=event.target.closest?.('.fuel-mix-segment');if(segment)showFuelTooltip(segment)});
