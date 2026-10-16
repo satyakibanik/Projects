@@ -1,7 +1,3 @@
-const chartPreferencesKey = 'begd-chart-preferences-v1';
-let chartPreferences = {};
-try { chartPreferences = JSON.parse(localStorage.getItem(chartPreferencesKey) || '{}'); } catch {}
-
 function setupCharts(view) {
   document.querySelectorAll('.interactive-chart').forEach(wrapper => {
     const model = chartData.get(wrapper.dataset.chart);
@@ -101,29 +97,4 @@ function setupCharts(view) {
       if (selected !== null) show(selected);
     }));
   });
-  const options = [];
-  if (view === 'overview') {
-    options.push(['dispatch', 'Demand and generation', document.querySelector('.dispatch-main')]);
-    options.push(['fuel', 'Fuel mix', document.querySelector('.energy-band')]);
-    options.push(['shed', 'Load shedding', document.querySelector('.lower-grid .panel')]);
-  } else if (view === 'imports') {
-    document.querySelectorAll('#content .grid > .panel').forEach((panel, index) => options.push([`route-${index}`, panel.querySelector('h2').textContent, panel]));
-  }
-  if (!options.length) return;
-  const fieldset = document.createElement('fieldset');
-  fieldset.className = 'chart-selector';
-  fieldset.innerHTML = '<legend>Charts to display</legend>' + options.map(([key,label]) => `<label><input type="checkbox" value="${key}" ${chartPreferences[view+'-'+key] !== false ? 'checked' : ''}>${esc(label)}</label>`).join('');
-  document.querySelector('#content').prepend(fieldset);
-  function apply() {
-    options.forEach(([key,label,panel]) => { panel.hidden = !fieldset.querySelector(`input[value="${key}"]`).checked; });
-    if (view === 'overview') document.querySelector('.dispatch-layout').classList.toggle('readings-only', options[0][2].hidden);
-    const grid = document.querySelector('#content .grid');
-    if (grid) grid.classList.toggle('single-panel', [...grid.children].filter(el => !el.hidden).length === 1);
-  }
-  fieldset.addEventListener('change', () => {
-    fieldset.querySelectorAll('input').forEach(input => chartPreferences[view+'-'+input.value] = input.checked);
-    try { localStorage.setItem(chartPreferencesKey, JSON.stringify(chartPreferences)); } catch {}
-    apply();
-  });
-  apply();
 }
