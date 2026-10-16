@@ -476,6 +476,7 @@ $('#archive-day').addEventListener('change',async event=>{
  await selectReportById(String(report.id));
 });
 window.addEventListener('hashchange',render);
+document.querySelector('nav[aria-label="Dashboard views"]').addEventListener('click',event=>{if(event.target.closest('a[href^="#"]'))window.scrollTo(0,0)});
 async function refreshDateList(){
  try{
   const response=await fetch('/api/reports',{cache:'no-store'});
