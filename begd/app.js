@@ -415,17 +415,20 @@ function stackedAreaChart(rows,series){
  return '<div class="interactive-chart en-curve-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+chartLegend(series,false,true)+'<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>';
 }
 function energyCurveHourlyTable(rows,series,totals={},mode='energy'){
- const sources=series.slice(),generationSources=sources.filter(source=>source.key!=='shortage_mw'),shortageSources=sources.filter(source=>source.key==='shortage_mw');
- const hours=Array.from({length:24},(_,hour)=>({hour,values:Object.fromEntries(sources.map(source=>[source.key,0]))}));
+ const sources=series.slice(),tableSources=sources.filter(source=>source.key!=='shortage_mw'),generationSources=sources.filter(source=>source.key!=='shortage_mw'),shortageSources=sources.filter(source=>source.key==='shortage_mw');
+ const hours=Array.from({length:24},(_,hour)=>({hour,values:Object.fromEntries(sources.map(source=>[source.key,0])),mwValues:Object.fromEntries(sources.map(source=>[source.key,null]))}));
  for(const row of rows){
-  const hour=Number(String(row.time).slice(0,2));
+  const time=String(row.time),hour=Number(time.slice(0,2));
   if(!Number.isInteger(hour)||hour<0||hour>=24)continue;
   for(const source of sources){
    const mw=Number(row[source.key]);
-   if(Number.isFinite(mw))hours[hour].values[source.key]+=mw*0.5;
+   if(Number.isFinite(mw)){
+    hours[hour].values[source.key]+=mw*0.5;
+    if(time.slice(3,5)==='00')hours[hour].mwValues[source.key]=mw;
+   }
   }
  }
- const sumFor=(values,group)=>group.reduce((sum,source)=>sum+values[source.key],0);
+ const sumFor=(values,group)=>group.reduce((sum,source)=>sum+(Number(values[source.key])||0),0);
  const rawTotals=Object.fromEntries(sources.map(source=>[source.key,hours.reduce((sum,hour)=>sum+hour.values[source.key],0)]));
  const rawGenerated=generationSources.reduce((sum,source)=>sum+rawTotals[source.key],0);
  const rawShortage=shortageSources.reduce((sum,source)=>sum+rawTotals[source.key],0);
@@ -451,12 +454,19 @@ function energyCurveHourlyTable(rows,series,totals={},mode='energy'){
  };
  if(hasGenerated)reconcileGroup(generationSources,publishedGenerated);
  if(hasShortage)reconcileGroup(shortageSources,publishedShortage);
- const isMw=mode==='mw',hourlyUnit=isMw?'MW avg':'MWh',title=isMw?'Hourly MW by source':'Hourly energy by source';
- const rowMarkup=hours.map(hour=>'<tr><th scope="row">'+String(hour.hour).padStart(2,'0')+':00–'+String(hour.hour).padStart(2,'0')+':59</th>'+sources.map(source=>'<td>'+fmt(hour.values[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(sumFor(hour.values,generationSources),1)+'</td></tr>').join('');
- const generatedTotal=sumFor(sourceTotals,generationSources);
- const controls='<div class="energy-curve-table-modes" role="group" aria-label="Hourly table measure"><button type="button" data-en-curve-table-mode="mw" aria-pressed="'+isMw+'">Hourly MW by source</button><button type="button" data-en-curve-table-mode="energy" aria-pressed="'+!isMw+'">Hourly energy by source</button></div>';
- const description=isMw?'Hourly average MW from the source profile, reconciled to published daily totals · Bangladesh time':'Hourly MWh allocated from half-hour readings and reconciled to published daily totals · Bangladesh time';
- return '<section class="energy-curve-hourly" aria-labelledby="energy-curve-hourly-title"><div class="energy-curve-hourly-heading"><div><h3 id="energy-curve-hourly-title">'+title+'</h3><p>'+description+'</p></div>'+controls+'</div><div class="energy-curve-table-wrap" role="region" aria-label="'+title+'" tabindex="0"><table class="energy-curve-table"><caption>'+title+' in '+hourlyUnit+'. Daily source totals are energy in MWh; shortage reconciles to reported energy not served.</caption><thead><tr><th scope="col">Hour (BST)</th>'+sources.map(source=>'<th scope="col">'+esc(source.name)+'</th>').join('')+'<th scope="col" class="energy-curve-total">Generation / hour ('+hourlyUnit+')</th></tr></thead><tbody>'+rowMarkup+'</tbody><tfoot><tr><th scope="row">Daily energy (MWh)</th>'+sources.map(source=>'<td>'+fmt(sourceTotals[source.key],1)+'</td>').join('')+'<td class="energy-curve-total">'+fmt(generatedTotal,1)+'</td></tr></tfoot></table></div></section>';
+ const isMw=mode==='mw',hourlyUnit=isMw?'MW':'MWh',title=isMw?'Hourly MW by source':'Hourly energy by source';
+ const rowMarkup=hours.map(hour=>{
+  const values=isMw?hour.mwValues:hour.values;
+  const precision=isMw?2:1;
+  const cells=tableSources.map(source=>'<td'+(source.key==='shortage_mw'?' class="energy-curve-shortage"':'')+'>'+fmt(values[source.key],precision)+'</td>').join('');
+  const generationTotal=fmt(sumFor(values,generationSources),precision);
+  return '<tr><th scope="row">'+String(hour.hour).padStart(2,'0')+':00–'+String(hour.hour).padStart(2,'0')+':59</th>'+cells+'<td class="energy-curve-total">'+generationTotal+'</td><td class="energy-curve-shortage">'+fmt(values.shortage_mw,precision)+'</td></tr>';
+ }).join('');
+ const generatedTotal=sumFor(sourceTotals,generationSources),controls='<div class="energy-curve-table-modes" role="group" aria-label="Hourly table measure"><button type="button" data-en-curve-table-mode="mw" aria-pressed="'+isMw+'">Hourly MW by source</button><button type="button" data-en-curve-table-mode="energy" aria-pressed="'+!isMw+'">Hourly energy by source</button></div>';
+ const description=isMw?'Workbook MW readings at the start of each hour · Bangladesh time':'Hourly MWh allocated from half-hour readings and reconciled to published daily totals · Bangladesh time';
+ const headers=tableSources.map(source=>'<th scope="col"'+(source.key==='shortage_mw'?' class="energy-curve-shortage"':'')+'>'+esc(source.name)+'</th>').join('');
+ const footer=tableSources.map(source=>'<td'+(source.key==='shortage_mw'?' class="energy-curve-shortage"':'')+'>'+fmt(sourceTotals[source.key],1)+'</td>').join('');
+ return '<section class="energy-curve-hourly" aria-labelledby="energy-curve-hourly-title"><div class="energy-curve-hourly-heading"><div><h3 id="energy-curve-hourly-title">'+title+'</h3><p>'+description+'</p></div>'+controls+'</div><div class="energy-curve-table-wrap" role="region" aria-label="'+title+'" tabindex="0"><table class="energy-curve-table"><caption>'+title+' in '+hourlyUnit+'. Daily source totals are energy in MWh; shortage reconciles to reported energy not served.</caption><thead><tr><th scope="col">Hour (BST)</th>'+headers+'<th scope="col" class="energy-curve-total">Generation / hour ('+hourlyUnit+')</th><th scope="col" class="energy-curve-shortage">Shortage</th></tr></thead><tbody>'+rowMarkup+'</tbody><tfoot><tr><th scope="row">Daily energy (MWh)</th>'+footer+'<td class="energy-curve-total">'+fmt(generatedTotal,1)+'</td><td class="energy-curve-shortage">'+fmt(sourceTotals.shortage_mw,1)+'</td></tr></tfoot></table></div></section>';
 }
 function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
