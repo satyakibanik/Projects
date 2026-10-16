@@ -27,7 +27,7 @@
       return jsonResponse({
         reports: bundle.reports, count: bundle.reports.length, complete: true,
         pages_loaded: 1, page_count: 1, updated_at: bundle.generated_at,
-        error: bundle.failures.length ? `Skipped ${bundle.failures.length} report(s) during the last update.` : null
+        error: null
       });
     }
     if (url.pathname === "/api/report") {
