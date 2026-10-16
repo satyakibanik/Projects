@@ -371,16 +371,18 @@ function updateForecast(){
 function stackedAreaChart(rows,series){
  const visible=series.filter(item=>dispatchVisibility.get(item.key)!==false);
  const scaleRows=rows.map(row=>({...row,stack_total:visible.reduce((sum,item)=>sum+(Number(row[item.key])||0),0)}));
- const scale=chartScale(scaleRows,[{key:'stack_total'}]);
- const W=800,H=250,L=58,R=15,T=14,B=32;
+ const measuredScale=chartScale(scaleRows,[{key:'stack_total'}]);
+ const scale={...measuredScale,min:0,max:Math.ceil(measuredScale.max/measuredScale.step)*measuredScale.step};
+ const W=800,H=420,L=58,R=15,T=14,B=42;
  const x=row=>L+(parseInt(row.time)*60+parseInt(row.time.slice(3)))/1380*(W-L-R);
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
  chartData.set(id,{rows,series,x,stackedArea:true,enCurve:true});
  let body='';
- for(let tick=0;tick<=4;tick++){
-  const value=scale.min+(scale.max-scale.min)*tick/4,position=y(value);
-  body+='<line class="axis" data-tick-line="'+tick+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text data-tick-label="'+tick+'" x="'+(L-8)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value,2)+'</text>';
+ let tick=0;
+ for(let value=0;value<=scale.max;value+=scale.step,tick++){
+  const position=y(value);
+  body+='<line class="axis" data-tick-line="'+tick+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text data-tick-label="'+tick+'" x="'+(L-8)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value)+'</text>';
  }
  for(const hour of [0,6,12,18,23]){
   const time=String(hour).padStart(2,'0')+':00';
