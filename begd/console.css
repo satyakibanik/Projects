@@ -46,10 +46,10 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 .plant-metrics span{display:block;font:8px/1.5 var(--mono);letter-spacing:.4px;text-transform:uppercase;color:var(--muted);text-decoration:none}
 .plant-metric-title{position:relative;width:max-content;max-width:100%;cursor:help;border-bottom:1px dotted var(--muted)}
 .plant-metric-title:focus-visible{outline:1px solid var(--green);outline-offset:3px}
-.plant-tooltip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;display:block!important;width:min(360px,80vw);padding:11px 13px;background:#fff;border:1px solid #000;color:#111;font:10px/1.55 var(--body)!important;letter-spacing:0!important;text-align:left;text-transform:none!important;white-space:normal;box-shadow:0 8px 24px #0005;opacity:0;visibility:hidden;pointer-events:none}
+.plant-tooltip{position:absolute;left:0;bottom:calc(100% + 8px);z-index:20;display:block!important;width:min(460px,88vw);padding:11px 13px;background:#fff;border:1px solid #000;color:#111;font:10px/1.55 var(--body)!important;letter-spacing:0!important;text-align:left;text-transform:none!important;white-space:normal;box-shadow:0 8px 24px #0005;opacity:0;visibility:hidden;pointer-events:none}
 .plant-metric-title:hover>.plant-tooltip,.plant-metric-title:focus-visible>.plant-tooltip{opacity:1;visibility:visible}
 .plant-tooltip-description{display:block!important;color:#111;font:10px/1.55 var(--body)!important;text-transform:none!important}
-.plant-formula{display:block;margin:9px 0 0;max-width:100%;color:#111;font:16px/1.35 'Times New Roman',serif!important;text-transform:none!important}
+.plant-formula{display:block;margin:9px 0 0;max-width:100%;color:#111;font:10px/1.55 var(--body)!important;text-transform:none!important}
 .plant-metrics strong{display:block;margin-top:5px;font:500 17px var(--display);font-variant-numeric:tabular-nums;color:var(--ink)}
 .plant-output-chart .legend{display:flex;flex-wrap:wrap;gap:8px 16px}
 .plant-output-chart .legend label{display:flex;align-items:center;gap:5px;font:8px var(--mono);color:var(--muted)}
