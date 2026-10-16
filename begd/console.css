@@ -63,3 +63,24 @@ main{max-width:none;margin-left:var(--rail);padding:35px 36px}.intro{margin-bott
 .plant-source-note strong{color:var(--ink);font-weight:500}
 @media(max-width:900px){.plant-layout{grid-template-columns:220px minmax(0,1fr)}.plant-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.plant-layout{grid-template-columns:1fr}.plant-list{max-height:300px}.plant-detail{padding:13px}.plant-detail-heading{flex-direction:column}.plant-metrics strong{font-size:15px}}
+
+/* Power plant table */
+.plant-table{min-width:1080px;font-size:11px}
+.plant-table th{padding:8px 10px}
+.plant-table th.num{text-align:right}
+.plant-table .plant-sort{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:4px 0;border:0;border-radius:0;background:transparent;color:inherit;text-align:left;font:inherit;letter-spacing:inherit;text-transform:inherit;white-space:nowrap}
+.plant-table th.num .plant-sort{justify-content:flex-end}
+.plant-table .plant-sort:hover{color:var(--ink);background:transparent}
+.plant-table .plant-sort span{color:var(--green);font-size:12px}
+.plant-table .plant-filter-row th{padding:5px}
+.plant-table .plant-filter-row input{width:100%;min-width:72px;padding:7px 8px;border:1px solid var(--line);border-radius:0;background:transparent;color:var(--ink);font:9px var(--mono)}
+.plant-table .plant-filter-row input::placeholder{color:var(--muted);opacity:.8}
+.plant-table td{white-space:nowrap}
+.plant-table td.name{min-width:240px}
+.plant-table .plant-row{cursor:pointer;outline:none}
+.plant-table .plant-row:hover,.plant-table .plant-row.active{background:#1976b90d}
+.plant-table .plant-row.active td:first-child{box-shadow:inset 3px 0 #1976b9}
+.plant-table .plant-row:focus-visible{outline:2px solid #1976b9;outline-offset:-2px}
+.plant-table .plant-expanded>td{padding:12px;border-bottom:1px solid var(--line);background:#f7fafc}
+.plant-table .plant-expanded .plant-detail{padding:20px;background:#fff}
+@media(max-width:700px){.plant-table .plant-expanded .plant-detail{padding:13px}.plant-table td.name{min-width:200px}}
