@@ -17,7 +17,7 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 - **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class.
 - **Operations detail** — planned and forced shutdowns, the P1 event log, and hourly east–west interconnector power flows.
 - **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details. These are forecasts of available generation, not demand or dispatched generation.
-- **Comparisons and download** — optional adjacent-day and highest-generation comparisons, chart controls, and JSON export.
+- **Comparisons** — optional adjacent-day and highest-generation comparisons and chart controls.
 
 All times use Bangladesh time (Asia/Dhaka). Workbook publication date can differ from its operating date. The static Pages build contains supported reports from the latest two weeks and refreshes approximately hourly; GitHub may delay or drop scheduled runs. Real-time panels use only source rows dated today and do not backfill older readings. The data bundle is generated during deployment and is not committed to the repository.
 
