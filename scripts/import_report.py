@@ -89,24 +89,25 @@ def parse_report(report_bytes, source_file):
         ))
 
     grid_curve = []
-    curve_sheet = workbook["L-Curve"]
-    for row in range(4, curve_sheet.max_row + 1):
-        raw_time = curve_sheet.cell(row, 1).value
-        if raw_time is None:
-            continue
-        time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-        east_mw, west_mw, total_mw = (number(curve_sheet.cell(row, col).value) for col in (2, 3, 4))
-        if east_mw is not None and west_mw is not None and total_mw is not None:
-            grid_curve.append(dict(time=time, east_grid_mw=east_mw, west_grid_mw=west_mw, total_mw=total_mw))
+    curve_sheet = workbook["L-Curve"] if "L-Curve" in workbook.sheetnames else None
+    if curve_sheet is not None:
+        for row in range(4, curve_sheet.max_row + 1):
+            raw_time = curve_sheet.cell(row, 1).value
+            if raw_time is None:
+                continue
+            time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
+            east_mw, west_mw, total_mw = (number(curve_sheet.cell(row, col).value) for col in (2, 3, 4))
+            if east_mw is not None and west_mw is not None and total_mw is not None:
+                grid_curve.append(dict(time=time, east_grid_mw=east_mw, west_grid_mw=west_mw, total_mw=total_mw))
 
-    curve_by_time = {point["time"]: point for point in grid_curve}
-    generation_deltas = [
-        abs(number(point["generation_mw"]) - curve_by_time[point["time"]]["total_mw"])
-        for point in dispatch_hourly
-        if point["time"] in curve_by_time and number(point["generation_mw"]) is not None
-    ]
-    assert generation_deltas and max(generation_deltas) < 0.01, \
-        "L-Curve total generation does not reconcile with P4 generation"
+        curve_by_time = {point["time"]: point for point in grid_curve}
+        generation_deltas = [
+            abs(number(point["generation_mw"]) - curve_by_time[point["time"]]["total_mw"])
+            for point in dispatch_hourly
+            if point["time"] in curve_by_time and number(point["generation_mw"]) is not None
+        ]
+        assert generation_deltas and max(generation_deltas) < 0.01, \
+            "L-Curve total generation does not reconcile with P4 generation"
 
     p2_by_name = {plant_key(plant["name"]): plant for plant in plants}
     forecast_sheet = workbook["Forecast"]
