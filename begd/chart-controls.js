@@ -1,4 +1,5 @@
 function setupCharts(view) {
+  setupRegionalSnapshotTooltips();
   document.querySelectorAll('.interactive-chart').forEach(wrapper => {
     const model = chartData.get(wrapper.dataset.chart);
     const tooltip = wrapper.querySelector('.chart-tooltip');
@@ -103,5 +104,32 @@ function setupCharts(view) {
       });
       if (selected !== null) show(selected);
     }));
+  });
+}
+
+function setupRegionalSnapshotTooltips() {
+  document.querySelectorAll('.regional-snapshot-chart-wrap').forEach(wrapper => {
+    const tooltip = wrapper.querySelector('.regional-snapshot-tooltip');
+    const hide = () => { tooltip.hidden = true; };
+    const show = point => {
+      const {region,report,metric,label,value} = point.dataset;
+      tooltip.dataset.metric = metric;
+      tooltip.innerHTML = `<strong>${esc(region)} · ${esc(report)}</strong><div><span>${esc(label)}</span><b>${esc(value)} MW</b></div>`;
+      tooltip.hidden = false;
+      const bounds = wrapper.getBoundingClientRect(), target = point.getBoundingClientRect();
+      const x = target.left + target.width / 2 - bounds.left;
+      const width = tooltip.getBoundingClientRect().width;
+      tooltip.style.left = `${Math.max(0, Math.min(x - width / 2, bounds.width - width))}px`;
+      tooltip.style.top = `${Math.max(0, target.top - bounds.top - tooltip.offsetHeight - 12)}px`;
+    };
+    wrapper.querySelectorAll('.regional-snapshot-point').forEach(point => {
+      point.addEventListener('pointerenter', () => show(point));
+      point.addEventListener('pointerleave', hide);
+      point.addEventListener('focus', () => show(point));
+      point.addEventListener('blur', hide);
+      point.addEventListener('click', () => show(point));
+      point.addEventListener('keydown', event => { if (event.key === 'Escape') hide(); });
+    });
+    wrapper.querySelector('.regional-snapshot-chart-scroll').addEventListener('scroll', hide);
   });
 }

@@ -207,3 +207,15 @@ nav a.nav-live{background:#e8f3ed;color:#116b4d;border-radius:6px;padding-left:9
 .regional-fuel-option .series-swatch{width:38px;flex-basis:38px}
 @media(max-width:760px){.legend label:has(>.series-swatch){grid-template-columns:14px 38px minmax(0,1fr)}.legend .series-swatch{width:38px;flex-basis:38px}.composition-key{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.dispatch-legend-master,.dispatch-legend-row,.dispatch-legend-extras{grid-template-columns:minmax(0,1fr);row-gap:10px}.regional-fuel-option{flex-wrap:wrap}}
+
+.regional-snapshot-chart-wrap{position:relative}
+.regional-snapshot-point{cursor:crosshair}
+.regional-snapshot-point:focus-visible{outline:2px solid #19374b;outline-offset:3px}
+.regional-snapshot-date-outline{pointer-events:none}
+.chart-tooltip.regional-snapshot-tooltip{top:auto;box-sizing:border-box;min-width:220px;max-width:100%;color:#223c50;border-color:var(--tooltip-color);background:var(--tooltip-background)}
+.regional-snapshot-tooltip[data-metric=generation_mw]{--tooltip-color:#4e79a7;--tooltip-background:#e7f0fa}
+.regional-snapshot-tooltip[data-metric=demand_mw]{--tooltip-color:#f28e2b;--tooltip-background:#fff1df}
+.regional-snapshot-tooltip[data-metric=shed_mw]{--tooltip-color:#e15759;--tooltip-background:#fde8e7}
+.regional-snapshot-tooltip>strong{color:#526a7d}
+
+circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
