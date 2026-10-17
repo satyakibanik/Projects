@@ -10,7 +10,7 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 ### Dashboard views
 
 - **Overview** — hourly generation-side demand and generation, with day and evening generation-availability forecasts from the preceding report plotted at the selected day’s observed demand peaks; daily fuel mix; reported load shedding; evening-peak demand and generation; and published daily energy totals.
-- **Power plants** — plant capacity, peak output, reported energy, producer, region, and source remarks, with search and filters.
+- **Power plants** — a Bangladesh-only plant-location map with fuel colors, nearby-unit grouping, and a sidebar showing the selected report's table values. The capacity/output table and map share search and status filters; marker cards link to plant details and hourly output.
 - **Regions** — regional energy and fuel mix alongside evening-peak demand and load shedding.
 - **Imports** — hourly MW and daily energy by cross-border route, with imports’ share of reported national energy.
 - **Real time** — ERP demand, generation, and India-import readings dated today in Bangladesh time.
@@ -20,6 +20,14 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 - **Comparisons** — optional adjacent-day and highest-generation comparisons and chart controls.
 
 All times use Bangladesh time (Asia/Dhaka). Workbook publication date can differ from its operating date. The static Pages build contains supported reports from the latest two weeks and refreshes approximately hourly; GitHub may delay or drop scheduled runs. Real-time panels use only source rows dated today and do not backfill older readings. The data bundle is generated during deployment and is not committed to the repository.
+
+### Reviewed plant locations
+
+`begd/plant-locations.json` contains the reviewed location catalog, separate from changing operating reports. The map joins by normalized full plant name, displays only entries in the selected report, and rejects points outside the bundled Bangladesh polygon. Nearby markers group at the current zoom level without changing their underlying coordinates. Shared complexes and dual-fuel rows remain separate report entries in the sidebar. New names without reviewed coordinates are listed as unmapped.
+
+To refresh the catalog after reviewing `Power Plant Coordinates/Power Plant Coordinate Matches.xlsx`, run `python scripts/import_plant_locations.py`. The importer resolves “use the candidate” to that row's OSM feature, reads explicit coordinate instructions, excludes non-plant rows, and rejects unresolved decisions or coordinates outside Bangladesh. The local workbook and raw downloads are not required on the deployed site.
+
+Plant coordinates use OpenStreetMap contributors' data under ODbL plus user-supplied corrections. The country polygon is dissolved from geoBoundaries gbOpen Bangladesh ADM3, simplified for display under CC BY 4.0, with its source and attribution recorded in `begd/bangladesh-boundary.geojson`. The map uses local SVG geometry rather than external map tiles.
 
 ### Data sources
 
