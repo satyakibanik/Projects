@@ -36,16 +36,21 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Verify Power Grid TLS intermediate
         run: |
-          curl --fail --silent --show-error --location --proto '=http' --max-time 20 http://crt.sectigo.com/SSL2BUYEMEARSADomainValidationSecureServerCA.crt --output /tmp/erp-issuer.crt
+          openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
+          openssl x509 -in /tmp/erp-leaf.pem -noout >/dev/null
+          issuer_url="$(openssl x509 -in /tmp/erp-leaf.pem -noout -ext authorityInfoAccess | sed -n 's/.*CA Issuers - URI:\([^[:space:]]*\).*/\1/p' | head -n 1)"
+          case "$issuer_url" in
+            http://crt.sectigo.com/*|https://crt.sectigo.com/*) ;;
+            *) echo "Unexpected ERP certificate issuer URL: $issuer_url" >&2; exit 1 ;;
+          esac
+          curl --fail --silent --show-error --location --proto '=http,https' --max-time 20 "$issuer_url" --output /tmp/erp-issuer.crt
           if openssl x509 -in /tmp/erp-issuer.crt -noout >/dev/null 2>&1; then
             openssl x509 -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
           else
             openssl x509 -inform DER -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
           fi
-          openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
           openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           python - <<'PY'
-          import os
           import socket
           import ssl
           host = "erp.powergrid.gov.bd"
