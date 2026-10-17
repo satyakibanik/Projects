@@ -4,6 +4,8 @@
  const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const project=([lon,lat])=>[(lon-88)*Math.cos(24*Math.PI/180)*150,(27-lat)*150];
  const polygons=geometry=>geometry.type==='Polygon'?[geometry.coordinates]:geometry.type==='MultiPolygon'?geometry.coordinates:[];
+ const geometryPath=geometry=>polygons(geometry).map(p=>p.map(r=>r.map((v,i)=>`${i?'L':'M'}${project(v).map(n=>n.toFixed(3)).join(' ')}`).join('')+'Z').join('')).join('');
+ const osmURL=id=>/^(node|way|relation)\/[1-9]\d*$/.test(String(id||''))?'https://www.openstreetmap.org/'+id:null;
  function onSegment(p,a,b){const cross=(p[1]-a[1])*(b[0]-a[0])-(p[0]-a[0])*(b[1]-a[1]);return Math.abs(cross)<1e-10&&p[0]>=Math.min(a[0],b[0])-1e-10&&p[0]<=Math.max(a[0],b[0])+1e-10&&p[1]>=Math.min(a[1],b[1])-1e-10&&p[1]<=Math.max(a[1],b[1])+1e-10}
  function inRing(point,ring){
   let inside=false;
@@ -35,17 +37,17 @@
   return items.map(({plant,location})=>`<article class="plant-map-card"><h3>${escape(plant.name)}</h3><dl>${columns.filter(([k])=>k!=='name').map(([k,label])=>{
    const value=getValue(plant,k),number=['installed','present','peak'].includes(k);
    return `<div><dt>${escape(label)}</dt><dd>${value==null?'—':number?escape(Number(value).toLocaleString('en-US',{maximumFractionDigits:1}))+' MW':escape(value)}</dd></div>`;
-  }).join('')}</dl><p class="plant-map-location">${location.latitude.toFixed(6)}° N, ${location.longitude.toFixed(6)}° E · ${escape(location.source)}${location.approximate?' · approximate':''}</p><button type="button" data-map-plant-detail="${encodeURIComponent(plant.name)}">Open plant details and hourly output</button></article>`).join('');
+  }).join('')}</dl><p class="plant-map-location">${location.latitude.toFixed(6)}° N, ${location.longitude.toFixed(6)}° E · ${escape(location.source)}${location.approximate?' · approximate':''}</p>${osmURL(location.osm_id)?`<p class="plant-map-osm"><a href="${osmURL(location.osm_id)}" target="_blank" rel="noopener noreferrer">View on OpenStreetMap ↗</a></p>`:''}<button type="button" data-map-plant-detail="${encodeURIComponent(plant.name)}">Open plant details and hourly output</button></article>`).join('');
  }
  const fuelColors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Wind:'#76b7b2','Dual fuel':'#9c6eaf',Other:'#526a7d'};
  const fuel=value=>String(value||'').includes('/')?'Dual fuel':fuelColors[value]?value:'Other';
  let assets;
  async function load(){
-  if(!assets)assets=Promise.all(['bangladesh-boundary.geojson','plant-locations.json'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Plant map data unavailable');return r.json()})).catch(error=>{assets=null;throw error});
+  if(!assets)assets=Promise.all(['bangladesh-boundary.geojson','plant-locations.json','plant-administrative-boundaries.geojson'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Plant map data unavailable');return r.json()})).catch(error=>{assets=null;throw error});
   return assets;
  }
  async function create({frame,sidebar,summary,legend,columns,getValue,onDetails}){
-  const [boundary,catalog]=await load();if(!frame.isConnected)return null;
+  const [boundary,catalog,administrative]=await load();if(!frame.isConnected)return null;
   const geometry=boundary.geometry,rings=polygons(geometry).flat(),points=rings.flat().map(project);
   const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),padding=18;
   const home={x:Math.min(...xs)-padding,y:Math.min(...ys)-padding,w:Math.max(...xs)-Math.min(...xs)+padding*2,h:Math.max(...ys)-Math.min(...ys)+padding*2};
@@ -53,9 +55,12 @@
   const svgNS='http://www.w3.org/2000/svg',doc=frame.ownerDocument;
   const make=(name,attrs={})=>{const el=doc.createElementNS(svgNS,name);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);return el};
   const svg=make('svg',{class:'plant-location-map',role:'group','aria-label':'Power plant locations inside Bangladesh',preserveAspectRatio:'xMidYMid meet'});
-  const countryPath=polygons(geometry).map(p=>p.map(r=>r.map((v,i)=>`${i?'L':'M'}${project(v).map(n=>n.toFixed(3)).join(' ')}`).join('')+'Z').join('')).join('');
+  const countryPath=geometryPath(geometry);
   const path=make('path',{d:countryPath,class:'plant-map-country','fill-rule':'evenodd'});
   const defs=make('defs'),clip=make('clipPath',{id:'plant-country-clip'});clip.append(make('path',{d:countryPath,'fill-rule':'evenodd','clip-rule':'evenodd'}));defs.append(clip);svg.append(defs,path);
+  const boundaries=make('g',{'clip-path':'url(#plant-country-clip)','aria-hidden':'true',class:'plant-map-boundaries'});
+  for(const feature of administrative.features)boundaries.append(make('path',{d:geometryPath(feature.geometry),class:`plant-map-boundary plant-map-${feature.properties.level}-boundary`,'data-name':feature.properties.name,fill:'none'}));
+  svg.append(boundaries);
   const layer=make('g',{'clip-path':'url(#plant-country-clip)'});svg.append(layer);frame.replaceChildren(svg);
   const idle=()=>{sidebar.innerHTML='<span class="region-map-kicker">POWER PLANT LOCATIONS</span><h3>Explore a power plant</h3><p>Hover, focus or tap a marker to see the selected report’s plant information. Numbered markers group nearby units; zoom in to separate them.</p>'};idle();
   const show=(group,index)=>{
@@ -101,9 +106,9 @@
    const resolved=resolvePlants(rows,catalog,geometry);markers=resolved.markers;
    summary.textContent=`${markers.length} of ${markers.length+resolved.unmapped.length+resolved.outside.length} plant entries mapped · selected report · nearby units are grouped`;
    if(resolved.unmapped.length||resolved.outside.length)summary.textContent+=` · not mapped: ${[...resolved.unmapped,...resolved.outside].map(p=>p.name).join(', ')}`;
-   const fuels=[...new Set(markers.map(m=>fuel(getValue(m.plant,'fuel'))))];legend.innerHTML=fuels.map(f=>`<span><i style="background:${fuelColors[f]}"></i>${escape(f)}</span>`).join('')+'<span><i style="background:#19374b"></i>Grouped units</span>';
+   const fuels=[...new Set(markers.map(m=>fuel(getValue(m.plant,'fuel'))))];legend.innerHTML=fuels.map(f=>`<span><i style="background:${fuelColors[f]}"></i>${escape(f)}</span>`).join('')+'<span><i style="background:#19374b"></i>Grouped units</span><span><i class="district-boundary-key"></i>District boundary</span><span><i class="division-boundary-key"></i>Division boundary</span>';
    repaint();idle();
   }};
  }
- return {insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
+ return {geometryPath,osmURL,insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
 });
