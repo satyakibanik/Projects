@@ -1,0 +1,62 @@
+:root{--surface:#fff;color-scheme:light}
+header{position:relative;padding-top:56px;flex-wrap:wrap;gap:16px}
+.theme-toggle{position:absolute;top:12px;right:24px;min-width:88px;min-height:32px;padding:6px 10px;font:11px var(--mono);border-radius:4px}
+:root[data-theme=dark]{color-scheme:dark;--bg:#0c1520;--surface:#121f2c;--ink:#e5edf5;--muted:#b0c0ce;--line:#3b5062;--green:#7bc4f5;--blue:#80bfee;--lime:#efbf70;--red:#fa9385}
+[data-theme=dark] body{background:var(--bg);color:var(--ink)}
+[data-theme=dark] header,[data-theme=dark] footer{background:#101c28}
+[data-theme=dark] header{border-top-color:var(--blue)}
+[data-theme=dark] .brand,[data-theme=dark] .brand-title{color:var(--ink)}
+[data-theme=dark] .brand .mark{background:#7bc4f5;color:#101c28}
+[data-theme=dark] nav{background:#101c28}
+[data-theme=dark] nav a,[data-theme=dark] nav a>span:first-child,[data-theme=dark] .rail-footer strong,[data-theme=dark] .rail-footer small{color:var(--muted)}
+[data-theme=dark] nav a.active{background:#203a50;color:var(--green)}
+[data-theme=dark] nav a.nav-live{background:#183c32;color:#a8e9c8}
+[data-theme=dark] .rail-diagram svg{fill:#101c28;stroke:#6c8ba2}
+[data-theme=dark] .rail-diagram circle{stroke:var(--blue)}
+[data-theme=dark] :is(select,input,button){background:#1b2c3c;color:var(--ink);border-color:var(--line)}
+[data-theme=dark] :is(button:hover,button:focus-visible){background:#28485f;color:#fff;border-color:var(--blue)}
+[data-theme=dark] input::placeholder{color:#a8b9c8;opacity:1}
+[data-theme=dark] :is(.panel,.region-card,.metrics,.dispatch-layout){background:var(--surface)}
+[data-theme=dark] :is(.dispatch-readings,.chart-selector,.tag,.plant-table .plant-expanded>td){background:#1a2b3a;color:var(--muted)}
+[data-theme=dark] .plant-table .plant-expanded .plant-detail{background:var(--surface)}
+[data-theme=dark] .region-card:hover,[data-theme=dark] tbody tr:hover{background:#203549}
+[data-theme=dark] .track{background:#31485b}
+[data-theme=dark] th{background:#203447;color:var(--muted)}
+[data-theme=dark] :is(.plant-filter.active,.plant-filter:hover,.plant-table-toolbar .plant-filter.active,.region-key-item.is-active,.regional-fuel-option[aria-pressed=true]){background:#203e54;color:var(--ink);border-color:var(--blue)}
+[data-theme=dark] .chart text{fill:var(--muted)}
+[data-theme=dark] .chart .axis{stroke:#435b6f;opacity:1}
+[data-theme=dark] .chart-cursor{stroke:#c6d9e8}
+[data-theme=dark] .chart-hit:focus-visible{fill:#80bfee18}
+[data-theme=dark] :is(.chart-tooltip,.plant-tooltip){background:#1a2e40;color:var(--ink);border-color:#83afcf;box-shadow:0 5px 20px #0006}
+[data-theme=dark] :is(.plant-tooltip-description,.plant-formula){color:var(--ink)}
+[data-theme=dark] .fuel-tooltip{background:#1a2e40!important;color:var(--ink)!important;border-color:#83afcf}
+[data-theme=dark] .fuel-tooltip :is(strong,span){color:var(--ink)}
+/* Retain the requested pale, metric-colored regional tooltips with dark text. */
+[data-theme=dark] .chart-tooltip.regional-snapshot-tooltip{background:var(--tooltip-background);color:#223c50;border-color:var(--tooltip-color)}
+[data-theme=dark] .regional-snapshot-tooltip>strong{color:#526a7d}
+[data-theme=dark] :is(.regional-snapshot-point:focus-visible,.fuel-mix-segment:focus-visible){outline-color:#c3e3fa}
+/* Dark total-series colors need the same replacement in the plot and legend. */
+[data-theme=dark] svg [stroke="#263238"]{stroke:#d8e8f5}
+[data-theme=dark] svg [fill="#263238"]{fill:#d8e8f5}
+[data-theme=dark] .energy-curve-table .energy-curve-shortage{color:#ff9696!important}
+[data-theme=dark] :is(.region-map-panel .region-map-frame,.region-map-panel .region-map-detail,.plant-map-frame,.plant-map-sidebar){background:#182b3b}
+[data-theme=dark] .plant-map-country{fill:#263f50;stroke:#afc7d8}
+[data-theme=dark] .plant-map-district-boundary{stroke:#7391a5}
+[data-theme=dark] .plant-map-division-boundary{stroke:#c5d9e6}
+[data-theme=dark] .plant-map-key i.district-boundary-key{border-top-color:#7391a5}
+[data-theme=dark] .plant-map-key i.division-boundary-key{border-top-color:#c5d9e6}
+[data-theme=dark] .plant-map-marker circle[fill="#19374b"]{fill:#91bfd9;stroke:#102332}
+[data-theme=dark] .plant-map-marker text{fill:#102332}
+[data-theme=dark] .plant-map-marker:is(.is-active,:focus-visible) circle{stroke:#fff;filter:drop-shadow(0 0 3px #000)}
+[data-theme=dark] .plant-map-key i[style*="#19374b"]{background:#91bfd9!important}
+[data-theme=dark] .planning-region{stroke:#c1d5e4}
+[data-theme=dark] .planning-region:is(:hover,.is-selected,:focus-visible){stroke:#fff}
+[data-theme=dark] .region-map-key .region-key-item.is-active{background:#28475d;color:var(--ink)}
+[data-theme=dark] :is(.plant-map-osm a,.plant-map-attribution a,.method summary,.dispatch-title em,.metric:first-child .value){color:var(--green)}
+[data-theme=dark] #error{background:#442a2a;color:#ffd0c7}
+[data-theme=dark] ::selection{background:#355d7b;color:#fff}
+@media(max-width:800px){header{padding-top:56px}.theme-toggle{right:24px}}
+@media(max-width:480px){header{padding-top:54px}.theme-toggle{right:18px;top:10px}}
+[data-theme=dark] .energy-curve-table thead th.energy-curve-shortage{color:#fff!important}
+[data-theme=dark] .chart-tooltip b[style*="color"]{color:#ffaaa3!important}
+[data-theme=dark] .chart-tooltip i[style*="#263238"]{background:#d8e8f5!important}
