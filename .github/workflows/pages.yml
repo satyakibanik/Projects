@@ -34,22 +34,43 @@ jobs:
           python-version: '3.12'
       - name: Install parser dependencies
         run: python -m pip install -r requirements.txt
-      - name: Verify Power Grid TLS intermediate
+      - name: Verify Power Grid TLS certificate chain
         run: |
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
           openssl x509 -in /tmp/erp-leaf.pem -noout >/dev/null
-          issuer_url="$(openssl x509 -in /tmp/erp-leaf.pem -noout -ext authorityInfoAccess | sed -n 's/.*CA Issuers - URI:\([^[:space:]]*\).*/\1/p' | head -n 1)"
-          case "$issuer_url" in
-            http://crt.sectigo.com/*|https://crt.sectigo.com/*|http://*.i.lencr.org/*|https://*.i.lencr.org/*) ;;
-            *) echo "Unexpected ERP certificate issuer URL: $issuer_url" >&2; exit 1 ;;
-          esac
-          curl --fail --silent --show-error --location --proto '=http,https' --max-time 20 "$issuer_url" --output /tmp/erp-issuer.crt
-          if openssl x509 -in /tmp/erp-issuer.crt -noout >/dev/null 2>&1; then
-            openssl x509 -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
-          else
-            openssl x509 -inform DER -in /tmp/erp-issuer.crt -out /tmp/erp-issuer.pem
+          current_cert=/tmp/erp-leaf.pem
+          : > /tmp/erp-chain.pem
+          verified=0
+          for depth in 1 2 3 4; do
+            issuer_url="$(openssl x509 -in "$current_cert" -noout -ext authorityInfoAccess | sed -n 's/.*CA Issuers - URI:\([^[:space:]]*\).*/\1/p' | head -n 1)"
+            if [ -z "$issuer_url" ]; then
+              break
+            fi
+            case "$issuer_url" in
+              http://crt.sectigo.com/*|https://crt.sectigo.com/*|http://*.i.lencr.org/*|https://*.i.lencr.org/*) ;;
+              *) echo "Unexpected ERP certificate issuer URL: $issuer_url" >&2; exit 1 ;;
+            esac
+            curl --fail --silent --show-error --location --proto '=http,https' --max-time 20 "$issuer_url" --output /tmp/erp-next-issuer.crt
+            if openssl x509 -in /tmp/erp-next-issuer.crt -noout >/dev/null 2>&1; then
+              openssl x509 -in /tmp/erp-next-issuer.crt -out /tmp/erp-next-issuer.pem
+            else
+              openssl x509 -inform DER -in /tmp/erp-next-issuer.crt -out /tmp/erp-next-issuer.pem
+            fi
+            if [ "$depth" -eq 1 ]; then
+              cp /tmp/erp-next-issuer.pem /tmp/erp-issuer.pem
+            fi
+            cat /tmp/erp-next-issuer.pem >> /tmp/erp-chain.pem
+            if openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-chain.pem /tmp/erp-leaf.pem; then
+              verified=1
+              break
+            fi
+            cp /tmp/erp-next-issuer.pem /tmp/erp-current-issuer.pem
+            current_cert=/tmp/erp-current-issuer.pem
+          done
+          if [ "$verified" -ne 1 ]; then
+            echo "Could not build a trusted ERP certificate chain." >&2
+            exit 1
           fi
-          openssl verify -CAfile /etc/ssl/certs/ca-certificates.crt -untrusted /tmp/erp-issuer.pem /tmp/erp-leaf.pem
           python - <<'PY'
           import socket
           import ssl
