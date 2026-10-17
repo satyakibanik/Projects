@@ -61,7 +61,8 @@
   const boundaries=make('g',{'clip-path':'url(#plant-country-clip)','aria-hidden':'true',class:'plant-map-boundaries'});
   for(const feature of administrative.features)boundaries.append(make('path',{d:geometryPath(feature.geometry),class:`plant-map-boundary plant-map-${feature.properties.level}-boundary`,'data-name':feature.properties.name,fill:'none'}));
   svg.append(boundaries);
-  const layer=make('g',{'clip-path':'url(#plant-country-clip)'});svg.append(layer);frame.replaceChildren(svg);
+  // Marker centers already pass the country fence; draw full circles across coastlines.
+  const layer=make('g',{class:'plant-map-markers'});svg.append(layer);frame.replaceChildren(svg);
   const idle=()=>{sidebar.innerHTML='<span class="region-map-kicker">POWER PLANT LOCATIONS</span><h3>Explore a power plant</h3><p>Hover, focus or tap a marker to see the selected report’s plant information. Numbered markers group nearby units; zoom in to separate them.</p>'};idle();
   const show=(group,index)=>{
    layer.querySelectorAll('.plant-map-marker').forEach((el,i)=>el.classList.toggle('is-active',i===index));
@@ -70,15 +71,15 @@
   sidebar.addEventListener('click',event=>{const button=event.target.closest('[data-map-plant-detail]');if(button)onDetails(decodeURIComponent(button.dataset.mapPlantDetail));if(event.target.closest('[data-clear-plant-map]')){layer.querySelectorAll('.is-active').forEach(el=>el.classList.remove('is-active'));idle()}});
   const repaint=()=>{
    svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
-   const screenScale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h),radius=8/screenScale;
-   groups=groupNearby(markers,21/screenScale);layer.replaceChildren();
+   const screenScale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h),radius=5.5/screenScale;
+   groups=groupNearby(markers,12/screenScale);layer.replaceChildren();
    groups.forEach((group,index)=>{
     const multiple=group.items.length>1,color=multiple?'#19374b':fuelColors[fuel(getValue(group.items[0].plant,'fuel'))];
     const label=multiple?`${group.items.length} nearby generating units: ${group.items.map(i=>i.plant.name).join(', ')}`:group.items[0].plant.name;
     const marker=make('g',{class:'plant-map-marker',tabindex:'0',role:'button','aria-label':label,'data-unit-count':group.items.length,transform:`translate(${group.point[0]} ${group.point[1]})`});
-    marker.append(make('circle',{r:radius*(multiple?1.25:1),fill:color,stroke:'#fff','stroke-width':'1.5','vector-effect':'non-scaling-stroke'}));
+    marker.append(make('circle',{r:radius*(multiple?1.4:1),fill:color,stroke:'#fff','stroke-width':'1.5','vector-effect':'non-scaling-stroke'}));
     const title=make('title');title.textContent=label;marker.append(title);
-    if(multiple){const text=make('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':radius*1.25,fill:'#fff'});text.textContent=group.items.length;marker.append(text)}
+    if(multiple){const text=make('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':radius*1.55,fill:'#fff'});text.textContent=group.items.length;marker.append(text)}
     marker.addEventListener('pointerenter',()=>{if(!drag)show(group,index)});marker.addEventListener('focus',()=>show(group,index));
     marker.addEventListener('click',event=>{event.stopPropagation();if(!moved)show(group,index)});
     marker.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();show(group,index)}if(event.key==='Escape'){idle();marker.classList.remove('is-active')}});
