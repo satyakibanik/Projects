@@ -40,7 +40,7 @@ jobs:
           openssl x509 -in /tmp/erp-leaf.pem -noout >/dev/null
           issuer_url="$(openssl x509 -in /tmp/erp-leaf.pem -noout -ext authorityInfoAccess | sed -n 's/.*CA Issuers - URI:\([^[:space:]]*\).*/\1/p' | head -n 1)"
           case "$issuer_url" in
-            http://crt.sectigo.com/*|https://crt.sectigo.com/*) ;;
+            http://crt.sectigo.com/*|https://crt.sectigo.com/*|http://*.i.lencr.org/*|https://*.i.lencr.org/*) ;;
             *) echo "Unexpected ERP certificate issuer URL: $issuer_url" >&2; exit 1 ;;
           esac
           curl --fail --silent --show-error --location --proto '=http,https' --max-time 20 "$issuer_url" --output /tmp/erp-issuer.crt
