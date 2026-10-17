@@ -43,3 +43,19 @@ test('sidebar displays every plant-table field, including real zero and absent v
  for(const field of ['Plant &lt;A&gt;','Fuel','Gas','Region','Dhaka','Producer','IPP','Installed cap.','100 MW','Present cap.','0 MW','Peak gen. today','—'])assert.ok(html.includes(field),field);
  assert.doesNotMatch(html,/<A>/);
 });
+test('sidebar links only to validated matched OSM features',()=>{
+ const render=osm_id=>map.detailsMarkup([{plant:{name:'Reviewed unit'},location:{latitude:23,longitude:90,source:'OSM',osm_id}}],[],()=>null);
+ for(const id of ['node/123','way/1307560517','relation/42']){
+  assert.ok(render(id).includes(`href="https://www.openstreetmap.org/${id}"`));
+  assert.ok(render(id).includes('rel="noopener noreferrer"'));
+ }
+ for(const id of [null,'','https://example.org','way/12" onclick="bad','way/-1'])assert.doesNotMatch(render(id),/View on OpenStreetMap/);
+});
+test('administrative outlines cover all 64 districts and eight divisions',()=>{
+ const data=JSON.parse(fs.readFileSync(path.join(__dirname,'../begd/plant-administrative-boundaries.geojson'),'utf8'));
+ const districts=data.features.filter(f=>f.properties.level==='district'),divisions=data.features.filter(f=>f.properties.level==='division');
+ assert.equal(districts.length,64);assert.equal(divisions.length,8);
+ assert.equal(new Set(districts.map(f=>f.properties.name)).size,64);
+ for(const d of divisions){assert.equal(d.properties.district_count,districts.filter(f=>f.properties.division===d.properties.name).length);assert.ok(d.properties.district_count>0)}
+ for(const f of data.features){const path=map.geometryPath(f.geometry);assert.match(path,/^M/);assert.doesNotMatch(path,/NaN|Infinity/);assert.ok(path.endsWith('Z'))}
+});

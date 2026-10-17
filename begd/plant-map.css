@@ -29,3 +29,12 @@
 .plant-map-attribution a{color:#176ba6}
 @media(max-width:900px){.plant-map-layout{grid-template-columns:minmax(0,1fr) minmax(260px,.85fr);gap:16px}.plant-map-frame{height:560px}.plant-map-sidebar{max-height:560px;padding:16px}}
 @media(max-width:700px){.plant-map-layout{grid-template-columns:minmax(0,1fr)}.plant-map-frame{height:560px}.plant-map-sidebar{max-height:480px;min-height:140px}.plant-map-card h3{font-size:22px}}
+
+.plant-map-boundaries{pointer-events:none}
+.plant-map-boundary{fill:none;vector-effect:non-scaling-stroke;stroke-linejoin:round}
+.plant-map-district-boundary{stroke:#a1b4c1;stroke-width:.65}
+.plant-map-division-boundary{stroke:#526f82;stroke-width:1.5}
+.plant-map-key i.district-boundary-key,.plant-map-key i.division-boundary-key{height:0;border:0;border-radius:0;background:none;border-top:.65px solid #a1b4c1}
+.plant-map-key i.division-boundary-key{border-top:1.5px solid #526f82}
+.plant-map-osm{margin:10px 0;font-size:12px}
+.plant-map-osm a{color:#176ba6;text-underline-offset:3px}
