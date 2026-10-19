@@ -14,12 +14,14 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 - **Regions** — regional energy and fuel mix alongside evening-peak demand and load shedding.
 - **Imports** — hourly MW and daily energy by cross-border route, with imports’ share of reported national energy.
 - **Real time** — ERP demand, generation, and India-import readings dated today in Bangladesh time.
-- **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class.
+- **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class. Per-unit voltage bands and box-and-whisker distributions compare 400, 230 and 132 kV readings, with station search, class toggles and keyboard-accessible station details.
 - **Operations detail** — planned and forced shutdowns, the P1 event log, and hourly east–west interconnector power flows.
 - **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details. These are forecasts of available generation, not demand or dispatched generation.
 - **Comparisons** — optional adjacent-day and highest-generation comparisons and chart controls.
 
 All times use Bangladesh time (Asia/Dhaka). Workbook publication date can differ from its operating date. The static Pages build contains supported reports from the latest two weeks and refreshes approximately hourly; GitHub may delay or drop scheduled runs. Real-time panels use only source rows dated today and do not backfill older readings. The data bundle is generated during deployment and is not committed to the repository.
+
+Substation voltage plots use the selected report's **Voltage** sheet, including voltage-only records without P3 load. Per-unit values divide readings by their own nominal class. Band stations are ranked independently within each class by daily voltage midpoint; the x-axis represents station rank, not time or the same station across classes. Box plots show the median and middle 50% with full observed-range whiskers; their statistics table lists minimum, quartiles and maximum. Dashed nominal references are not operating limits. Invalid, missing, nonpositive or reversed extrema are omitted and counted. Optional comparison reports remain in the table; voltage plots show the selected report only.
 
 ### Reviewed plant locations
 
