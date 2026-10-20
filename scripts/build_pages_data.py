@@ -19,6 +19,7 @@ WINDOW_DAYS = 14
 sys.path.insert(0, str(SCRIPTS))
 import server
 from import_report import parse_report
+from trends import build_trends, extract_trend_workbook
 
 
 def available_reports():
@@ -59,6 +60,7 @@ def write_data_bundle(output_dir):
         failures.append(f"archive: {type(error).__name__}")
 
     reports_by_id = {}
+    trend_reports = []
     if records:
         latest = max(dt.date.fromisoformat(item["published_date"]) for item in records)
         recent_start = latest - dt.timedelta(days=WINDOW_DAYS - 1)
@@ -69,6 +71,7 @@ def write_data_bundle(output_dir):
 
     def load_or_parse(item):
         cache_path = cache_dir / f"{item['id']}.json"
+        trend_cache_path = cache_dir / f"{item['id']}-trends.json"
         is_recent = dt.date.fromisoformat(item["published_date"]) >= recent_start
         if not is_recent and cache_path.is_file():
             try:
@@ -77,7 +80,22 @@ def write_data_bundle(output_dir):
                     return cached
             except (OSError, ValueError):
                 pass
-        report = parse_listing_item(item)
+        if not is_recent and trend_cache_path.is_file():
+            try:
+                cached = json.loads(trend_cache_path.read_text(encoding="utf-8"))
+                if cached.get("report_id") == item["id"] and cached.get("_trends_only"):
+                    return cached
+            except (OSError, ValueError):
+                pass
+        try:
+            report = parse_listing_item(item)
+        except (AssertionError, ValueError, KeyError, TypeError) as error:
+            # A plant/region or ancillary-sheet failure must not discard national totals.
+            content = server.fetch_bytes(item["download_url"], limit=server.MAX_REPORT_BYTES)
+            report = extract_trend_workbook(content, item)
+            report['quality_notes'].append(f'Full parser: {type(error).__name__}: {error}')
+            trend_cache_path.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+            return report
         cache_path.write_text(json.dumps(report, ensure_ascii=False, separators=(",", ":")),
                               encoding="utf-8")
         return report
@@ -88,7 +106,9 @@ def write_data_bundle(output_dir):
             item = futures[future]
             try:
                 report = future.result()
-                reports_by_id[report["report_id"]] = report
+                trend_reports.append(report)
+                if not report.get("_trends_only"):
+                    reports_by_id[report["report_id"]] = report
             except Exception as error:
                 failures.append(f"{item['published_date']}: {type(error).__name__}")
 
@@ -145,6 +165,9 @@ def write_data_bundle(output_dir):
         "failures": failures,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "trends-data.json").write_text(
+        json.dumps(build_trends(trend_reports, built_at), ensure_ascii=False,
+                   separators=(",", ":")), encoding="utf-8")
     archive_dir = output_dir / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     for report_id, report in reports_by_id.items():
