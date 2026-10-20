@@ -337,21 +337,22 @@ function realTime(){
  const forecastDate=currentDayData.today_date||currentDayData.date;
  const forecastRows=data?.forecast?.date===forecastDate?(data.forecast.demand_hourly||[]):[];
  const forecastSource=forecastRows.length?`${data.report_name||data.source_file||'Daily Report'} · Forecast Scenario · ${shortDate(forecastDate)}`:'';
- const demandRowsByTime=new Map(rows.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
- for(const point of forecastRows){const row=demandRowsByTime.get(point.time)||{time:point.time,demand_mw:null,generation_mw:null,shed_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;demandRowsByTime.set(point.time,row)}
- const demandChartRows=[...demandRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
- const demandSeries=[{key:'demand_mw',name:'Demand',color:'#c48722'},{key:'generation_mw',name:'Generation',color:'#1976b9'},{key:'shed_mw',name:'Load shedding',color:'#b95442',dash:true},...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
- const demandCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings${forecastRows.length?` · ${forecastSource}`:''}`;
- const demandPanel=rows.length?panel('Demand, supply & load shedding',demandCaption,chart(demandChartRows,demandSeries)):'';
- const totalGenerationSeries={key:'total_mw',name:'Total generation',color:'#263238'};
- const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
+ const combinedRowsByTime=new Map();
+ const rowFor=time=>{if(!combinedRowsByTime.has(time))combinedRowsByTime.set(time,{time,total_mw:null,demand_mw:null,shed_mw:null,forecasted_demand_mw:null});return combinedRowsByTime.get(time)};
+ for(const row of rows)Object.assign(rowFor(row.time),{demand_mw:row.demand_mw,shed_mw:row.shed_mw});
+ for(const row of generation)rowFor(row.time).total_mw=row.total_mw;
+ for(const point of forecastRows)rowFor(point.time).forecasted_demand_mw=point.demand_mw;
+ const generationChartRows=[...combinedRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
+ const combinedSeries=[
+  {key:'total_mw',name:'generation (real time)',color:'#263238'},
+  {key:'demand_mw',name:'Demand (real time)',color:'#c48722'},
+  {key:'shed_mw',name:'Load shedding (real time)',color:'#b95442',dash:true},
+  {key:'forecasted_demand_mw',name:'Demand (forecasted previous day)',color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}
+ ];
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const generationRowsByTime=new Map(generation.map(row=>[row.time,{...row,forecasted_demand_mw:null}]));
- for(const point of forecastRows){const row=generationRowsByTime.get(point.time)||{time:point.time,total_mw:null,forecasted_demand_mw:null};row.forecasted_demand_mw=point.demand_mw;generationRowsByTime.set(point.time,row)}
- const generationChartRows=[...generationRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
- const generationSeries=[totalGenerationSeries,...(forecastRows.length?[{key:'forecasted_demand_mw',name:`Forecasted Demand · ${shortDate(forecastDate)}`,color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[])];
- const totalGenerationCaption=`${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
- const totalGenerationPanel=generation.length?panel('Total generation and Forecasted Demand',totalGenerationCaption,chart(generationChartRows,generationSeries)):'';
+ const combinedCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings · ${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
+ const combinedPanel=rows.length||generation.length?panel('Demand, Generation & load shedding',combinedCaption,chart(generationChartRows,combinedSeries)):'';
+ const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const estimatedShedRows=generationChartRows.map(row=>({...row,estimated_load_shedding_mw:typeof row.total_mw==='number'&&typeof row.forecasted_demand_mw==='number'?Math.max(0,row.forecasted_demand_mw-row.total_mw):null}));
  const estimatedShedSeries=[{key:'estimated_load_shedding_mw',name:'Estimated load shedding',color:'#b95442',bar:true}];
  const estimatedShedPanel=forecastRows.length&&generation.length?panel('Estimated load shedding',`${forecastSource} · forecasted demand minus total generation, floored at zero`,chart(estimatedShedRows,estimatedShedSeries,{styleSetting:'shed'})):'';
@@ -368,7 +369,7 @@ function realTime(){
  const totalImportsPanel=availableRoutes.length?panel('Total imports',importCaption,chart(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}])):'';
  const importsByRoutePanel=availableRoutes.length?panel('Imports by route',importCaption,chart(importRows,importSeries,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true})):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
- const panels=`${demandPanel}${totalGenerationPanel}${estimatedShedPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
+ const panels=`${combinedPanel}${estimatedShedPanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
  return `<p class="note" id="current-status" role="status">Today only · ${esc(today)} Bangladesh time · refreshed ${esc(updated)}. Only sources with readings dated today are shown. Refreshes every three minutes.</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
