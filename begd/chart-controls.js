@@ -76,7 +76,7 @@ function setupCharts(view) {
       if (model.stackedArea) { render(); return; }
       wrapper.querySelector(`[data-series="${input.dataset.toggleSeries}"]`).style.display = input.checked ? '' : 'none';
       const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
-      const scale = model.unit==='%'?{min:0,max:100}:chartScale(model.rows, visible);
+      const scale = chartScale(model.rows, visible);
       const y = value => 218 - (value - scale.min) / (scale.max - scale.min) * 204;
       for (let i = 0; i <= 4; i++) {
         const value = scale.min + (scale.max - scale.min) * i / 4;

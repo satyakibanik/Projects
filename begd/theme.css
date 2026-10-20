@@ -60,3 +60,18 @@ header{position:relative;padding-top:56px;flex-wrap:wrap;gap:16px}
 [data-theme=dark] .energy-curve-table thead th.energy-curve-shortage{color:#fff!important}
 [data-theme=dark] .chart-tooltip b[style*="color"]{color:#ffaaa3!important}
 [data-theme=dark] .chart-tooltip i[style*="#263238"]{background:#d8e8f5!important}
+
+/* Shared page attribution, operating-day emphasis, and live navigation. */
+footer{flex-wrap:wrap;gap:10px 24px}
+.developer-credit{white-space:nowrap}
+.developer-credit a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+#subtitle{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+#subtitle .operating-date-highlight{display:inline-block;padding:8px 12px;border:1px solid #bf872c;border-radius:5px;background:#fff5df;color:#654512;font:600 16px/1.4 var(--body);animation:operating-date-pulse 2.8s ease-in-out infinite}
+.report-date-context{font-size:11px;color:var(--muted)}
+@keyframes operating-date-pulse{0%,100%{box-shadow:0 0 0 0 #c4872210}50%{box-shadow:0 0 0 5px #c4872233}}
+[data-theme=dark] #subtitle .operating-date-highlight{background:#352b1b;color:#ffe0a2;border-color:#dba74d}
+nav a.nav-live,nav a.nav-live.active,[data-theme=dark] nav a.nav-live,[data-theme=dark] nav a.nav-live.active{background:transparent;border-radius:0}
+nav a.nav-live.active:before{display:none}
+.nav-section-divider{width:calc(100% - 20px);margin:10px 10px 14px;border:0;border-top:1px solid var(--line)}
+@media(prefers-reduced-motion:reduce){#subtitle .operating-date-highlight{animation:none}}
+@media(max-width:800px){.nav-section-divider{flex:0 0 24px;align-self:center;width:24px;margin:0}#subtitle .operating-date-highlight{font-size:15px}}
