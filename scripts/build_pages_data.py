@@ -167,8 +167,12 @@ def write_data_bundle(output_dir):
         + '<script src="app.js?v=',
         1,
     )
-    app_version = hashlib.sha256((DASHBOARD / "app.js").read_bytes()).hexdigest()[:16]
-    index = re.sub(r'app\.js\?v=[^"\s]+', f'app.js?v={app_version}', index)
+    def version_script(match):
+        script = match.group(1)
+        asset_version = hashlib.sha256((DASHBOARD / script).read_bytes()).hexdigest()[:16]
+        return f'{script}?v={asset_version}'
+
+    index = re.sub(r'([\\w-]+\\.js)\\?v=[^"\\s]+', version_script, index)
     (output_dir / "index.html").write_text(index, encoding="utf-8")
     print(f"Built {len(reports)} reports ({len(recent_ids)} recent) and hourly readings at {built_at}")
     if failures:

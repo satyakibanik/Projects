@@ -19,7 +19,7 @@ function setupCharts(view) {
       const row = model.rows[index];
       const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
       const ordered = model.enCurve ? visible.slice().reverse() : visible;
-      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} MW</b></div>`).join('');
+      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(model.unit||'MW')}</b></div>`).join('');
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / 800;
@@ -76,7 +76,7 @@ function setupCharts(view) {
       if (model.stackedArea) { render(); return; }
       wrapper.querySelector(`[data-series="${input.dataset.toggleSeries}"]`).style.display = input.checked ? '' : 'none';
       const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
-      const scale = chartScale(model.rows, visible);
+      const scale = model.unit==='%'?{min:0,max:100}:chartScale(model.rows, visible);
       const y = value => 218 - (value - scale.min) / (scale.max - scale.min) * 204;
       for (let i = 0; i <= 4; i++) {
         const value = scale.min + (scale.max - scale.min) * i / 4;
