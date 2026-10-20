@@ -126,7 +126,7 @@ def parse_current_table(*, minimum_cells, url, params=None):
 def fetch_current_day():
     def demand_rows():
         return parse_current_table(
-            minimum_cells=6, url=CURRENT_DEMAND_URL, params={"d_gen": "1"},
+            minimum_cells=6, url=CURRENT_DEMAND_URL,
         )
 
     def generation_rows():
