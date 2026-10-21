@@ -10,6 +10,11 @@ def number(value):
     return round(value, 6) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 else None
 
 
+def temperature(value):
+    """A signed Celsius reading; missing and non-finite values remain unavailable."""
+    return round(value, 6) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
+
+
 def daily_summary(report):
     summary = report.get('summary') or {}
     curve = report.get('en_curve') or {}
@@ -27,6 +32,7 @@ def daily_summary(report):
         'source_url': report.get('source_url'),
         'quality_notes': report.get('quality_notes', []),
         'generation_mwh': number(summary.get('energy_mwh')),
+        'temperature_c': temperature(summary.get('temperature_c')),
         'demand_mwh': requirement, 'demand_basis': basis,
         'shed_peak_mw': max(shedding) if shedding else None,
         'unserved_mwh': number(summary.get('unserved_mwh')),
@@ -91,7 +97,7 @@ def extract_trend_workbook(content, item):
     report = {'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],
               'source_url':item['download_url'], 'fuels':fuels, 'hourly':hourly, 'imports':routes,
               'summary':{'energy_mwh':energy(sheet['K8'].value), 'unserved_mwh':energy(sheet['K9'].value),
-                         'import_mwh':energy(sheet['K26'].value)}}
+                         'import_mwh':energy(sheet['K26'].value), 'temperature_c':temperature(sheet['K11'].value)}}
     notes = ['National totals extracted separately; full workbook parser rejected this report.']
     generated = report['summary']['energy_mwh']
     if generated is None:

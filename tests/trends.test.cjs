@@ -44,6 +44,9 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
    if(this.layersHTML===this.innerHTML)return this.layers;this.layersHTML=this.innerHTML;
    this.layers=[...this.innerHTML.matchAll(/data-trend-layer="([^"]+)" data-trend-chart-key="([^"]+)" (checked)?/g)].map(match=>({dataset:{trendLayer:match[1],trendChartKey:match[2]},checked:!!match[3],addEventListener(_,handler){this.handler=handler},focus(){}}));return this.layers;
   }
+  if(selector==='[data-temperature-unit]'){
+   this.temperatures=[...this.innerHTML.matchAll(/data-temperature-unit="([^"]+)"/g)].map(match=>({dataset:{temperatureUnit:match[1]},addEventListener(_,handler){this.handler=handler},focus(){}}));return this.temperatures;
+  }
   if(selector==='[data-trend-unit]'){
    if(this.unitsHTML===this.innerHTML)return this.units;this.unitsHTML=this.innerHTML;
    this.units=[...this.innerHTML.matchAll(/data-trend-unit="([^"]+)" data-unit-chart="([^"]+)"/g)].map(match=>({dataset:{trendUnit:match[1],unitChart:match[2]},addEventListener(_,handler){this.handler=handler},focus(){}}));return this.units;
@@ -56,12 +59,27 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
   });
  }};
  const history={start_date:'2015-04-17',end_date:'2015-04-18',days:[{date:'2015-04-17',mean_mw:5000,observations:24},{date:'2015-04-18',mean_mw:5500,observations:24}],months:[{month:'2015-04',median_mw:5200,days:2,observations:48}],excluded_records:[],source:'https://data.mendeley.com/datasets/xx9dhmy9rj/2',attribution:'BengalGrid',doi:'10.17632/xx9dhmy9rj.2'};
- const data={end_date:'2026-01-01',days:[{date:'2026-01-01',generation_mwh:2400,report_id:'1'}]};
+ const data={end_date:'2026-01-01',days:[{date:'2026-01-01',generation_mwh:2400,temperature_c:25,report_id:'1'}]};
  const window={location:{hash:'#trends'},addEventListener(){}};
  const document={querySelector:s=>s==='#content'?host:node(s),querySelectorAll:()=>[],getElementById:node};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,document,fetch:async url=>({ok:true,json:async()=>url==='trends-data.json'?data:history}),Date,Map,Set});
  await window.BEGDTrends.mount();
  assert.match(host.innerHTML,/Generation & demand/);assert.doesNotMatch(host.innerHTML,/A decade of generation|Seasonality & growth by month|Generation in MW over time|Daily values & source reports|Data coverage:/);
+ const temperature=host.layers.find(input=>input.dataset.trendLayer==='Maximum temperature');
+ assert.equal(temperature.checked,false);assert.doesNotMatch(host.innerHTML,/trends-secondary-axis|data-temperature-unit/);
+ temperature.checked=true;temperature.handler();
+ assert.match(host.innerHTML,/Maximum temperature subplot \(°C\)/);
+ assert.doesNotMatch(host.innerHTML,/trends-secondary-axis/);
+ assert.match(host.innerHTML,/Maximum temperature: 25 °C/);
+ host.temperatures.find(button=>button.dataset.temperatureUnit==='°F').handler();
+ assert.match(host.innerHTML,/Maximum temperature subplot \(°F\)/);
+ for(const range of ['30','60','90','365']){
+  host.buttons[range].handler();
+  assert.equal(host.layers.find(input=>input.dataset.trendLayer==='Maximum temperature').checked,true);
+  assert.match(host.innerHTML,/Maximum temperature subplot \(°F\)/);
+ }
+ const selectedTemperature=host.layers.find(input=>input.dataset.trendLayer==='Maximum temperature');selectedTemperature.checked=false;selectedTemperature.handler();
+ assert.doesNotMatch(host.innerHTML,/trends-secondary-axis|data-temperature-unit/);
  const layer=host.layers.find(input=>input.dataset.trendLayer==='Demand requirement');layer.checked=false;layer.handler();
  host.units.find(control=>control.dataset.unitChart==='generation'&&control.dataset.trendUnit==='MW').handler();
  assert.match(host.innerHTML,/Generation and demand \(MW\)/);
@@ -107,4 +125,48 @@ test('Trends navigation follows Real time and precedes the horizontal divider',(
  assert.ok(nav.indexOf('href="#realtime"')<nav.indexOf('href="#trends"'));
  assert.ok(nav.indexOf('href="#trends"')<nav.indexOf('<hr '));
  assert.ok(nav.indexOf('<hr ')<nav.indexOf('href="#overview"'));
+});
+
+test('temperature conversion preserves missing readings, negatives and zero',()=>{
+ const api=load();assert.equal(api.temperatureValue(0,'°F'),32);assert.equal(api.temperatureValue(-40,'°F'),-40);assert.equal(api.temperatureValue(25,'°F'),77);assert.equal(api.temperatureValue(33.7),33.7);assert.equal(api.temperatureValue(null,'°F'),null);assert.equal(api.temperatureValue(NaN),null);
+});
+test('right-axis series do not change primary scale and tooltips use per-series units',()=>{
+ const rows=[{date:'2026-01-01',energy:10,temp:1000},{date:'2026-01-02',energy:20,temp:null},{date:'2026-01-03',energy:15,temp:1002}];
+ const energy={name:'Energy',color:'#123456',value:r=>r.energy},temp={name:'Temperature',color:'#ba477b',axis:'right',unit:'°C',value:r=>r.temp};
+ const first=load().plot(rows,[energy],'Primary','GWh'),both=load().plot(rows,[energy,temp],'Combined','GWh');
+ const leftTicks=html=>[...html.matchAll(/text-anchor="end">([^<]+)<\/text>/g)].map(m=>m[1]);
+ assert.deepEqual(leftTicks(first),leftTicks(both));assert.match(both,/right axis \(°C\)/);assert.match(both,/1,000 °C/);assert.doesNotMatch(both,/1000 GWh|NaN/);
+ const tip=load().tooltipRows({rows,series:[energy,temp],unit:'GWh'},0);assert.match(tip,/10 GWh/);assert.match(tip,/1,000 °C/);
+});
+
+test('7-day comparison averages preserve units, partial windows and gaps',()=>{
+ const api=load(),rows=Array.from({length:15},(_,i)=>({date:'2026-01-'+String(i+1).padStart(2,'0'),generation_mwh:i+1,demand_mwh:(i+1)*2,temperature_c:i-5}));
+ let weeks=api.weeklyComparisonRows(rows);assert.equal(weeks.length,3);assert.equal(weeks[0].generation_mwh,4);assert.equal(weeks[1].generation_mwh,11);assert.equal(weeks[2].generation_mwh,15);assert.equal(weeks[2].window_days,1);assert.equal(weeks[0].temperature_c,-2);
+ assert.equal(weeks[0].period_start,'2026-01-01');assert.equal(weeks[0].period_end,'2026-01-07');
+ rows[2].temperature_c=null;weeks=api.weeklyComparisonRows(rows);assert.equal(weeks[0].temperature_c,null);assert.equal(weeks[0].generation_mwh,4);
+ const tip=api.tooltipRows({rows:weeks,series:[{name:'Generation',color:'#123456',value:r=>r.generation_mwh}],unit:'GWh'},0);assert.match(tip,/1 Jan 2026 – 7 Jan 2026/);assert.match(tip,/7-day average/);
+ assert.equal(api.weeklyComparisonRows([]).length,0);
+});
+
+test('compact temperature subplot has its own signed scale and suppresses duplicate legend',()=>{
+ const html=load().plot([{date:'2026-01-01',t:-40},{date:'2026-01-02',t:0}],[{name:'Maximum temperature',color:'#ba477b',value:r=>r.t}],'Maximum temperature subplot','°C',false,{compact:true,temperatureScale:true,hideLegend:true});
+ assert.match(html,/viewBox="0 0 840 180"/);assert.match(html,/>-42<\/text>/);assert.match(html,/>2<\/text>/);assert.doesNotMatch(html,/data-trend-layer=/);
+});
+
+test('linked charts share generation, demand and temperature readouts with independent units',()=>{
+ const api=load(),rows=[{date:'2026-10-19',generation:10,demand:12,temp:33.7}];
+ const shared=[{name:'Generation',unit:'GWh',value:r=>r.generation},{name:'Demand requirement',unit:'GWh',value:r=>r.demand},{name:'Maximum temperature',unit:'°C',value:r=>r.temp}];
+ const upper=api.tooltipRows({rows,series:shared.slice(0,2),tooltipSeries:shared,unit:'GWh'},0);
+ const lower=api.tooltipRows({rows,series:shared.slice(2),tooltipSeries:shared,unit:'°C'},0);
+ assert.equal(upper,lower);for(const text of ['Generation','Demand requirement','Maximum temperature','10 GWh','12 GWh','33.7 °C'])assert.ok(lower.includes(text),text);
+ rows[0].temp=null;assert.match(api.tooltipRows({rows,series:shared,tooltipSeries:shared,unit:'GWh'},0),/Not reported/);
+});
+test('fitted value axis follows visible data extrema with padding and handles constant or absent values',()=>{
+ const api=load(),series=[{name:'Energy',color:'#123456',value:r=>r.v}];
+ const ticks=html=>[...html.matchAll(/text-anchor="end">([^<]+)<\/text>/g)].map(m=>Number(m[1].replaceAll(',',''))).filter(Number.isFinite);
+ let html=api.plot([{date:'2026-01-01',v:200},{date:'2026-01-02',v:300}],series,'Fitted range','GWh',false,{fitExtent:true});
+ let axis=ticks(html);assert.ok(axis[0]>0&&axis[0]<200);assert.ok(axis.at(-1)>300);assert.doesNotMatch(html,/NaN|Infinity/);
+ html=api.plot([{date:'2026-01-01',v:250}],series,'Constant range','GWh',false,{fitExtent:true});axis=ticks(html);assert.ok(axis[0]<250&&axis.at(-1)>250);
+ html=api.plot([{date:'2026-01-01',v:0}],series,'Zero range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);
+ html=api.plot([{date:'2026-01-01',v:null}],series,'Empty range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);assert.match(html,/No reported values/);
 });

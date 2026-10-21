@@ -4,3 +4,14 @@
 .trends-heatmap{font-size:11px;min-width:800px;table-layout:fixed}.trends-heatmap td,.trends-heatmap th{padding:12px 5px;text-align:center}.trends-heatmap .heat-empty{background:var(--bg);color:var(--muted)}.trends-heatmap td:focus-visible{outline:3px solid var(--green);outline-offset:-3px}
 .trends-tooltip{position:fixed;z-index:1000;max-width:min(440px,calc(100vw - 16px));padding:12px 14px;border:1px solid var(--line);border-radius:7px;background:var(--bg);color:var(--ink);box-shadow:0 6px 24px #0003;font-size:12px;line-height:1.5;pointer-events:none}.trends-tooltip[hidden],.trends-cursor[hidden]{display:none}.trends-tooltip strong{display:block;margin-bottom:7px}.trends-tooltip>div{display:grid;grid-template-columns:10px minmax(90px,1fr) auto;gap:7px;align-items:center;margin:3px 0}.trends-tooltip i{width:9px;height:9px;border-radius:2px}.trends-tooltip b{font-weight:600;text-align:right}.trends-tooltip small{display:block;margin-top:7px;color:var(--muted)}.trends-cursor{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 3;pointer-events:none}.trends-plot:focus-visible{outline:2px solid var(--green);outline-offset:3px}.trends-chart{min-width:0}
 .trends-legend label{display:inline-flex;align-items:center;gap:7px;font:inherit;color:inherit;cursor:pointer}.trends-legend input{margin:0;accent-color:var(--green);width:14px;height:14px}.trends-legend label:has(input:not(:checked)){opacity:.5}.trends-legend label:has(input:not(:checked)) i{background:transparent!important;border:1px solid currentColor}.trends-unit-control{display:flex;gap:0;flex-shrink:0}.trends-unit-control button{padding:7px 12px;min-width:48px}.trends-unit-control button+button{margin-left:-1px}.trends-unit-control button[aria-pressed=true]{background:var(--green);border-color:var(--green);color:#fff}.trends-chart{container-type:inline-size}@container (max-width: 600px){.trends-date-tick:not(.tick-sparse){display:none}}@media(max-width:600px){.trends-date-tick:not(.tick-sparse){display:none}.trends-unit-control button{padding:7px 10px}}
+.trends-chart-controls { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 10px; }
+.trends-secondary-axis { color: #ba477b; }
+.trends-plot .trends-secondary-axis text { fill: #ba477b; }
+[data-theme=dark] .trends-secondary-axis { color: #ef9ec6; }
+[data-theme=dark] .trends-plot .trends-secondary-axis text { fill: #ef9ec6; }
+.trends-temperature-note { margin: -12px 0 24px; }
+@media(max-width:600px) { .trends-chart-controls { flex-direction: column; align-items: flex-end; } }
+.temperature-subplot { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+.temperature-subplot-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.temperature-subplot-heading h3 { font-size: 14px; color: var(--ink); font-weight: 500; }
+.temperature-subplot .trends-chart { margin-top: 8px; }
