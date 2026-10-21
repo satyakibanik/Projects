@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
 const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
-let data, request=0, archiveReports=[], archiveCutoff='';
+let data, request=0, operatingDateRequest=0;
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 const customComparisons=new Map(), pinnedComparisons={};
@@ -621,7 +621,7 @@ document.addEventListener('click',event=>{
  const caption=explorer.querySelector('[data-regional-fuel-selected]');if(caption)caption.textContent=selectedRegionalFuel+' · generation by region, highest to lowest';
  const chart=explorer.querySelector('[data-regional-fuel-chart]');if(chart)chart.innerHTML=regionalFuelBarChart(selectedRegionalFuel);
 });
-async function load(reportId){const id=++request;try{const r=await fetch(`/api/report?id=${encodeURIComponent(reportId)}`,{cache:'no-store'});if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(body.error||'Report could not be loaded')}const next=await r.json();if(id!==request)return false;if(data&&data.report_id!==next.report_id){for(const day of ['yesterday','tomorrow','highest']){comparisonRequests[day]++;comparisonData[day]=null;$(`#${day}-status`).textContent=$(`#source-${day}`).checked?'Loading…':'Off'}}data=next;previousForecastReport=null;$('#error').hidden=true;render();loadPreviousForecast();for(const day of ['yesterday','tomorrow','highest'])if($(`#source-${day}`).checked&&$(`#${day}-status`).textContent==='Waiting for report')loadComparison(day);return true}catch(e){if(id!==request)return false;$('#error').hidden=false;$('#error').textContent=e.message;if(location.hash!=='#trends')$('#content').innerHTML='';return false}}
+async function load(reportId,resolvedReport=null){const id=++request;try{let next=resolvedReport;if(!next){const r=await fetch(`/api/report?id=${encodeURIComponent(reportId)}`,{cache:'no-store'});if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(body.error||'Report could not be loaded')}next=await r.json();}if(id!==request)return false;if(data&&data.report_id!==next.report_id){for(const day of ['yesterday','tomorrow','highest']){comparisonRequests[day]++;comparisonData[day]=null;$(`#${day}-status`).textContent=$(`#source-${day}`).checked?'Loading…':'Off'}}data=next;$('#report-date').value=data.date;previousForecastReport=null;$('#error').hidden=true;render();loadPreviousForecast();for(const day of ['yesterday','tomorrow','highest'])if($(`#source-${day}`).checked&&$(`#${day}-status`).textContent==='Waiting for report')loadComparison(day);return true}catch(e){if(id!==request)return false;$('#error').hidden=false;$('#error').textContent=e.message;if(location.hash!=='#trends')$('#content').innerHTML='';return false}}
 async function loadPreviousForecast(){
  const id=++previousForecastRequest,reportId=data?.report_id;
  previousForecastReport=null;
@@ -653,104 +653,65 @@ loadCurrentDay();window.setInterval(loadCurrentDay,180000);
 $('#source-yesterday').addEventListener('change',()=>loadComparison('yesterday'));$('#source-tomorrow').addEventListener('change',()=>loadComparison('tomorrow'));
 $('#source-highest').addEventListener('change',()=>loadComparison('highest'));
 function reportDayNavigationTarget(offset){
- const selected=$('#date').value,ordered=archiveReports.slice().sort((a,b)=>a.published_date.localeCompare(b.published_date));
- const index=ordered.findIndex(report=>String(report.id)===String(selected));
- return index<0?null:ordered[index+offset]||null;
+ if(!data?.date||![-1,1].includes(offset))return null;
+ const dates=Object.keys(window.BEGD_STATIC_DATA?.reports_by_operating_date||{}).sort();
+ if(dates.length){const index=dates.indexOf(data.date);return index<0?null:dates[index+offset]||null;}
+ // The local ERP server has no complete operating-date index. Ask for the exact adjacent day.
+ const target=new Date(data.date+'T00:00:00Z');target.setUTCDate(target.getUTCDate()+offset);
+ return target.toISOString().slice(0,10);
 }
 function updateReportDayNavigation(){
- $('#previous-report').disabled=!reportDayNavigationTarget(-1);
- $('#next-report').disabled=!reportDayNavigationTarget(1);
+ const busy=$('#report-date-controls').getAttribute('aria-busy')==='true';
+ $('#previous-report').disabled=busy||!reportDayNavigationTarget(-1);
+ $('#next-report').disabled=busy||!reportDayNavigationTarget(1);
+ $('#load-report').disabled=busy;
 }
-function navigateReportDay(offset){
- const report=reportDayNavigationTarget(offset);if(!report)return;
- const select=$('#date'),id=String(report.id);
- if(![...select.options].some(option=>option.value===id)){
-  const label=new Date(report.published_date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
-  const option=document.createElement('option');option.value=id;option.textContent=label+' · '+report.name;select.add(option);
- }
- select.value=id;
- select.dispatchEvent(new Event('change',{bubbles:true}));
+function setReportPickerBusy(busy){
+ $('#report-date-controls').setAttribute('aria-busy',String(busy));updateReportDayNavigation();
 }
-async function selectReportById(id){
- updateReportDayNavigation();
- const status=$('#date-status'),previous=status.textContent;
- status.textContent='Loading selected report…';
- const selectionRequest=request+1;
- const loaded=await load(id);
- if(selectionRequest!==request)return;
- if(!loaded){status.textContent='Selected report unavailable';return;}
- if(loaded){for(const day of ['yesterday','tomorrow'])delete pinnedComparisons[day];}
- if(loaded)await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$('#source-'+day).checked).map(loadComparison));
- if(selectionRequest!==request)return;
- status.textContent=previous;
- window.BEGDView?.commit();
+function selectedReportStatus(){return data?'Loaded · operating '+data.date+' · published '+(data.published_date||'unavailable'):'No archived report loaded.';}
+async function selectOperatingDate(date){
+ const status=$('#date-status');
+ if(!window.BEGDViewCodec.validDate(date)){status.textContent='Choose a valid operating date (Bangladesh time).';return false;}
+ const token=++operatingDateRequest;
+ request++;setReportPickerBusy(true);status.textContent='Loading operating date '+date+'…';
+ try{
+  const report=await reportForOperatingDate(date);if(token!==operatingDateRequest)return false;
+  const loaded=await load(String(report.report_id),report);if(token!==operatingDateRequest)return false;
+  if(!loaded)throw Error('The report for operating date '+date+' could not be loaded.');
+  for(const day of ['yesterday','tomorrow'])delete pinnedComparisons[day];
+  await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$('#source-'+day).checked).map(loadComparison));
+  if(token!==operatingDateRequest)return false;
+  status.textContent=selectedReportStatus();
+  window.BEGDView?.commit();return true;
+ }catch(error){
+  if(token!==operatingDateRequest)return false;
+  $('#report-date').value=data?.date||'';
+  status.textContent=error.message+(data?' Still showing operating date '+data.date+'.':'');
+  return false;
+ }finally{if(token===operatingDateRequest)setReportPickerBusy(false);}
 }
-function populateArchiveDateControls(reports, preferred={}){
- const yearSelect=$('#archive-year'),monthSelect=$('#archive-month'),daySelect=$('#archive-day');
- const older=reports.filter(report=>report.published_date<archiveCutoff);
- const years=[...new Set(older.map(report=>report.published_date.slice(0,4)))].sort().reverse();
- const year=years.includes(preferred.year)?preferred.year:'';
- yearSelect.innerHTML='<option value="">Year</option>'+years.map(value=>`<option value="${value}">${value}</option>`).join('');
- yearSelect.value=year;
- const months=[...new Set(older.filter(report=>report.published_date.slice(0,4)===year).map(report=>report.published_date.slice(5,7)))].sort().reverse();
- const month=months.includes(preferred.month)?preferred.month:'';
- monthSelect.innerHTML='<option value="">Month</option>'+months.map(value=>{const label=new Date(`${year}-${value}-01T12:00:00+06:00`).toLocaleDateString('en-GB',{month:'long',timeZone:'Asia/Dhaka'});return `<option value="${value}">${label}</option>`}).join('');
- monthSelect.value=month;monthSelect.disabled=!year;
- const days=[...new Set(older.filter(report=>report.published_date.slice(0,7)===`${year}-${month}`).map(report=>report.published_date))].sort().reverse();
- const day=days.includes(preferred.day)?preferred.day:'';
- daySelect.innerHTML='<option value="">Day</option>'+days.map(value=>`<option value="${value}">${new Date(`${value}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',timeZone:'Asia/Dhaka'})}</option>`).join('');
- daySelect.value=day;daySelect.disabled=!month;
-}
-$('#date').addEventListener('change',async event=>{
- updateReportDayNavigation();
- const selected=archiveReports.find(report=>String(report.id)===event.target.value);
- populateArchiveDateControls(archiveReports,selected&&selected.published_date<archiveCutoff?{year:selected.published_date.slice(0,4),month:selected.published_date.slice(5,7),day:selected.published_date}:{});
- await selectReportById(event.target.value);
-});
+function navigateReportDay(offset){const date=reportDayNavigationTarget(offset);if(date)selectOperatingDate(date);}
+$('#load-report').addEventListener('click',()=>selectOperatingDate($('#report-date').value));
+$('#report-date').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#load-report').disabled){event.preventDefault();selectOperatingDate(event.target.value)}});
 $('#previous-report').addEventListener('click',()=>navigateReportDay(-1));
 $('#next-report').addEventListener('click',()=>navigateReportDay(1));
-$('#archive-year').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:event.target.value}));
-$('#archive-month').addEventListener('change',event=>populateArchiveDateControls(archiveReports,{year:$('#archive-year').value,month:event.target.value}));
-$('#archive-day').addEventListener('change',async event=>{
- const day=event.target.value;if(!day)return;
- const report=archiveReports.find(item=>item.published_date===day);
- if(!report)return;
- const select=$('#date'),label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
- if(![...select.options].some(option=>option.value===String(report.id)))select.insertAdjacentHTML('beforeend',`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`);
- select.value=String(report.id);
- await selectReportById(String(report.id));
-});
 window.addEventListener('hashchange',render);
 document.querySelector('nav[aria-label="Dashboard views"]').addEventListener('click',event=>{if(event.target.closest('a[href^="#"]'))window.scrollTo(0,0)});
 async function refreshDateList(){
  try{
   const response=await fetch('/api/reports',{cache:'no-store'});
   if(!response.ok)throw Error('Power Grid report dates could not be loaded');
-  const archive=await response.json(),reports=archive.reports||[],select=$('#date');
-  archiveReports=reports;
-  const latest=reports.reduce((value,report)=>report.published_date>value?report.published_date:value,'');
-  const cutoff=latest?new Date(new Date(`${latest}T12:00:00+06:00`).getTime()-13*86400000).toISOString().slice(0,10):'';
-  archiveCutoff=cutoff;
-  const recent=reports.filter(report=>report.published_date>=cutoff);
-  const selectedId=select.value||data?.report_id||'';
-  const selectedReport=reports.find(report=>String(report.id)===String(selectedId));
-  const visible=recent.slice();
-  if(selectedReport&&!visible.some(report=>String(report.id)===String(selectedReport.id)))visible.push(selectedReport);
-  const label=d=>new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
-  if(document.activeElement!==select&&reports.length){
-   select.innerHTML=visible.map(report=>`<option value="${esc(report.id)}">${esc(label(report.published_date))} · ${esc(report.name)}</option>`).join('');
-   if(selectedId&&visible.some(report=>String(report.id)===String(selectedId)))select.value=String(selectedId);
-   else if(!data){select.value=String(recent[0].id);await load(String(recent[0].id))}
+  const archive=await response.json(),reports=archive.reports||[];
+  if(!data&&reports.length){
+   const latest=reports.slice().sort((a,b)=>b.published_date.localeCompare(a.published_date)||Number(b.id)-Number(a.id))[0];
+   await load(String(latest.id));
   }
-  const active=reports.find(report=>String(report.id)===String(select.value));
-  const archiveDate=active&&active.published_date<cutoff?{year:active.published_date.slice(0,4),month:active.published_date.slice(5,7),day:active.published_date}:{};
-  populateArchiveDateControls(reports,archiveDate);
-  updateReportDayNavigation();
+  if(!window.BEGDView?.started){setReportPickerBusy(false);await window.BEGDView?.start();}
   if(archive.error)$('#date-status').textContent=archive.error;
-  else if(archive.complete)$('#date-status').textContent='';
-  else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
-  if(!window.BEGDView?.started)await window.BEGDView?.start();
+  else if(!reports.length)$('#date-status').textContent='No archived reports are available.';
+  else if(!archive.complete)$('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
   if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500);
- }catch(error){$('#error').hidden=false;$('#error').textContent=error.message;$('#date-status').textContent='Report archive unavailable'}
+ }catch(error){$('#error').hidden=false;$('#error').textContent=error.message;$('#date-status').textContent='Report archive unavailable';setReportPickerBusy(false);}
 }
 refreshDateList();

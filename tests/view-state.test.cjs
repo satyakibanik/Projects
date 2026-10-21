@@ -38,7 +38,7 @@ test('trends visibility state restores before asynchronous mount with stable IDs
  window.BEGDTrends.setViewState(state);const restored=plain(window.BEGDTrends.getViewState());assert.equal(restored.days,'90');assert.equal(restored.temperatureUnit,'F');assert.equal(restored.detail,'daily');assert.equal(restored.generationUnit,'MW');assert.deepEqual(restored.trendLayers,[...plain(state.trendLayers)].sort(([a],[b])=>a.localeCompare(b)));
 });
 function comparisonApp(){
- const nodes=new Map(),document={addEventListener(){},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,{textContent:'',innerHTML:'',checked:false,addEventListener(){},focus(){}});return nodes.get(selector);}};
+ const nodes=new Map(),document={addEventListener(){},querySelector(selector){if(!nodes.has(selector))nodes.set(selector,{textContent:'',innerHTML:'',value:'',checked:false,attrs:{},getAttribute(key){return this.attrs[key]},setAttribute(key,value){this.attrs[key]=value},addEventListener(){},focus(){}});return nodes.get(selector);}};
  const window={addEventListener(){},BEGDViewCodec:codec(),BEGDView:{commit(){}}};
  const context=vm.createContext({window,document,URL,Date,Response,console});
  let source=fs.readFileSync(path.join(root,'begd/app.js'),'utf8').replace('loadCurrentDay();window.setInterval(loadCurrentDay,180000);','').replace(/refreshDateList\(\);\s*$/,'');
@@ -101,4 +101,33 @@ test('invalid compact visibility tokens are explained without discarding other v
 test('compact visibility overrides take precedence over compatible legacy JSON parameters',()=>{
  const api=codec(),url='https://example.test/?layers='+encodeURIComponent('[["overview:dispatch|generation_mw",true]]')+'&hide=od.g&show=tg.t';
  assert.deepEqual(plain(api.decode(url).state.layers),[['overview:dispatch|generation_mw',false]]);
+});
+function headerApp(){
+ const result=comparisonApp();result.run("data={report_id:'1',date:'2026-10-19',published_date:'2026-10-20'};load=async(id,report)=>{data=report;document.querySelector('#report-date').value=report.date;return true;};");return result;
+}
+test('header date picker loads exact operating dates and preserves custom/highest comparisons',async()=>{
+ const {context,run,nodes}=headerApp(),calls=[];
+ context.fetch=async url=>{calls.push(url);const date=new URL(url,'https://example.test').searchParams.get('date');return new Response(JSON.stringify({report_id:'2',date,published_date:'2026-10-18'}));};
+ run("customComparisons.set('2026-08-15',{report:{date:'2026-08-15'}});pinnedComparisons.yesterday='2026-10-18';pinnedComparisons.highest='2026-05-20'");
+ assert.equal(await run("selectOperatingDate('2026-10-17')"),true);
+ assert.deepEqual(calls,['/api/report?date=2026-10-17']);assert.equal(run('data.date'),'2026-10-17');assert.equal(nodes.get('#report-date').value,'2026-10-17');assert.equal(nodes.get('#load-report').disabled,false);
+ assert.equal(run("customComparisons.has('2026-08-15')"),true);assert.equal(run('pinnedComparisons.highest'),'2026-05-20');assert.equal(run('pinnedComparisons.yesterday'),undefined);
+ assert.match(nodes.get('#date-status').textContent,/operating 2026-10-17 · published 2026-10-18/);
+});
+test('invalid and missing header dates never substitute a different report or clear the current view',async()=>{
+ const {context,run,nodes}=headerApp();let calls=0;context.fetch=async()=>{calls++;return new Response('{}',{status:404});};
+ assert.equal(await run("selectOperatingDate('')"),false);assert.equal(calls,0);assert.match(nodes.get('#date-status').textContent,/valid operating date/);
+ assert.equal(await run("selectOperatingDate('1900-01-01')"),false);assert.equal(run('data.date'),'2026-10-19');assert.equal(nodes.get('#report-date').value,'2026-10-19');assert.match(nodes.get('#date-status').textContent,/No archived report.*Still showing operating date 2026-10-19/);
+});
+test('a late header date response cannot overwrite a more recent selection',async()=>{
+ const {context,run,nodes}=headerApp(),pending=new Map();context.fetch=url=>new Promise(resolve=>pending.set(new URL(url,'https://example.test').searchParams.get('date'),resolve));
+ const first=run("selectOperatingDate('2026-10-17')"),second=run("selectOperatingDate('2026-10-18')");
+ pending.get('2026-10-18')(new Response(JSON.stringify({report_id:'2',date:'2026-10-18'})));assert.equal(await second,true);
+ pending.get('2026-10-17')(new Response(JSON.stringify({report_id:'3',date:'2026-10-17'})));assert.equal(await first,false);assert.equal(run('data.date'),'2026-10-18');assert.equal(nodes.get('#report-date').value,'2026-10-18');
+});
+test('header arrows use available operating dates and skip archive gaps',()=>{
+ const {context,run}=headerApp();context.window.BEGD_STATIC_DATA={reports_by_operating_date:{'2026-10-19':'1','2026-10-17':'2','2026-10-15':'3'}};
+ assert.equal(run('reportDayNavigationTarget(-1)'),'2026-10-17');assert.equal(run('reportDayNavigationTarget(1)'),null);
+ run("data.date='2026-10-17'");assert.equal(run('reportDayNavigationTarget(-1)'),'2026-10-15');assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-19');
+ delete context.window.BEGD_STATIC_DATA;assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-18');
 });

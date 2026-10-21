@@ -48,10 +48,18 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   // Clipboard denial exposes a selectable, exact URL.
   await fresh.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('Denied')}}}));
   await fresh.locator('#copy-link').click();await fresh.waitForFunction(()=>!document.querySelector('#share-fallback').hidden);assert.match(await fresh.locator('#share-status').innerText(),/Select and copy/);assert.equal(await fresh.locator('#share-url').inputValue(),fresh.url());
-  const alternateId=await fresh.evaluate(date=>window.BEGD_STATIC_DATA.reports_by_operating_date[date],second);
-  await fresh.locator('#date').selectOption(alternateId);await fresh.waitForFunction(date=>document.querySelector('#subtitle').textContent.includes(new Date(date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'})),second);
+  await fresh.locator('#report-date').fill(second);await fresh.locator('#load-report').click();await fresh.waitForFunction(date=>document.querySelector('#subtitle').textContent.includes(new Date(date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'})),second);
   await fresh.waitForFunction(date=>new URL(location.href).searchParams.get('date')===date,second);
-  assert.equal((await capture(fresh)).date,second);await fresh.reload();await ready(fresh);assert.equal((await capture(fresh)).date,second);
+  assert.equal((await capture(fresh)).date,second);await fresh.reload();await ready(fresh);assert.equal((await capture(fresh)).date,second);assert.equal(await fresh.locator('#report-date').inputValue(),second);
+  await fresh.locator('#report-date').fill('1900-01-01');await fresh.locator('#load-report').click();await fresh.waitForFunction(()=>document.querySelector('#date-status').textContent.includes('No archived report'));
+  assert.equal((await capture(fresh)).date,second);assert.equal(await fresh.locator('#report-date').inputValue(),second);assert.match(await fresh.locator('#date-status').innerText(),/Still showing operating date/);
+  await fresh.locator('#report-date').fill(first);await fresh.locator('#report-date').press('Enter');await fresh.waitForFunction(date=>new URL(location.href).searchParams.get('date')===date,first);
+  assert.equal((await capture(fresh)).date,first);
+  await fresh.locator('#previous-report').click();await fresh.waitForFunction(date=>document.querySelector('#report-date').value===date&&document.querySelector('#report-date-controls').getAttribute('aria-busy')==='false',second);assert.equal((await capture(fresh)).date,second);
+  await fresh.locator('#next-report').click();await fresh.waitForFunction(date=>document.querySelector('#report-date').value===date&&document.querySelector('#report-date-controls').getAttribute('aria-busy')==='false',first);assert.equal((await capture(fresh)).date,first);
+  await fresh.locator('#report-date').fill(archived);await fresh.locator('#load-report').click();await fresh.waitForFunction(date=>new URL(location.href).searchParams.get('date')===date&&document.querySelector('#report-date-controls').getAttribute('aria-busy')==='false',archived);
+  assert.equal((await capture(fresh)).date,archived);await fresh.reload();await ready(fresh);assert.equal(await fresh.locator('#report-date').inputValue(),archived);
+  await fresh.goBack();await ready(fresh);assert.equal(await fresh.locator('#report-date').inputValue(),first);assert.ok((await fresh.locator('#date-status').innerText()).includes('operating '+first));await fresh.goForward();await ready(fresh);assert.equal(await fresh.locator('#report-date').inputValue(),archived);
   await freshContext.close();
   // Presets resolve to explicit dates. Tomorrow is currently unavailable and remains pinned unavailable.
   await page.locator('#source-highest').check();await page.waitForFunction(()=>document.querySelector('#highest-status').textContent!=='Loading…');
@@ -105,9 +113,13 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await newContext.close();
   await page.locator('nav a[href="#overview"]').click();await ready(page);
   // Keyboard Add works, and labels/remove buttons stay usable in every layout.
-  for(const width of [1440,390])for(const theme of ['light','dark']){
+  for(const width of [1440,1148,390])for(const theme of ['light','dark']){
    await page.setViewportSize({width,height:1000});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme},theme);
    await page.waitForTimeout(100);
+   assert.equal(await page.locator('#report-date').getAttribute('type'),'date');assert.equal(await page.locator('#date, #archive-year, #archive-month, #archive-day').count(),0);
+   const fonts=await page.evaluate(()=>['copy-link','add-comparison','load-report'].map(id=>{const s=getComputedStyle(document.getElementById(id));return [s.fontFamily,s.fontSize,s.padding,s.borderRadius,s.minHeight]}));assert.deepEqual(fonts[0],fonts[1]);assert.deepEqual(fonts[0],fonts[2]);
+   const inputs=await page.evaluate(()=>['report-date','comparison-date'].map(id=>{const s=getComputedStyle(document.getElementById(id));return [s.fontFamily,s.fontSize,s.height,s.width]}));assert.deepEqual(inputs[0],inputs[1]);
+   const headerBounds=await page.locator('#report-date').boundingBox();assert.ok(headerBounds.x+headerBounds.width<=width);
    const bounds=await page.locator('#comparison-date').boundingBox();assert.ok(bounds.width>=150);assert.ok(bounds.x+bounds.width<=width);
    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert.equal(overflow,false,`${width} ${theme}: overflow`);
    await page.screenshot({path:path.join(os.tmpdir(),`begd-${width}-${theme}.png`),fullPage:true});
