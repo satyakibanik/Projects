@@ -12,7 +12,8 @@ test('view URL roundtrip preserves settings, resolved dates, stable series IDs a
   const restored=plain(api.decode(url));assert.deepEqual(restored.warnings,[]);
   assert.equal(api.encode(url,restored.state),url);
   for(const key of ['date','custom','presets','dispatch','shed','fuel','regional','curve','table','days','generationUnit','importsUnit','temperatureUnit','detail'])assert.deepEqual(restored.state[key],plain(state[key]));
-  assert.deepEqual(restored.state.layers,[...state.layers].sort(([a],[b])=>a.localeCompare(b)));
+  assert.deepEqual(restored.state.layers,plain(api.visibilityOverrides(state.layers)));
+  assert.deepEqual(restored.state.trendLayers,plain(api.visibilityOverrides(state.trendLayers,true)));
  }
 });
 test('empty/legacy links retain sensible defaults; compare accepts repeated and comma-separated dates',()=>{
@@ -69,4 +70,35 @@ test('each chart retains independent stable visibility choices when another char
  const {run}=comparisonApp();run("chartVisibility.set('imports:route-a|mw',false)");
  const a=run("chart([{time:'00:00',mw:1}],[{key:'mw',name:'Import',color:'#123'}],{key:'imports:route-a'})"),b=run("chart([{time:'00:00',mw:1}],[{key:'mw',name:'Import',color:'#123'}],{key:'imports:route-b'})");
  assert.match(a,/<g data-series="mw" style="display:none"/);assert.doesNotMatch(b,/<g data-series="mw" style="display:none"/);
+});
+test('compact URLs omit default options and default visibility while preserving enabled opt-in layers',()=>{
+ const api=codec(),state={...api.defaults,date:'2026-10-19',layers:[['overview:dispatch|generation_mw',true],['overview:dispatch|east_grid_mw',true],['overview:dispatch|west_grid_mw',false]],trendLayers:[['generation-demand|temperature_c',true],['generation-demand|generation_mwh',true],['temperature-subplot|temperature_c',true],['fuel-mix|coal',true]]};
+ const url=api.encode('https://example.test/begd/#trends',state),p=new URL(url).searchParams;
+ assert.equal(p.get('v'),'2');assert.equal(p.has('dispatch'),false);assert.equal(p.has('days'),false);assert.equal(p.has('layers'),false);assert.equal(p.has('trendLayers'),false);assert.equal(p.has('hide'),false);assert.equal(p.get('show'),'od.e,tg.t');
+ const decoded=plain(api.decode(url));assert.deepEqual(decoded.warnings,[]);assert.deepEqual(decoded.state.layers,[['overview:dispatch|east_grid_mw',true]]);assert.deepEqual(decoded.state.trendLayers,[['generation-demand|temperature_c',true]]);
+});
+test('the supplied long v1 view becomes over 80 percent shorter with equivalent settings',t=>{
+ const api=codec(),state={...api.defaults,date:'2026-10-19',custom:['2026-08-15','2026-04-26'],presets:{yesterday:'2026-10-18',highest:'2026-05-20'},days:'365',detail:'daily',layers:['demand_mw','demand_mw_custom_2026-04-26','demand_mw_custom_2026-08-15','demand_mw_highest','demand_mw_yesterday','forecasted_demand_mw'].map(series=>['overview:dispatch|'+series,false]),trendLayers:['dependence-renewables|import-share','dependence-renewables|renewable-share','fuel-mix|coal','fuel-mix|gas','fuel-mix|hfo','fuel-mix|hsd','fuel-mix|hydro','fuel-mix|imports','fuel-mix|solar','fuel-mix|wind','generation-demand|demand_mwh','generation-demand|generation_mwh','generation-demand|temperature_c','imports|adani-power-jharkhanda-ltd','imports|bheramara-hvdc-','imports|hvdc-nepal-','imports|import-tripura-','imports|imports_mwh','load-shedding|shed_peak_mw','temperature-subplot|temperature_c','unserved-share|unserved-share'].map(id=>[id,true])};
+ const legacy=new URL('https://satyakibanik.github.io/Projects/begd/#trends');legacy.searchParams.set('v','1');legacy.searchParams.set('date',state.date);
+ for(const date of state.custom)legacy.searchParams.append('compare',date);for(const [key,value] of Object.entries(state.presets))legacy.searchParams.set(key,value);
+ for(const key of Object.keys(api.defaults))legacy.searchParams.set(key,state[key]);for(const key of ['layers','trendLayers'])legacy.searchParams.set(key,JSON.stringify(state[key]));
+ const decoded=api.decode(legacy.href);assert.deepEqual(plain(decoded.warnings),[]);
+ const compact=api.encode(legacy.href,decoded.state),restored=api.decode(compact);
+ assert.ok(compact.length<legacy.href.length*.2,`${legacy.href.length} -> ${compact.length}`);t.diagnostic(`${legacy.href.length} characters -> ${compact.length} characters`);
+ for(const key of ['date','custom','presets',...Object.keys(api.defaults)])assert.deepEqual(plain(restored.state[key]),plain(state[key]));
+ assert.deepEqual(plain(restored.state.layers),plain(api.visibilityOverrides(state.layers)));assert.deepEqual(plain(restored.state.trendLayers),plain(api.visibilityOverrides(state.trendLayers,true)));
+ assert.equal(api.encode(compact,restored.state),compact);assert.equal(new URL(compact).hash,'#trends');
+});
+test('unknown workbook and route IDs roundtrip losslessly without alias collisions',()=>{
+ const api=codec(),ids=['imports:Route A|mw','plants:কর্ণফুলী|output_selected','imports:Route.A,B%|mw','__proto__|constructor','historical-generation|retired-series'];
+ const state={...api.defaults,layers:ids.map(id=>[id,false]),trendLayers:[['imports|Route 😀 / A,B.%',false]]},link=api.encode('https://example.test/#imports',state),decoded=plain(api.decode(link));
+ assert.deepEqual(decoded.warnings,[]);assert.deepEqual(decoded.state.layers,plain(api.visibilityOverrides(state.layers)));assert.deepEqual(decoded.state.trendLayers,state.trendLayers);
+});
+test('invalid compact visibility tokens are explained without discarding other valid settings',()=>{
+ const {state,warnings}=codec().decode('https://example.test/?v=2&hide=bad,od.d,od.d.c20260230,dx-%25ZZ,__proto__.x&show=tg.t');
+ assert.equal(warnings.length,4);assert.deepEqual(plain(state.layers),[['overview:dispatch|demand_mw',false]]);assert.deepEqual(plain(state.trendLayers),[['generation-demand|temperature_c',true]]);
+});
+test('compact visibility overrides take precedence over compatible legacy JSON parameters',()=>{
+ const api=codec(),url='https://example.test/?layers='+encodeURIComponent('[["overview:dispatch|generation_mw",true]]')+'&hide=od.g&show=tg.t';
+ assert.deepEqual(plain(api.decode(url).state.layers),[['overview:dispatch|generation_mw',false]]);
 });
