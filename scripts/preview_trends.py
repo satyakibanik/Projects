@@ -30,6 +30,7 @@ def main():
     (output / 'begd').mkdir(parents=True, exist_ok=True)
     shutil.copytree(ROOT / 'begd', output / 'begd', dirs_exist_ok=True)
     shutil.copy2(ROOT / 'index.html', output / 'index.html')
+    shutil.copy2(ROOT / 'sitemap.xml', output / 'sitemap.xml')
     text = (output / 'begd' / 'live-data.js').read_text() if args.offline else read_url('live-data.js')
     prefix = 'window.BEGD_STATIC_DATA='
     if not text.startswith(prefix):

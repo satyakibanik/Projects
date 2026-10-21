@@ -33,14 +33,15 @@
     if(token!==revision)return;
     $('#report-date').value=data?.date||'';$('#date-status').textContent=selectedReportStatus();setReportPickerBusy(false);render();restoring=false;lastURL=location.href;
     status(warnings.join(' '));
-    // Keep the exact history entry, including unavailable dates, for Back/Forward.
+    // Normalize the restored view in this history entry; do not add a navigation step.
     history.replaceState({begd:state},'',location.href);
+    commit({replace:true});
   }
   async function start(){
     if(started)return;started=true;
     const {state,warnings}=codec.decode(location.href);
     if(location.search)await restore(state,warnings);
-    else {lastURL=location.href;history.replaceState({begd:capture()},'',location.href);}
+    else commit({replace:true});
   }
   function queueCommit(){if(queued)return;queued=true;queueMicrotask(()=>{queued=false;commit()});}
   document.addEventListener('change',event=>{
@@ -55,18 +56,5 @@
   });
   // Native hash navigation already added its history entry. Fill that entry with this view.
   root.addEventListener('hashchange',()=>{if(!restoring)commit({replace:true});});
-  $('#copy-link').addEventListener('click',async()=>{
-    const button=$('#copy-link'),message=$('#share-status');
-    if(!started||restoring){message.textContent='Please wait for the view to finish loading.';return;}
-    button.disabled=true;
-    try{
-      // Wait for any comparison currently in flight rather than save unresolved presets.
-      if([...customComparisons.values()].some(item=>!item.report&&!item.error)||presets.some(day=>$('#source-'+day).checked&&$('#'+day+'-status').textContent==='Loading…')){message.textContent='Comparisons are still loading. Try copying again when they finish.';return;}
-      commit({replace:true});const url=codec.encode(location.href,capture());
-      $('#share-url').value=url;
-      try{await navigator.clipboard.writeText(url);message.textContent='Link copied.';$('#share-fallback').hidden=true;}
-      catch{message.textContent='Clipboard unavailable. Select and copy the link below.';$('#share-fallback').hidden=false;$('#share-url').focus();$('#share-url').select();}
-    }finally{button.disabled=false;}
-  });
   root.BEGDView={start,commit,capture,get started(){return started;}};
 })(window);

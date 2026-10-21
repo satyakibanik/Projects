@@ -8,13 +8,17 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{})});
  const errors=[];
- const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce',permissions:['clipboard-read','clipboard-write']});
+ const context=await browser.newContext({viewport:{width:1440,height:1000},reducedMotion:'reduce'});
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.stack));
  const ready=async p=>{await p.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('#content').children.length>0&&document.querySelector('#view-status').textContent!=='Restoring dashboard view…');};
  const capture=async p=>JSON.parse(await p.evaluate(()=>JSON.stringify(window.BEGDView.capture())));
  const add=async date=>{await page.locator('#comparison-date').fill(date);await page.locator('#add-comparison').click();await page.waitForFunction(date=>document.querySelector('#custom-comparisons').textContent.includes('Operating '+date)&&!document.querySelector('#custom-comparisons').textContent.includes('Loading…'),date);};
  try{
   await page.goto(base+'#overview');await ready(page);
+  assert.equal(new URL(page.url()).searchParams.get('v'),'2');
+  assert.equal(await page.locator('.brand-title').innerText(),'BEGD · Bangladesh Electric Grid Dashboard');
+  assert.equal(await page.title(),'BEGD | Bangladesh Electric Grid Dashboard');
+  assert.equal(await page.locator('link[rel=canonical]').getAttribute('href'),'https://satyakibanik.github.io/Projects/begd/');
   const dates=await page.evaluate(()=>Object.values(window.BEGD_STATIC_DATA.reports_by_id).map(r=>r.date).sort().reverse());
   const [selected,first,second]=dates;
   assert.equal((await capture(page)).date,selected);
@@ -33,9 +37,9 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await page.locator('[data-toggle-series="generation_mw"]').uncheck();
   await page.locator('[data-chart-style="shed"]').selectOption('line');
   const styled=await capture(page);assert.equal(styled.dispatch,'bar');assert.equal(styled.fuel,'ring');assert.ok(styled.layers.some(([key,value])=>key==='overview:dispatch|generation_mw'&&!value));
-  // Real clipboard, followed by a fresh browser context (no session storage).
-  await page.locator('#copy-link').click();await page.waitForFunction(()=>document.querySelector('#share-status').textContent==='Link copied.');
-  const link=await page.evaluate(()=>navigator.clipboard.readText());assert.equal(new URL(link).searchParams.get('date'),selected);
+  // The address bar itself contains the complete shareable view, with no clipboard UI.
+  assert.equal(await page.locator('#copy-link, #share-url, #share-status').count(),0);
+  const link=page.url();assert.equal(new URL(link).searchParams.get('date'),selected);
   const freshContext=await browser.newContext({reducedMotion:'reduce'}),fresh=await freshContext.newPage();fresh.on('pageerror',e=>errors.push(e.stack));
   await fresh.route('**/archive/*.json',async route=>{await new Promise(resolve=>setTimeout(resolve,200));await route.continue()});
   await fresh.goto(link);await ready(fresh);assert.deepEqual(await capture(fresh),styled);
@@ -45,9 +49,6 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await fresh.locator('#fuel-mix-style').selectOption('pie');await fresh.waitForFunction(()=>new URL(location.href).searchParams.get('fuel')==='pie');
   await fresh.goBack();await ready(fresh);assert.equal(await fresh.locator('#fuel-mix-style').inputValue(),'ring');
   await fresh.goForward();await ready(fresh);assert.equal(await fresh.locator('#fuel-mix-style').inputValue(),'pie');
-  // Clipboard denial exposes a selectable, exact URL.
-  await fresh.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async()=>{throw Error('Denied')}}}));
-  await fresh.locator('#copy-link').click();await fresh.waitForFunction(()=>!document.querySelector('#share-fallback').hidden);assert.match(await fresh.locator('#share-status').innerText(),/Select and copy/);assert.equal(await fresh.locator('#share-url').inputValue(),fresh.url());
   await fresh.locator('#report-date').fill(second);await fresh.locator('#load-report').click();await fresh.waitForFunction(date=>document.querySelector('#subtitle').textContent.includes(new Date(date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'})),second);
   await fresh.waitForFunction(date=>new URL(location.href).searchParams.get('date')===date,second);
   assert.equal((await capture(fresh)).date,second);await fresh.reload();await ready(fresh);assert.equal((await capture(fresh)).date,second);assert.equal(await fresh.locator('#report-date').inputValue(),second);
@@ -92,21 +93,20 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();
   await page.locator('[data-trend-layer="Generation"]').uncheck();
   await page.locator('[data-trend-layer="Coal"]').uncheck();
-  const trends=await capture(page);await page.locator('#copy-link').click();await page.waitForFunction(()=>document.querySelector('#share-status').textContent==='Link copied.');
-  const trendsLink=await page.evaluate(()=>navigator.clipboard.readText());
+  const trends=await capture(page),trendsLink=page.url();
   const newContext=await browser.newContext({reducedMotion:'reduce'}),newPage=await newContext.newPage();newPage.on('pageerror',e=>errors.push(e.stack));
   await newPage.goto(trendsLink);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
   await newPage.reload();await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
   assert.equal(await newPage.locator('[data-trend-layer="Maximum temperature"]').isChecked(),true);assert.equal(await newPage.locator('[data-trend-layer="Generation"]').isChecked(),false);assert.equal(await newPage.locator('[data-trend-layer="Coal"]').isChecked(),false);
-  // Existing long v1 links must open identically, then Copy link migrates to compact v2.
+  // Existing long v1 links restore identically and automatically shorten in the address bar.
   const legacyState=await newPage.evaluate(()=>window.BEGDTrends.getViewState()),legacy=new URL(trendsLink);
   legacy.searchParams.delete('hide');legacy.searchParams.delete('show');legacy.searchParams.set('v','1');
   const defaults=await newPage.evaluate(()=>window.BEGDViewCodec.defaults);
   for(const key of Object.keys(defaults))legacy.searchParams.set(key,trends[key]);
   legacy.searchParams.set('layers',JSON.stringify(trends.layers));legacy.searchParams.set('trendLayers',JSON.stringify(legacyState.trendLayers));
   await newPage.goto(legacy.href);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
-  await newPage.locator('#copy-link').click();await newPage.waitForFunction(()=>document.querySelector('#share-url').value.includes('v=2'));
-  const migrated=await newPage.locator('#share-url').inputValue();assert.ok(migrated.length<legacy.href.length);assert.equal(new URL(migrated).searchParams.has('trendLayers'),false);assert.equal(new URL(migrated).searchParams.has('layers'),false);
+  await newPage.waitForFunction(()=>new URL(location.href).searchParams.get('v')==='2');
+  const migrated=newPage.url();assert.ok(migrated.length<legacy.href.length);assert.equal(new URL(migrated).searchParams.has('trendLayers'),false);assert.equal(new URL(migrated).searchParams.has('layers'),false);
   await newPage.goto(migrated);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
   for(const days of ['30','60','90','365','10y']){await newPage.locator(`[data-trend-days="${days}"]`).click();await newPage.waitForFunction(days=>(new URL(location.href).searchParams.get('days')||'30')===days,days);assert.equal((await capture(newPage)).days,days);}
   await newPage.goBack();await ready(newPage);assert.equal((await capture(newPage)).days,'365');await newPage.goForward();await ready(newPage);assert.equal((await capture(newPage)).days,'10y');
@@ -117,7 +117,7 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
    await page.setViewportSize({width,height:1000});await page.evaluate(theme=>{document.documentElement.dataset.theme=theme},theme);
    await page.waitForTimeout(100);
    assert.equal(await page.locator('#report-date').getAttribute('type'),'date');assert.equal(await page.locator('#date, #archive-year, #archive-month, #archive-day').count(),0);
-   const fonts=await page.evaluate(()=>['copy-link','add-comparison','load-report'].map(id=>{const s=getComputedStyle(document.getElementById(id));return [s.fontFamily,s.fontSize,s.padding,s.borderRadius,s.minHeight]}));assert.deepEqual(fonts[0],fonts[1]);assert.deepEqual(fonts[0],fonts[2]);
+   const fonts=await page.evaluate(()=>['add-comparison','load-report'].map(id=>{const s=getComputedStyle(document.getElementById(id));return [s.fontFamily,s.fontSize,s.padding,s.borderRadius,s.minHeight]}));assert.deepEqual(fonts[0],fonts[1]);
    const inputs=await page.evaluate(()=>['report-date','comparison-date'].map(id=>{const s=getComputedStyle(document.getElementById(id));return [s.fontFamily,s.fontSize,s.height,s.width]}));assert.deepEqual(inputs[0],inputs[1]);
    const headerBounds=await page.locator('#report-date').boundingBox();assert.ok(headerBounds.x+headerBounds.width<=width);
    const bounds=await page.locator('#comparison-date').boundingBox();assert.ok(bounds.width>=150);assert.ok(bounds.x+bounds.width<=width);
@@ -129,6 +129,9 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await page.goto(base+'?date=bad&days=999&layers=oops#overview');await ready(page);assert.match(await page.locator('#view-status').innerText(),/Invalid operating date/);assert.equal((await capture(page)).days,'30');
   await page.goto(base+'?compare=1900-01-01#overview');await ready(page);assert.ok((await capture(page)).custom.includes('1900-01-01'));assert.match(await page.locator('#custom-comparisons').innerText(),/No archived report/);
   await page.goto(base+'#trends');await ready(page);assert.equal((await capture(page)).days,'30');await page.goto(base+'#overview');await ready(page);
-  assert.deepEqual(errors,[]);console.log('PASS: custom comparisons, exact archive dates, fresh-session/reload state, all trends ranges, units/styles/visibility/temperature, history, clipboard success/fallback, keyboard, legacy/invalid links, desktop/mobile/light/dark.');
+  const crawlContext=await browser.newContext({javaScriptEnabled:false}),crawl=await crawlContext.newPage();
+  await crawl.goto(base,{waitUntil:'domcontentloaded'});assert.match(await crawl.locator('.about-begd').innerText(),/BEGD.*Bangladesh Electric Grid Dashboard/);assert.equal(await crawl.locator('#copy-link').count(),0);
+  await crawl.goto(new URL('../',base).href,{waitUntil:'domcontentloaded'});assert.match(await crawl.locator('h1').innerText(),/BEGD.*Bangladesh Electric Grid Dashboard/);await crawlContext.close();
+  assert.deepEqual(errors,[]);console.log('PASS: custom comparisons, exact archive dates, fresh-session/reload state, all trends ranges, units/styles/visibility/temperature, history, address-bar sharing without clipboard access, keyboard, legacy/invalid links, desktop/mobile/light/dark.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1});

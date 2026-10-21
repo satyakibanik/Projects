@@ -211,6 +211,7 @@ def main():
         shutil.rmtree(output)
     output.mkdir(parents=True)
     shutil.copy2(ROOT / "index.html", output / "index.html")
+    shutil.copy2(ROOT / "sitemap.xml", output / "sitemap.xml")
     shutil.copytree(DASHBOARD, output / "begd")
     write_data_bundle(output / "begd")
 
