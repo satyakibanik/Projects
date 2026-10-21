@@ -2,7 +2,7 @@
 
 The dashboard is published by `.github/workflows/pages.yml`. Each hourly run fetches the current Power Grid report list, supported workbooks, and today's ERP readings, then builds a static Pages artifact.
 
-`live-data.js` contains recent workbooks and report metadata. Older supported reports are published as individual files under `archive/`, loaded on demand by the date controls. Parsed historical workbooks are cached by GitHub Actions.
+`live-data.js` contains recent workbooks and report metadata. Older supported reports are published as individual files under `archive/`, loaded on demand by the date controls. The header uses the same native operating-date picker as Optional report comparisons: choose a date and click **Load report**, or press Enter. Previous/next buttons navigate available operating dates in the published archive. Missing dates leave the displayed report in place with an explanation; report publication dates remain separately labeled. Copy link, Load report, and Add comparison share the same button styling in both themes. Parsed historical workbooks are cached by GitHub Actions.
 
 ## Long-term trends
 

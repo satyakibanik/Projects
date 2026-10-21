@@ -16,7 +16,7 @@
   async function restore(state,warnings=[]){
     const token=++revision;restoring=true;status('Restoring dashboard view…');
     // Cancel pending report/comparison work before applying a history entry.
-    request++;previousForecastRequest++;
+    request++;previousForecastRequest++;operatingDateRequest++;setReportPickerBusy(true);$('#date-status').textContent='Restoring operating date…';
     for(const day of presets){comparisonRequests[day]++;comparisonData[day]=null;delete pinnedComparisons[day];$('#source-'+day).checked=Object.hasOwn(state.presets,day);if(state.presets[day])pinnedComparisons[day]=state.presets[day];$('#'+day+'-status').textContent='Off';}
     customComparisons.clear();renderCustomComparisons();
     dispatchChartStyle=state.dispatch;shedChartStyle=state.shed;fuelMixStyle=state.fuel;regionalSnapshotStyle=state.regional;enCurveChartStyle=state.curve;enCurveTableMode=state.table;
@@ -25,16 +25,13 @@
     if(state.date&&state.date!==data?.date){
       try{
         const report=await reportForOperatingDate(state.date);if(token!==revision)return;
-        const select=$('#date'),id=String(report.report_id);
-        if(![...select.options].some(option=>option.value===id)){const option=document.createElement('option');option.value=id;option.textContent=(report.published_date||'Publication unavailable')+' · operating '+report.date;select.add(option);}
-        select.value=id;
-        if(!await load(id))warnings.push('The selected operating report could not be loaded.');
+        if(!await load(String(report.report_id),report))warnings.push('The selected operating report could not be loaded.');
       }catch(error){if(token!==revision)return;warnings.push(error.message+' Showing the latest loaded report.');}
     }
     if(token!==revision)return;
     await Promise.all([...presets.filter(day=>$('#source-'+day).checked).map(loadComparison),...state.custom.map(date=>addCustomComparison(date,{restoring:true}))]);
     if(token!==revision)return;
-    updateReportDayNavigation();render();restoring=false;lastURL=location.href;
+    $('#report-date').value=data?.date||'';$('#date-status').textContent=selectedReportStatus();setReportPickerBusy(false);render();restoring=false;lastURL=location.href;
     status(warnings.join(' '));
     // Keep the exact history entry, including unavailable dates, for Back/Forward.
     history.replaceState({begd:state},'',location.href);
