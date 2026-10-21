@@ -46,7 +46,8 @@ function setupCharts(view) {
       if (event.target.dataset.chartStyle === 'dispatch') dispatchChartStyle = event.target.value;
       if (event.target.dataset.chartStyle === 'shed') shedChartStyle = event.target.value;
       if (event.target.dataset.chartStyle === 'en-curve') enCurveChartStyle = event.target.value;
-      render();
+      const style=event.target.dataset.chartStyle;render();
+      document.querySelector(`[data-chart-style="${style}"]`)?.focus({preventScroll:true});
     });
     wrapper.querySelectorAll('[data-point]').forEach(hit => {
       const index = Number(hit.dataset.point);
@@ -64,45 +65,21 @@ function setupCharts(view) {
     });
     wrapper.querySelector('svg').addEventListener('pointerleave', hide);
     wrapper.addEventListener('focusout', event => { if (!wrapper.contains(event.relatedTarget)) hide(); });
-    wrapper.querySelectorAll('[data-toggle-family]').forEach(master => master.addEventListener('change', () => {
-      const family = master.dataset.toggleFamily, checked = master.checked;
-      [...wrapper.querySelectorAll(`[data-series-family="${family}"]`)].forEach(input => {
-        input.checked = checked;
-        input.dispatchEvent(new Event('change'));
+    wrapper.querySelectorAll('[data-toggle-family]').forEach(master => {
+      const members=[...wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`)];
+      const checked=members.filter(input=>input.checked).length;master.checked=checked===members.length;master.indeterminate=checked>0&&checked<members.length;
+      master.addEventListener('change', () => {
+      wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`).forEach(input => {
+        chartVisibility.set(model.scope+'|'+input.dataset.toggleSeries,master.checked);
       });
-    }));
+      render();
+      [...document.querySelectorAll('[data-toggle-family]')].find(control=>control.dataset.toggleFamily===master.dataset.toggleFamily&&chartData.get(control.closest('.interactive-chart').dataset.chart)?.scope===model.scope)?.focus({preventScroll:true});
+    });});
     wrapper.querySelectorAll('[data-toggle-series]').forEach(input => input.addEventListener('change', () => {
-      if (input.dataset.seriesFamily || model.enCurve) dispatchVisibility.set(input.dataset.toggleSeries, input.checked);
-      if (model.stackedArea) { render(); return; }
-      wrapper.querySelector(`[data-series="${input.dataset.toggleSeries}"]`).style.display = input.checked ? '' : 'none';
-      const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
-      const scale = chartScale(model.rows, visible);
-      const y = value => 218 - (value - scale.min) / (scale.max - scale.min) * 204;
-      for (let i = 0; i <= 4; i++) {
-        const value = scale.min + (scale.max - scale.min) * i / 4;
-        wrapper.querySelector(`[data-tick-label="${i}"]`).textContent = fmt(value, 2);
-      }
-      model.series.forEach(series => {
-        const group = wrapper.querySelector(`[data-series="${series.key}"]`);
-        if (series.bar) {
-          group.querySelectorAll('rect').forEach(rect => {
-            const value=model.rows[Number(rect.dataset.rowIndex)][series.key];
-            rect.setAttribute('y', y(value));
-            rect.setAttribute('height', Math.max(0, 218 - y(value)));
-          });
-        } else {
-          const points = series.pointsOnly && !series.connectPoints ? '' : model.rows.filter(row => typeof row[series.key] === 'number').map(row => `${model.x(row)},${y(row[series.key])}`).join(' ');
-          group.querySelector('polyline').setAttribute('points', points);
-          group.querySelectorAll('circle').forEach(circle => circle.setAttribute('cy', y(model.rows[Number(circle.dataset.rowIndex)][series.key])));
-        }
-      });
-      wrapper.querySelectorAll('[data-toggle-family]').forEach(master => {
-        const inputs = [...wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`)];
-        const checked = inputs.filter(item => item.checked).length;
-        master.checked = checked === inputs.length;
-        master.indeterminate = checked > 0 && checked < inputs.length;
-      });
-      if (selected !== null) show(selected);
+      const key=input.dataset.toggleSeries;
+      chartVisibility.set(model.scope+'|'+key,input.checked);
+      render();
+      [...document.querySelectorAll('[data-toggle-series]')].find(control=>control.dataset.toggleSeries===key&&chartData.get(control.closest('.interactive-chart').dataset.chart)?.scope===model.scope)?.focus({preventScroll:true});
     }));
   });
 }

@@ -75,3 +75,19 @@ nav a.nav-live.active:before{display:none}
 .nav-section-divider{width:calc(100% - 20px);margin:10px 10px 14px;border:0;border-top:1px solid var(--line)}
 @media(prefers-reduced-motion:reduce){#subtitle .operating-date-highlight{animation:none}}
 @media(max-width:800px){.nav-section-divider{flex:0 0 24px;align-self:center;width:24px;margin:0}#subtitle .operating-date-highlight{font-size:15px}}
+
+/* Comparison and sharing controls wrap in the existing light/dark palette. */
+.share-view{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;max-width:30rem}
+.share-view button,.custom-comparison-controls button,#custom-comparisons button{font:inherit;color:var(--ink);background:var(--panel,var(--bg));border:1px solid var(--line);border-radius:5px;padding:.45rem .65rem;min-height:36px;cursor:pointer}
+.share-view button:focus-visible,.custom-comparison-controls :focus-visible,#custom-comparisons button:focus-visible{outline:2px solid var(--green);outline-offset:3px}
+#share-status,#comparison-status,#view-status{font-size:.8rem;overflow-wrap:anywhere}
+#share-fallback{width:100%;font-size:.8rem}#share-fallback input{display:block;width:100%;min-width:0;color:var(--ink);background:var(--bg);font:inherit;padding:.5rem;border:1px solid var(--line)}
+#day-sources{flex-wrap:wrap}.custom-comparison-controls{flex-basis:100%;display:grid;gap:.4rem}.custom-comparison-controls>div{display:flex;gap:.5rem;flex-wrap:wrap}.custom-comparison-controls input{color:var(--ink);background:var(--bg);border:1px solid var(--line);font:inherit;min-height:36px;padding:.4rem}.custom-comparison-controls p{margin:0;font-size:.75rem}
+#custom-comparisons{list-style:none;padding:0;margin:.5rem 0 0;display:grid;gap:.4rem;flex-basis:100%}#custom-comparisons li{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;font-size:.8rem}#custom-comparisons li>span:nth-child(2){flex:1;min-width:140px}.comparison-sample{width:48px}.comparison-sample svg{display:block;width:48px;height:12px}#view-status:empty{display:none}#view-status{padding:.5rem 0}
+@media(max-width:650px){.share-view{width:100%;max-width:none}.custom-comparison-controls input{max-width:100%}.share-view button{min-height:44px}#custom-comparisons button{min-height:44px}}
+
+#day-sources[hidden]{display:none}#day-sources #comparison-date{width:11rem;height:auto;min-height:40px;font:12px var(--mono)}
+#day-sources #comparison-status{font-size:11px}#day-sources .comparison-sample{color:inherit}
+@media(max-width:650px){.report-date-controls{max-width:100%;min-width:0}.report-date-controls>.recent-report-label{flex-wrap:wrap;white-space:normal;max-width:100%}.recent-report-label>span:first-child{flex-basis:100%}}
+
+#day-sources #custom-comparisons li>span:nth-child(2){font-size:11px;line-height:1.5}

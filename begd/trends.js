@@ -7,7 +7,26 @@
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
   let chartSerial=0;
   const hoverCharts=new Map();
-  const hiddenLayers=new Map();
+  const hiddenLayers=new Map(),knownLayers=new Map();
+  // IDs form part of the shared-link contract. Keep these mappings stable.
+  const chartIds={'Generation and demand':'generation-demand','Reported load shedding':'load-shedding','Fuel mix':'fuel-mix','Imports':'imports','Import dependence and renewable share':'dependence-renewables','Unserved energy share':'unserved-share','Daily mean and 30-day rolling generation':'historical-generation'};
+  const seriesIds={'Generation':'generation_mwh','Demand requirement':'demand_mwh','Maximum temperature':'temperature_c','Reported load shedding':'shed_peak_mw','Total imports':'imports_mwh','Import share':'import-share','Renewable share':'renewable-share','Unserved energy share':'unserved-share','Daily mean':'daily-mean','30-day rolling mean':'rolling-mean'};
+  const stableId=name=>seriesIds[name]||String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  function getViewState(){
+    const layers=[];
+    for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
+    // Include settings for charts not mounted in this session yet.
+    for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
+    return {days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+  }
+  function setViewState(state){
+    period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
+    temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
+    hiddenLayers.clear();knownLayers.clear();
+    for(const [id,visible] of state.trendLayers||[]){const split=id.indexOf('|');if(split<0)continue;const chart=id.slice(0,split),name=id.slice(split+1);if(!hiddenLayers.has(chart))hiddenLayers.set(chart,new Set());if(!knownLayers.has(chart))knownLayers.set(chart,new Set());knownLayers.get(chart).add(name);if(!visible)hiddenLayers.get(chart).add(name);}
+    // Temperature is opt-in even when a link mentions only other layers.
+    if(hiddenLayers.has('generation-demand')&&!knownLayers.get('generation-demand')?.has('temperature_c'))hiddenLayers.get('generation-demand').add('temperature_c');
+  }
   const chartUnits={generation:'GWh',imports:'GWh'};
   let temperatureUnit='°C',temperatureDetail=null;
   let period = 30, bundle = null, history = null, pending = null, failure = null;
@@ -57,10 +76,11 @@
     return firsts.map((index,i)=>({index,label:new Date(rows[index].date+'T12:00:00Z').toLocaleDateString('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}),sparse:i%3===0||i===firsts.length-1}));
   }
   function plot(rows, allSeries, title, unit, stacked=false, options={}) {
-    const key=options.key||title;
-    if(!hiddenLayers.has(key))hiddenLayers.set(key,new Set(allSeries.filter(s=>s.defaultVisible===false).map(s=>s.name)));
+    const key=options.key||chartIds[title]||stableId(title);
+    knownLayers.set(key,new Set([...(knownLayers.get(key)||[]),...allSeries.map(s=>stableId(s.name))]));
+    if(!hiddenLayers.has(key))hiddenLayers.set(key,new Set(allSeries.filter(s=>s.defaultVisible===false).map(s=>stableId(s.name))));
     const hidden=hiddenLayers.get(key);
-    const series=allSeries.filter(s=>!hidden.has(s.name)&&!s.legendOnly);
+    const series=allSeries.filter(s=>!hidden.has(stableId(s.name))&&!s.legendOnly);
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
     const W=840,H=options.compact?180:300,L=80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
@@ -104,7 +124,7 @@
         const sum=parts.reduce((a,b)=>a+b,0);let bottom=0;
         parts.forEach((value,j)=>{
           const percent=value/sum*100;
-          if(hidden.has(allSeries[j].name))return;
+          if(hidden.has(stableId(allSeries[j].name)))return;
           if(percent>0)body+=`<rect x="${x(i)-width/2}" y="${y(bottom+percent)}" width="${width}" height="${percent/max*(H-T-B)}" fill="${allSeries[j].color}" aria-label="${row.date} · ${escape(allSeries[j].name)}: ${format(percent)}% · ${format(value)} GWh"/>`;
           bottom+=percent;
         });
@@ -119,7 +139,7 @@
     }
     const id='trend-chart-'+(++chartSerial);
     hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries,syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${(options.hideLegend?[]:allSeries).map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(s.name)?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
+    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${(options.hideLegend?[]:allSeries).map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -164,12 +184,12 @@
     html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports',rows)+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement',rows)+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading',rows)+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count),rows)+'</div>';
     html+=`<p class="note trends-method">Totals cover reported days only; incomplete windows are partial totals. Missing values stay blank and lines break at gaps. Demand requirement uses the matching-date En-Curve total, or P1 generation plus reported energy not served when that total is unavailable. This energy requirement is not a separately metered demand total. Reported load shedding is taken directly from P4; it is not inferred from demand minus generation. Energy not served: ${format(unserved.value==null?null:unserved.value/1000)} GWh (${coverage(unserved.count)}), a separate published P1 energy measure.</p>`;
     const generationUnit=chartUnits.generation, importUnit=chartUnits.imports;
-    const showTemperature=hiddenLayers.has('Generation and demand')&&!hiddenLayers.get('Generation and demand').has('Maximum temperature');
+    const showTemperature=hiddenLayers.has('generation-demand')&&!hiddenLayers.get('generation-demand').has('temperature_c');
     const powerNote='Daily average power = published daily energy ÷ 24 hours · MW';
     const detail=temperatureDetail||(period>=60?'weekly':'daily');
     const averaged=showTemperature&&detail==='weekly',comparisonRows=averaged?weeklyComparisonRows(rows):rows;
     const comparisonSeries=[energy('generation_mwh','Generation','#4e79a7',false,generationUnit),energy('demand_mwh','Demand requirement','#d88931',true,generationUnit),{...temperatureSeries(),legendOnly:true}].map(series=>showTemperature?{...series,unit:series.unit||generationUnit,markers:true,width:series.axis==='right'?2.8:1.9}:series);
-    const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('Generation and demand')?.has(series.name)):null;
+    const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('generation-demand')?.has(stableId(series.name))):null;
     const comparisonNote=(averaged?'7-day averages · ':'')+(generationUnit==='MW'?powerNote:'Daily energy · GWh')+' · generation includes imports · value axis fitted to visible data';
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     html+=panel('Generation & demand',comparisonNote,plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot,`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
@@ -270,11 +290,11 @@
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
     host.querySelectorAll('[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
-      const key=control.dataset.trendChartKey, name=control.dataset.trendLayer;
+      const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
       const hidden=hiddenLayers.get(key)||new Set();
       control.checked?hidden.delete(name):hidden.add(name);hiddenLayers.set(key,hidden);
       draw();
-      [...host.querySelectorAll('[data-trend-layer]')].find(input=>input.dataset.trendChartKey===key&&input.dataset.trendLayer===name)?.focus({preventScroll:true});
+      [...host.querySelectorAll('[data-trend-layer]')].find(input=>input.dataset.trendChartKey===key&&stableId(input.dataset.trendLayer)===name)?.focus({preventScroll:true});
     }));
     host.querySelectorAll('[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
       temperatureDetail=control.dataset.temperatureDetail;draw();
@@ -307,7 +327,7 @@
     }
     await pending;
   }
-  root.BEGDTrends={mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
+  root.BEGDTrends={getViewState,setViewState,mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

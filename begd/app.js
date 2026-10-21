@@ -4,16 +4,19 @@ const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#5
 let data, request=0, archiveReports=[], archiveCutoff='';
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
+const customComparisons=new Map(), pinnedComparisons={};
+const chartVisibility=new Map();
 let previousForecastReport=null, previousForecastRequest=0;
-let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='stacked', enCurveChartStyle='area'; const dispatchVisibility=new Map();
+let dispatchChartStyle='line', shedChartStyle='bar', fuelMixStyle='bar', regionalSnapshotStyle='stacked', enCurveChartStyle='area';
 let chartId=0; const chartData=new Map(); let enCurveTableMode='energy';
 let selectedRegionalFuel=null;
 const comparisonSources=()=>[
  ['yesterday',comparisonData.yesterday,'#a77cc1','#81a2cb'],
  ['tomorrow',comparisonData.tomorrow,'#ed8065','#54b9a4'],
  ['highest',comparisonData.highest,'#d9ae70','#d2834b'],
-].filter(([,report])=>report);
-const dayLabel=day=>({current:'Current day',yesterday:'Yesterday',tomorrow:'Tomorrow',highest:'Highest generation day'}[day]||day);
+ ...[...customComparisons].filter(([,item])=>item.report).map(([date,item])=>{const style=comparisonStyle(date);return ['custom_'+date,item.report,style.color,style.color]}),
+].filter(([,report])=>report).filter(([,report],index,items)=>items.findIndex(([,other])=>other.date===report.date)===index);
+const dayLabel=day=>({current:'Current day',yesterday:'Yesterday',tomorrow:'Tomorrow',highest:'Highest generation day'}[day]||(day.startsWith('custom_')?'Operating date '+day.slice(7):day));
 function comparedRows(baseRows, sources, fields){
  const rows=baseRows.map(row=>({...row})),series=[];
  for(const [day,report,demandColor,generationColor] of sources){
@@ -59,11 +62,11 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
  const swatch=s=>legendSwatch(s,series.indexOf(s));
  if(familyLegend){
   const family=familyLegend.family,items=series.filter(s=>s.family===family);
-  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" checked>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
+  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
  }
  if(!balanceLegend){const legendSeries=series.filter(s=>s.key!=='shortage_mw').concat(series.filter(s=>s.key==='shortage_mw'));return `<div class="legend${wrapLegend?' legend-wrap':''}">${legendSeries.map(s=>`<label${s.key==='shortage_mw'?' class="legend-shortage"':''}><input type="checkbox" data-toggle-series="${s.key}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div>`;}
- const sources=['selected','yesterday','tomorrow','highest'].filter(source=>series.some(s=>s.source===source));
- const visible=s=>dispatchVisibility.has(s.key)?dispatchVisibility.get(s.key):s.defaultVisible!==false;
+ const sources=[...new Set(series.map(s=>s.source).filter(Boolean))];
+ const visible=s=>s.defaultVisible!==false;
  const master=(family,label)=>{const items=series.filter(s=>s.family===family),checked=items.filter(visible).length;return `<label><input type="checkbox" data-toggle-family="${family}" ${checked===items.length?'checked':''}>${label}</label>`};
  const rows=sources.map(source=>`<div class="dispatch-legend-row">${['generation','demand'].map(family=>{const item=series.find(s=>s.source===source&&s.family===family&&!s.legendOnly);return item?`<label><input type="checkbox" data-toggle-series="${item.key}" data-series-family="${family}" ${visible(item)?'checked':''}>${swatch(item)}<span data-series-label="${esc(item.key)}" tabindex="0">${esc(item.name)}</span></label>`:'<span></span>'}).join('')}</div>`).join('');
  const extras=series.filter(s=>s.legendOnly);
@@ -72,15 +75,17 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
  return `<div class="legend dispatch-legend"><div class="dispatch-legend-master">${master('generation','All generation')}${master('demand','All demand')}</div><div class="dispatch-legend-rows">${rows}</div>${extras.length?`<div class="dispatch-legend-extras">${extraColumn('generation')}${extraColumn('demand')}</div>`:''}</div>`;
 }
 function chart(rows,series,options={}){
+ const scope=options.key||((typeof location==='undefined'?'overview':location.hash.slice(1)||'overview')+':'+(options.styleSetting||series[0]?.key||'chart'));
+ series=series.map(item=>({...item,...(item.source&&item.source!=='selected'?{dashArray:comparisonStyle(item.source).dash+(item.family==='demand'?' 1 3':'')}:{}),defaultVisible:chartVisibility.has(scope+'|'+item.key)?chartVisibility.get(scope+'|'+item.key):item.defaultVisible}));
  const unit=options.unit||'MW';
  const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:options.styleSetting==='en-curve'?enCurveChartStyle:null;
  const plotSeries=series.map(item=>({...item,hatch:false,bar:selectedStyle?(!item.pointsOnly&&!item.fixedLine&&selectedStyle==='bar'):item.bar}));
- const W=800,H=250,L=58,R=15,T=14,B=32,visibleForScale=(options.balanceLegend||options.styleSetting==='en-curve')?plotSeries.filter(item=>dispatchVisibility.has(item.key)?dispatchVisibility.get(item.key):item.defaultVisible!==false):plotSeries,scale=chartScale(rows,visibleForScale.length?visibleForScale:plotSeries);
+ const W=800,H=250,L=58,R=15,T=14,B=32,visibleForScale=plotSeries.filter(item=>item.defaultVisible!==false),scale=chartScale(rows,visibleForScale);
  const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
- const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,unit,enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,unit,scope,enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
- for(const s of plotSeries){body+=`<g data-series="${s.key}"${options.styleSetting==='en-curve'&&s.defaultVisible===false?' style="display:none"':''}>`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} ${unit}</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(s)}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointRadius??(s.pointsOnly?5:3)}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} ${unit}</title></circle>`}}body+=`</g>`}
+ for(const s of plotSeries){body+=`<g data-series="${s.key}"${s.defaultVisible===false?' style="display:none"':''}>`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} ${unit}</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(s)}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointRadius??(s.pointsOnly?5:3)}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} ${unit}</title></circle>`}}body+=`</g>`}
  rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" "+unit).join(", "))}"/>`});
  const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}">${options.styleSetting==='en-curve'?`<option value="area" ${selectedStyle==='area'?'selected':''}>Stacked area</option><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option>`:`<option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option>`}</select></label></div>`:'';
  return `<div class="interactive-chart${options.styleSetting==='en-curve'?' en-curve-chart':''}" data-chart="${id}">${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in ${unit==='%'?'percent':'megawatts'}"><title>${esc(series.map(s=>s.name).join(" and "))} in ${unit}</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(plotSeries,options.balanceLegend,options.wrapLegend,options.familyLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
@@ -123,7 +128,7 @@ function overview(){
   ...(previousForecastRows.length?[{key:'forecasted_demand_mw',name:'Forecasted demand · previous day file',color:'#df6f9b',family:'demand',source:'selected',legendOnly:true,defaultVisible:true,pointsOnly:true,connectPoints:true,dash:true,dot:true,pointRadius:2.5}]:[]),
   ...dispatch.series];
  const shedSeries=[{key:'shed_mw',name:'Load shedding · selected day',color:'#b95442',bar:true,dash:true},...shed.series.map(series=>({...series,bar:true}))];
- const fuelSources=sources.map(([day,report])=>[dayLabel(day),report]);
+ const fuelSources=sources.map(([day,report])=>[day.startsWith('custom_')?'Custom operating date':dayLabel(day),report]);
  const fuelKey=Object.entries(data.fuels).map(([f,v])=>'<div>'+legendSwatch({name:f,color:colors[f],area:true})+'<span>'+esc(f)+'</span><strong>'+(v==null?'—':v>0&&v/s.energy_mwh*100<0.1?'&lt;0.1':fmt(v/s.energy_mwh*100,1))+(v==null?'':'<small>%</small>')+'</strong></div>').join('');
  return `<div class="dispatch-layout"><section class="dispatch-main"><div class="dispatch-heading"><span class="section-number">01 / SYSTEM DISPATCH</span><span class="tag">MW · BST</span></div><h2 class="dispatch-title">Demand and generation</h2>${chart(dispatchRows,dispatchSeries,{balanceLegend:true,styleSetting:'dispatch'})}<div class="dispatch-bottom"><span>00:00 — 23:00</span><p>Generation: ${esc(data.report_name||data.source_file||'daily report')} · P4 (actual) and L-Curve (East/West layers). Demand: P4 (actual) and ${previousForecastReport?esc(previousForecastReport.report_name||previousForecastReport.source_file||'previous day file')+' · Forecast (forecast for '+esc(data.date)+')':'Forecast · previous day file, when available'}.</p></div></section><aside class="dispatch-readings"><div class="section-number">DAILY TOTALS & PEAKS</div>${metric("Evening peak demand",fmt(s.peak_demand_mw),"MW","Generation side · 19:30")}${metric("Peak generation",fmt(s.peak_generation_mw),"MW","Includes cross-border imports")}${metric("Energy not served",fmt(s.unserved_mwh==null?null:s.unserved_mwh/1000,2),"GWh","Published daily energy total")}${metric("Energy generated",fmt(s.energy_mwh/1000,2),"GWh","Published total · including imports")}</aside></div><div class="energy-band"><div class="fuel-mix-heading"><div class="section-number">02 / ENERGY COMPOSITION</div><h2>Fuel mix</h2>${window.BEGDMetricMethods?.render('Fuel mix',{report:data})||''}<p>Share of reported daily energy</p><div class="dispatch-chart-style fuel-chart-style"><label>Chart style <select id="fuel-mix-style" aria-label="Fuel mix chart style"><option value="bar" ${fuelMixStyle==="bar"?"selected":""}>Stacked bar</option><option value="pie" ${fuelMixStyle==="pie"?"selected":""}>Pie chart</option><option value="ring" ${fuelMixStyle==="ring"?"selected":""}>Ring chart</option></select></label></div></div><div class="composition"><div class="fuel-composition-row ${fuelMixStyle==="bar"?"is-bar":"is-circular"}"><div class="composition-key">${fuelKey}</div><div class="fuel-report-charts ${fuelMixStyle==="bar"?"is-bar":"is-circular"}">${fuelStrip(data,'Selected day')}${fuelSources.map(([label,report])=>fuelStrip(report,label)).join('')}</div></div></div></div><div class="grid lower-grid">${panel("Reported load shedding","Power curtailed at each published reading",chart(shed.rows,shedSeries,{styleSetting:'shed'}))}${panel("Operating statistics","Additional published operating figures",`<div class="operating-stat"><div class="context-reading"><span>Maximum temperature</span><strong>${fmt(s.temperature_c,1)} °C</strong></div>${window.BEGDMetricMethods?.render('Maximum temperature',{report:data})||''}</div><div class="operating-stat"><div class="context-reading"><span>Imported energy share</span><strong>${fmt(s.import_mwh==null?null:s.import_mwh/s.energy_mwh*100,1)}%</strong></div>${window.BEGDMetricMethods?.render('Imported energy share',{report:data})||''}</div><div class="operating-stat"><div class="context-reading"><span>Generating units</span><strong>${fmt(plantUnits().length)}</strong></div>${window.BEGDMetricMethods?.render('Generating units',{report:data})||''}</div><div class="operating-stat"><div class="context-reading region-names"><span>Operating regions</span><strong>${esc(data.regions.map(region=>region.name).join(', '))}</strong></div>${window.BEGDMetricMethods?.render('Operating regions',{report:data})||''}</div>`,`REPORT NOTES`)}</div>`
 }
@@ -182,15 +187,15 @@ function showPlantDetail(name){
  const status=plant.status==='running'?'Generating':'No output reported';
  const rows=(plant.hourly||[]).map(point=>({time:point.time,output_selected:point.mw}));
  const series=[{key:'output_selected',name:`Selected report · ${shortDate(data.date)}`,color:'#147d58'}];
- for(const [day,report,color] of [['yesterday',comparisonData.yesterday,'#a77cc1'],['tomorrow',comparisonData.tomorrow,'#54b9a4'],['highest',comparisonData.highest,'#d2834b']]){
+ for(const [day,report,,color] of comparisonSources()){
   if(!report)continue;
   const match=(report.plant_units||[]).find(unit=>normalizedPlantName(unit.name)===normalizedPlantName(name));
   if(!match?.hourly?.length)continue;
   const key=`output_${day}`,byTime=new Map(match.hourly.map(point=>[point.time,point.mw]));
   rows.forEach(row=>{row[key]=byTime.get(row.time)??null});
-  series.push({key,name:`${dayLabel(day)} · ${shortDate(report.date)}`,color});
+  series.push({key,name:`${dayLabel(day)} · ${shortDate(report.date)}`,color,dashArray:comparisonStyle(day).dash});
  }
- const curve=rows.length?chart(rows,series):'<p class="plant-detail-empty">Hourly GenLog readings are unavailable for this report.</p>';
+ const curve=rows.length?chart(rows,series,{key:'plants:'+normalizedPlantName(name)}):'<p class="plant-detail-empty">Hourly GenLog readings are unavailable for this report.</p>';
  const p2=matchPlant(data.plants,name),forecast=matchPlant(data.forecast?.plants,name);
  const present=plant.present_capacity_mw??p2?.present_capacity_mw??p2?.capacity_mw;
  const reportedInstalled=plant.installed_capacity_mw??p2?.installed_capacity_mw??forecast?.capacity_mw;
@@ -224,7 +229,7 @@ function regionalFuelBarChart(fuel){
  return '<svg class="chart regional-fuel-svg" viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(fuel+' generation by region in MKWHr, ranked from highest to lowest')+'">'+body+'</svg>'
 }
 function regionalSnapshotChart(){
- const reports=[{key:'selected',label:'Selected day · '+shortDate(data.date),report:data,dateColor:'var(--ink)'},...comparisonSources().map(([day,report])=>({key:day,label:dayLabel(day)+' · '+shortDate(report.date),report,dateColor:day==='yesterday'?'#a77cc1':day==='tomorrow'?'#54b9a4':'#d2834b'}))];
+ const reports=[{key:'selected',label:'Selected day · '+shortDate(data.date),report:data,dateColor:'var(--ink)'},...comparisonSources().map(([day,report])=>({key:day,label:dayLabel(day)+' · '+shortDate(report.date),report,dateColor:comparisonStyle(day).color,dash:comparisonStyle(day).dash}))];
  const series=[{key:'generation_mw',name:'Daily generation',color:'#4e79a7'},{key:'demand_mw',name:'Evening demand',color:'#f28e2b'},{key:'shed_mw',name:'Reported load shedding',color:'#e15759'}];
  const pointAttrs=(row,source,item,value)=>' class="regional-snapshot-point" tabindex="0" role="img" data-region="'+esc(row.name)+'" data-report="'+esc(source.label)+'" data-metric="'+item.key+'" data-label="'+esc(item.name)+'" data-value="'+esc(fmt(value,2))+'" aria-label="'+esc(row.name+' · '+source.label+' · '+item.name+': '+fmt(value,2)+' MW')+'"';
  const rows=(data.regions||[]).map(region=>({name:region.name,values:reports.map(source=>{const match=(source.report.regions||[]).find(item=>item.name===region.name);return match?{generation_mw:Number(match.energy_mwh)/24,demand_mw:Number(match.demand_mw)||0,shed_mw:Number(match.shed_mw)||0}:null})}));
@@ -237,12 +242,12 @@ function regionalSnapshotChart(){
   const pitch=slot*.84/reports.length,barWidth=Math.min(32,pitch*.68);
   rows.forEach((row,index)=>reports.forEach((source,reportIndex)=>{const values=row.values[reportIndex];if(!values)return;const center=x(index)+(reportIndex-(reports.length-1)/2)*pitch;let accumulated=0;for(const item of series){const value=values[item.key];if(!Number.isFinite(value))continue;const top=y(accumulated+value),bottom=y(accumulated),height=Math.max(0,bottom-top);body+='<rect'+pointAttrs(row,source,item,value)+' x="'+(center-barWidth/2)+'" y="'+top+'" width="'+barWidth+'" height="'+height+'" fill="'+item.color+'"></rect>';accumulated+=value}if(accumulated>0)body+='<rect class="regional-snapshot-date-outline" x="'+(center-barWidth/2)+'" y="'+y(accumulated)+'" width="'+barWidth+'" height="'+(y(0)-y(accumulated))+'" fill="none" stroke="'+source.dateColor+'" stroke-width="1.5"><title>'+esc(source.label)+'</title></rect>'}));
  }else{
-  reports.forEach((source,reportIndex)=>series.forEach(item=>{const points=rows.flatMap((row,index)=>Number.isFinite(row.values[reportIndex]?.[item.key])?[[index,row.values[reportIndex][item.key]]]:[]);const dash=reportIndex===0?'none':reportIndex===1?'7 5':reportIndex===2?'2 4':'8 3 2 3';body+='<polyline fill="none" stroke="'+item.color+'" stroke-width="'+(reportIndex===0?'2.5':'1.8')+'" stroke-dasharray="'+dash+'" points="'+points.map(([index,value])=>x(index)+','+y(value)).join(' ')+'"/>';points.forEach(([index,value])=>{body+='<circle'+pointAttrs(rows[index],source,item,value)+' cx="'+x(index)+'" cy="'+y(value)+'" r="'+(reportIndex===0?'3.5':'2.8')+'" fill="'+item.color+'"></circle>'})}));
+  reports.forEach((source,reportIndex)=>series.forEach(item=>{const points=rows.flatMap((row,index)=>Number.isFinite(row.values[reportIndex]?.[item.key])?[[index,row.values[reportIndex][item.key]]]:[]);const dash=source.dash||'none';body+='<polyline fill="none" stroke="'+item.color+'" stroke-width="'+(reportIndex===0?'2.5':'1.8')+'" stroke-dasharray="'+dash+'" points="'+points.map(([index,value])=>x(index)+','+y(value)).join(' ')+'"/>';points.forEach(([index,value])=>{body+='<circle'+pointAttrs(rows[index],source,item,value)+' cx="'+x(index)+'" cy="'+y(value)+'" r="'+(reportIndex===0?'3.5':'2.8')+'" fill="'+item.color+'" stroke="'+source.dateColor+'" stroke-width="1.5"></circle>'})}));
  }
  rows.forEach((row,index)=>{body+='<text x="'+x(index)+'" y="'+(H-B+24)+'" text-anchor="middle">'+esc(row.name)+'</text>'});
  const metricLegend=series.map(item=>'<span class="regional-snapshot-key">'+legendSwatch({...item,bar:regionalSnapshotStyle==='stacked'})+esc(item.name)+'</span>').join('');
- const dateLegend=reports.map((source,index)=>'<span class="regional-snapshot-date-key">'+legendSwatch({name:source.label,color:regionalSnapshotStyle==='stacked'?source.dateColor:'var(--ink)',outline:regionalSnapshotStyle==='stacked',noMarkers:true,dashArray:['none','7 5','2 4','8 3 2 3'][index]})+esc(source.label)+'</span>').join('');
- return '<div class="regional-snapshot-chart-wrap"><div class="regional-snapshot-controls"><label>Chart style <select data-regional-snapshot-style aria-label="Regional data chart style"><option value="line" '+(regionalSnapshotStyle==='line'?'selected':'')+'>Line chart</option><option value="stacked" '+(regionalSnapshotStyle==='stacked'?'selected':'')+'>Stacked bar</option></select></label></div><div class="regional-snapshot-chart-scroll"><svg class="regional-snapshot-chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Regional daily generation, evening demand, and reported load shedding in megawatts for selected and comparison dates"><title>Regional daily generation, evening demand, and reported load shedding in megawatts for selected and comparison dates</title>'+body+'</svg></div><div class="chart-tooltip regional-snapshot-tooltip" role="status" hidden></div><div class="regional-snapshot-legend" aria-label="Chart series">'+metricLegend+dateLegend+'</div><p class="note">Daily generation is shown as 24-hour average MW (regional daily energy divided by 24); evening demand and load shedding are P1 snapshots at 21:00. Comparison reports use the matching region and operating date.</p></div>';
+ const dateLegend=reports.map((source,index)=>'<span class="regional-snapshot-date-key">'+legendSwatch({name:source.label,color:source.dateColor,outline:regionalSnapshotStyle==='stacked',noMarkers:true,dashArray:source.dash||'none'})+esc(source.label)+'</span>').join('');
+ return '<div class="regional-snapshot-chart-wrap"><div class="regional-snapshot-controls"><label>Chart style <select data-regional-snapshot-style aria-label="Regional data chart style"><option value="line" '+(regionalSnapshotStyle==='line'?'selected':'')+'>Line chart</option><option value="stacked" '+(regionalSnapshotStyle==='stacked'?'selected':'')+'>Stacked bar</option></select></label></div><div class="regional-snapshot-chart-scroll"><svg class="regional-snapshot-chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Regional daily generation, evening demand, and reported load shedding in megawatts for selected and comparison dates"><title>Regional daily generation, evening demand, and reported load shedding in megawatts for selected and comparison dates</title>'+body+'</svg></div><div class="chart-tooltip regional-snapshot-tooltip" role="status" hidden></div><div class="regional-snapshot-legend" aria-label="Chart series">'+metricLegend+dateLegend+'</div><p class="note">Daily generation is shown as 24-hour average MW (regional daily energy divided by 24); evening demand and load shedding are P1 snapshots at 21:00. Comparison reports use the matching region and operating date. Metric colors identify measures; comparison outlines and line patterns identify operating dates.</p></div>';
 }
 function regions(){
  const palette={Rangpur:'#a87930',Rajshahi:'#86e89a',Mymensingh:'#dbe97c',Sylhet:'#d3ad59',Dhaka:'#16c6d7',Cumilla:'#2225d0',Khulna:'#2018a8',Barishal:'#a77a31',Chattogram:'#1599e7'};
@@ -251,7 +256,7 @@ function regions(){
  const maxEnergy=Math.max(...reports.flatMap(([,report])=>report.regions.map(region=>region.energy_mwh)));
  const cards=data.regions.map(region=>{
   const bars=sources.map(([day,report])=>{
-   const match=report.regions.find(item=>item.name===region.name),energy=match?.energy_mwh||0,color=day==='yesterday'?'#a77cc1':day==='tomorrow'?'#54b9a4':'#d2834b';
+   const match=report.regions.find(item=>item.name===region.name),energy=match?.energy_mwh||0,color=comparisonStyle(day).color;
    return `<div class="region-compare-row"><div class="region-compare-head"><span>${dayLabel(day)}</span><strong>${fmt(energy/1000,2)} GWh</strong></div><div class="track"><div class="fill" style="background:${color};width:${energy/maxEnergy*100}%"></div></div></div>`;
   }).join('');
   return `<section class="panel region-card"><div class="panel-head"><h3>${esc(region.name)}</h3><span class="tag">${fmt(region.energy_mwh/data.summary.energy_mwh*100,1)}% of energy</span></div><div class="label">Daily generation · includes assigned imports</div><div class="value">${fmt(region.energy_mwh/1000,2)}<span>GWh</span></div><div class="track"><div class="fill" style="background:var(--green);width:${region.energy_mwh/maxEnergy*100}%"></div></div>${bars?`<div class="region-compare">${bars}</div>`:''}<div class="mini"><span>Evening demand</span><strong>${fmt(region.demand_mw)} MW</strong></div><div class="mini"><span>Reported load shedding</span><strong>${fmt(region.shed_mw)} MW</strong></div></section>`;
@@ -322,13 +327,13 @@ function imports(){
  for(const [day,report,color] of sources){
   const key=`total_mw_${day}`;
   totalRows.forEach(row=>{row[key]=sumImportsAtTime(report,row.time)});
-  totalSeries.push({key,name:`Total imports · ${dayLabel(day)}`,color});
+  totalSeries.push({key,name:`Total imports · ${dayLabel(day)}`,color,dashArray:comparisonStyle(day).dash});
  }
  const totalPanel=`<section class="panel full"><div class="panel-head"><div><h2>Total imports</h2><p>Combined hourly imports across all reported routes</p></div><span class="tag">MW</span></div>${chart(totalRows,totalSeries)}</section>`;
  const graphs=(data.imports||[]).map(item=>{
   const rows=(item.hourly||[]).map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
-  for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color})}
-  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series))
+  for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color,dashArray:comparisonStyle(day).dash})}
+  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series,{key:'imports:'+item.name}))
  });
  return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
 }
@@ -483,7 +488,8 @@ function reportSubtitle(view,report){
  return `<span class="operating-date-highlight">Operating date ${esc(dateLabel(report.date))}</span><span class="report-date-context">Report published ${esc(dateLabel(report.published_date||report.date))} · All times Bangladesh time</span>`;
 }
 function stackedAreaChart(rows,series){
- const visible=series.filter(item=>dispatchVisibility.get(item.key)!==false);
+ series=series.map(item=>({...item,defaultVisible:chartVisibility.has('en-curve:en-curve|'+item.key)?chartVisibility.get('en-curve:en-curve|'+item.key):item.defaultVisible}));
+ const visible=series.filter(item=>item.defaultVisible!==false);
  const scaleRows=rows.map(row=>({...row,stack_total:visible.reduce((sum,item)=>sum+(Number(row[item.key])||0),0)}));
  const measuredScale=chartScale(scaleRows,[{key:'stack_total'}]);
  const areaStep=1000;
@@ -493,7 +499,7 @@ function stackedAreaChart(rows,series){
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
  const stackSeries=series.filter(item=>item.key!=='shortage_mw').concat(series.filter(item=>item.key==='shortage_mw'));
- chartData.set(id,{rows,series:stackSeries,x,stackedArea:true,enCurve:true});
+ chartData.set(id,{rows,series:stackSeries,x,stackedArea:true,scope:'en-curve:en-curve',enCurve:true});
  const hatchDefs='<defs>'+series.map((item,index)=>hatchPattern('hatch-'+id+'-'+index,item,index)).join('')+'</defs>';
  let body=hatchDefs;
  let tick=0;
@@ -507,7 +513,7 @@ function stackedAreaChart(rows,series){
  }
  const cumulative=rows.map(()=>0);
  for(const seriesItem of stackSeries){
-  const isVisible=dispatchVisibility.get(seriesItem.key)!==false;
+  const isVisible=seriesItem.defaultVisible!==false;
   body+='<g data-series="'+esc(seriesItem.key)+'"'+(isVisible?'':' style="display:none"')+'>';
   if(isVisible){
    const lower=cumulative.slice();
@@ -586,7 +592,7 @@ function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
  if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>Energy Curve data unavailable</h2><p>This archived report does not contain Energy Curve readings.</p></div><span class="tag">ENERGY CURVE</span></div></section>';
  const palette=['#1976b9','#347baf','#5d9bc2','#759398','#4d8e70','#72a984','#b07aa1','#8b72b4','#c48722','#d69a42','#b95442','#cf745c','#597a9d','#7a8da6','#4a9b8a'];
- const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,defaultVisible:dispatchVisibility.get(source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
+ const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,defaultVisible:chartVisibility.get('en-curve:en-curve|'+source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
  const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',wrapLegend:true});
  const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
@@ -631,11 +637,12 @@ async function loadPreviousForecast(){
 }
 async function loadComparison(day){
  const checkbox=$(`#source-${day}`),status=$(`#${day}-status`),id=++comparisonRequests[day];
- if(!checkbox.checked){comparisonData[day]=null;status.textContent='Off';if(data)render();return}
+ if(!checkbox.checked){comparisonData[day]=null;delete pinnedComparisons[day];status.textContent='Off';if(data)render();window.BEGDView?.commit();return}
+ if(pinnedComparisons[day]==='unavailable'){status.textContent='Unavailable when this link was saved';if(data)render();return}
  if(!data){status.textContent='Waiting for report';return}
  const reportId=data.report_id;status.textContent='Loading…';
- try{const url=day==='highest'?'/api/highest-generation':`/api/neighbor?id=${encodeURIComponent(reportId)}&offset=${day==='yesterday'?-1:1}`;const response=await fetch(url,{cache:'no-store'});if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.error||'No report found')};const report=await response.json();if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;comparisonData[day]=report;const maximum=report.maximum_generation;status.textContent=day==='highest'&&maximum?`Loaded · ${report.date} · ${fmt(maximum.generation_mw)} MW at ${maximum.time}`:`Loaded · ${report.date}`;render()}
- catch(error){if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;comparisonData[day]=null;status.textContent='Unavailable';render()}
+ try{const url=pinnedComparisons[day]?'/api/report?date='+encodeURIComponent(pinnedComparisons[day]):day==='highest'?'/api/highest-generation':`/api/neighbor?id=${encodeURIComponent(reportId)}&offset=${day==='yesterday'?-1:1}`;const response=await fetch(url,{cache:'no-store'});if(!response.ok){const body=await response.json().catch(()=>({}));throw Error(body.error||'No report found')};const report=await response.json();if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;if(pinnedComparisons[day]&&report.date!==pinnedComparisons[day])throw Error('Operating date mismatch');if(customComparisons.has(report.date)||Object.entries(comparisonData).some(([key,other])=>key!==day&&other?.date===report.date)){checkbox.checked=false;delete pinnedComparisons[day];status.textContent='Already compared · operating '+report.date;render();window.BEGDView?.commit();return;}comparisonData[day]=report;pinnedComparisons[day]=report.date;const maximum=report.maximum_generation;status.textContent=day==='highest'&&maximum?`Loaded · operating ${report.date} · published ${report.published_date||'unavailable'} · ${fmt(maximum.generation_mw)} MW at ${maximum.time} BST`:`Loaded · operating ${report.date} · published ${report.published_date||'unavailable'}`;render();window.BEGDView?.commit()}
+ catch(error){if(id!==comparisonRequests[day]||!data||data.report_id!==reportId)return;comparisonData[day]=null;status.textContent='Unavailable'+(pinnedComparisons[day]?' · operating '+pinnedComparisons[day]:'');render();window.BEGDView?.commit()}
 }
 async function loadCurrentDay(){
  const id=++currentDayRequest;
@@ -668,9 +675,15 @@ async function selectReportById(id){
  updateReportDayNavigation();
  const status=$('#date-status'),previous=status.textContent;
  status.textContent='Loading selected report…';
+ const selectionRequest=request+1;
  const loaded=await load(id);
+ if(selectionRequest!==request)return;
+ if(!loaded){status.textContent='Selected report unavailable';return;}
+ if(loaded){for(const day of ['yesterday','tomorrow'])delete pinnedComparisons[day];}
  if(loaded)await Promise.all(['yesterday','tomorrow','highest'].filter(day=>$('#source-'+day).checked).map(loadComparison));
+ if(selectionRequest!==request)return;
  status.textContent=previous;
+ window.BEGDView?.commit();
 }
 function populateArchiveDateControls(reports, preferred={}){
  const yearSelect=$('#archive-year'),monthSelect=$('#archive-month'),daySelect=$('#archive-day');
@@ -736,6 +749,7 @@ async function refreshDateList(){
   if(archive.error)$('#date-status').textContent=archive.error;
   else if(archive.complete)$('#date-status').textContent='';
   else $('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
+  if(!window.BEGDView?.started)await window.BEGDView?.start();
   if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500);
  }catch(error){$('#error').hidden=false;$('#error').textContent=error.message;$('#date-status').textContent='Report archive unavailable'}
 }

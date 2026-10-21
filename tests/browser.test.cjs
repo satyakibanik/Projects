@@ -21,3 +21,7 @@ test('Request input supported',async()=>assert.equal((await api().fetch(new Requ
 test('archive parser failures are not exposed to the dashboard',async()=>assert.equal((await(await api({...bundle,failures:['broken']}).fetch('/api/reports')).json()).error,null));
 test('all browser scripts parse',()=>{for(const name of fs.readdirSync(path.join(root,'begd')).filter(n=>n.endsWith('.js')))new vm.Script(fs.readFileSync(path.join(root,'begd',name),'utf8'),{filename:name})});
 test('HTML local asset references exist',()=>{for(const page of ['index.html','begd/index.html'])for(const m of fs.readFileSync(path.join(root,page),'utf8').matchAll(/(?:src|href)="([^"#]+)"/g)){const target=m[1].split(/[?#]/)[0];if(!target||/^(?:https?:|data:|\/)/.test(target))continue;assert.ok(fs.existsSync(path.resolve(root,path.dirname(page),target)),`${page}: ${target}`)}});
+test('exact operating-date archive lookup never falls back to a neighboring or publication date',async()=>{
+ const {fetch}=api();assert.deepEqual(await(await fetch('/api/report?date=2026-02-01')).json(),bundle.reports_by_id['2']);
+ for(const date of ['2026-01-31','2026-02-02','invalid'])assert.equal((await fetch('/api/report?date='+date)).status,404);
+});

@@ -72,3 +72,40 @@ Generation & demand offers an initially unchecked Maximum temperature layer in t
 The subplot has its own temperature scale and °C/°F controls (°F = °C × 9/5 + 32). Missing readings remain gaps. The 60/90/365-day comparison defaults to consecutive 7-day averages; 30 days defaults to daily detail. The Daily / 7-day average choice and units persist during the session. Each averaged series requires every daily reading in its window; the final window may be shorter. Tooltips identify exact dates and day counts. Averaged temperature means the average of the daily maxima, and energy is average daily energy. Summary totals remain unchanged. The Generation & demand value axis fits currently visible data extrema with padding.
 
 The daily summary and national-recovery extractor retain signed temperatures, including zero. Older national-recovery cache records lacking temperature are refreshed. The separate 10y BengalGrid view does not include workbook temperature.
+
+## Custom comparisons and shared views
+
+Optional report comparisons includes a persistent **Operating date · Bangladesh time** picker and **Add comparison** button. Add multiple exact archived operating dates, then remove individual items. The list identifies each report's operating and publication dates separately. Duplicate dates are rejected; missing reports stay listed with an explanation and never fall back to a neighboring date. Every comparison has a deterministic date color and line pattern. Custom reports participate in the existing Overview, plant detail, Regions, and Imports comparisons.
+
+**Copy link** copies the current view and confirms success. If the clipboard is unavailable, a labeled, selected URL field is provided for manual copying. Shared settings restore after report and trends loading, on reload, and with browser Back/Forward. Existing hash links such as `#overview`, `#en-curve`, and `#trends` remain supported. Unsupported settings use defaults with a message; unavailable operating dates are explained.
+
+The public URL contract is versioned with `v=1`; parameters precede the tab hash:
+
+| Parameter | Meaning |
+| --- | --- |
+| `date` | Selected operating date, `YYYY-MM-DD` in Asia/Dhaka |
+| `compare` | Repeatable custom operating date; comma-separated lists are also accepted |
+| `yesterday`, `tomorrow`, `highest` | Explicit resolved operating dates for checked presets; `unavailable` preserves an unavailable selection without resolving a newer report |
+| `days` | Trends range: `30`, `60`, `90`, `365`, `10y` |
+| `generationUnit`, `importsUnit` | Independent Trends `GWh` / `MW` settings |
+| `temperatureUnit`, `detail` | `C` / `F`; `auto`, `daily`, or `weekly` (7-day averages) |
+| `dispatch`, `shed`, `fuel`, `regional`, `curve`, `table` | Chart styles and Energy Curve table units |
+| `layers` | JSON pairs of stable `chart-id\|series-id` and visibility booleans for daily charts |
+| `trendLayers` | Equivalent Trends visibility pairs, including `generation-demand\|temperature_c` for subplot visibility |
+
+Render counters such as `plot-123` are never serialized. Daily chart series use workbook field keys and comparison source IDs such as `generation_mw_custom_2026-10-18`; chart scopes distinguish import routes and plant names. Trends IDs are explicit contract mappings (for example `generation_mwh`, `demand_mwh`, `temperature_c`) with normalized fuel/route identifiers. Unknown retired IDs are harmless. Normal interactions update the URL/history; data refreshes and redraws do not create history entries. Resolved preset dates stay fixed when opening a saved URL, including the highest-generation day.
+
+Automated offline regressions run with the full existing suites:
+
+```sh
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+node --test tests/*.test.cjs
+```
+
+The opt-in Playwright check at `tests/e2e/shared-view.cjs` runs against a local static preview with published `live-data.js`, `trends-data.json`, and a full archived comparison report. Use the preview process above, place the archived report JSON in its `begd/archive/` directory, and set `BEGD_ARCHIVE_DATE` to that report's operating date (default `2026-09-15`). It exercises a fresh browser context, clipboard success/fallback, asynchronous restoration, all Trends durations, cross-tab chart settings, keyboard controls, and desktop/mobile light/dark layouts:
+
+```sh
+BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/shared-view.cjs
+```
+
+Playwright must be available to Node. `BEGD_BROWSER_EXECUTABLE` optionally selects a system Chromium/Edge executable. Screenshots are written to the system's temporary directory. These checks do not publish the dashboard.
