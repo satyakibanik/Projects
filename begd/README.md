@@ -58,3 +58,17 @@ All Trends charts have date/value tooltips across the plot area, including histo
 Legend checkboxes toggle chart layers, rescale visible line series, and filter tooltip rows. Choices persist while changing ranges or units during the session. Turning every layer off keeps the legend available for restoring them. Hidden fuel layers keep the full-mix denominator, so remaining shares are not renormalized. The 365d plots label every calendar month at its first day; narrow chart containers and mobile viewports show a reduced quarterly subset.
 
 The Trends sidebar link sits directly below Real time and above the section divider. The page omits the Daily values & source reports and Data coverage detail blocks; coverage counts remain beside each measure, and source metadata and quality flags remain in the generated data.
+
+## Metric calculation details
+
+Headline metrics offer a keyboard-accessible “How calculated” dialog with definitions, units, workbook references, conversion and rounding rules, and original report download links (XLSX/XLSM). This covers Overview, Energy Curve, Imports, Substations, Operations, Forecast and recent Trends totals. Trends list contributing days and each day’s energy requirement basis. Missing links are marked unavailable. Daily energy uses published totals rather than integrated chart samples. Shared definitions live in `metric-methods.js`.
+
+Operations event logs and forecast tables scroll within bounded containers with sticky headers. Every forecast column supports sorting; numeric sorts keep missing values last and preserve zero. Forecast headings distinguish the Forecast sheet’s target date from the workbook’s actuals operating date. Sun and moon symbols distinguish day and evening peaks. The largest circuit-flow source dialog identifies the EWIC circuit, time and signed reading; the metric uses the largest absolute individual reading rather than a combined transfer.
+
+## Temperature comparison
+
+Generation & demand offers an initially unchecked Maximum temperature layer in the 30/60/90/365-day views. It uses published P1!K11 daily maxima and appears in a compact subplot directly below the energy chart. Both plots have aligned date axes, point markers and synchronized cursors. Hovering or focusing either plot shows all selected series with their own units. Leaving or pressing Escape clears both cursors.
+
+The subplot has its own temperature scale and °C/°F controls (°F = °C × 9/5 + 32). Missing readings remain gaps. The 60/90/365-day comparison defaults to consecutive 7-day averages; 30 days defaults to daily detail. The Daily / 7-day average choice and units persist during the session. Each averaged series requires every daily reading in its window; the final window may be shorter. Tooltips identify exact dates and day counts. Averaged temperature means the average of the daily maxima, and energy is average daily energy. Summary totals remain unchanged. The Generation & demand value axis fits currently visible data extrema with padding.
+
+The daily summary and national-recovery extractor retain signed temperatures, including zero. Older national-recovery cache records lacking temperature are refreshed. The separate 10y BengalGrid view does not include workbook temperature.

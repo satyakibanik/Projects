@@ -36,6 +36,14 @@ class TrendsTests(unittest.TestCase):
             self.assertIsNone(row[field])
         self.assertIsNone(row['fuels']['Coal'])
 
+    def test_temperature_preserves_signed_zero_and_missing_readings(self):
+        for value in [0, -5, 33.7]:
+            row = daily_summary({'date':'2026-01-01','summary':{'temperature_c':value}})
+            self.assertEqual(row['temperature_c'],value)
+        for value in [None, True, float('nan'), float('inf'), '33.7']:
+            row = daily_summary({'date':'2026-01-01','summary':{'temperature_c':value}})
+            self.assertIsNone(row['temperature_c'])
+
     def test_demand_curve_must_match_operating_day(self):
         row=daily_summary({'date':'2026-01-01','en_curve':{'date':'2026-01-02','totals':{'total_requirement_mwh':500}}})
         self.assertIsNone(row['demand_mwh'])
@@ -64,7 +72,7 @@ class NationalRecoveryTests(unittest.TestCase):
         import openpyxl
         from trends import extract_trend_workbook
         book=openpyxl.Workbook();book.active.title='P1';book.create_sheet('P4');book.create_sheet('En-Curve')
-        p=book['P1'];p['D6']=dt.datetime(2026,9,11);p['K8']=240;p['K9']=5;p['K26']=0
+        p=book['P1'];p['D6']=dt.datetime(2026,9,11);p['K8']=240;p['K9']=5;p['K26']=0;p['K11']=33.7
         p['E26']=240
         for col in [6,7,8,9,10,11,12]:p.cell(26,col,0)
         book['P4']['E9']=125
@@ -74,6 +82,7 @@ class NationalRecoveryTests(unittest.TestCase):
         row=daily_summary(report)
         self.assertEqual(row['date'],'2026-09-11');self.assertEqual(row['generation_mwh'],240000)
         self.assertEqual(row['demand_mwh'],245000);self.assertEqual(row['shed_peak_mw'],125)
+        self.assertEqual(row['temperature_c'],33.7)
         self.assertTrue(report['_trends_only']);self.assertTrue(row['quality_notes'])
         p['E26']=200;stream=io.BytesIO();book.save(stream)
         report=extract_trend_workbook(stream.getvalue(),{'id':'5129','published_date':'2026-09-12','download_url':'https://erp.powergrid.gov.bd/report'})

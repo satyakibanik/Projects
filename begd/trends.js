@@ -9,6 +9,7 @@
   const hoverCharts=new Map();
   const hiddenLayers=new Map();
   const chartUnits={generation:'GWh',imports:'GWh'};
+  let temperatureUnit='°C',temperatureDetail=null;
   let period = 30, bundle = null, history = null, pending = null, failure = null;
   function windowDays(data, count) {
     if (!data.end_date) return [];
@@ -48,32 +49,51 @@
       `<div class="table-wrap"><table class="trends-heatmap"><caption class="visually-hidden">BengalGrid monthly median generation in MW; partial coverage is labeled</caption><thead><tr><th>Year</th>${Array.from({length:12},(_,i)=>`<th scope="col">${new Date(Date.UTC(2020,i,1)).toLocaleDateString('en-GB',{month:'short',timeZone:'UTC'})}</th>`).join('')}</tr></thead><tbody>${years.map(year=>`<tr><th scope="row">${year}</th>${Array.from({length:12},(_,i)=>{const key=year+'-'+String(i+1).padStart(2,'0'),m=byMonth.get(key);if(!m)return `<td tabindex="0" class="heat-empty" data-trend-tip="${key}: no reported observations">—</td>`;const daysInMonth=new Date(Date.UTC(Number(year),i+1,0)).getUTCDate(),partial=m.days<daysInMonth;return `<td tabindex="0" data-trend-tip="${escape(`${key}: ${format(m.median_mw)} MW; ${m.observations} observations across ${m.days}/${daysInMonth} days`)}" style="background:hsl(196 45% ${92-(m.median_mw-low)/Math.max(1,high-low)*64}%);color:${m.median_mw>low+(high-low)*.6?'#fff':'#163529'}" title="${key}: ${format(m.median_mw)} MW; ${m.observations} observations across ${m.days}/${daysInMonth} days"><span>${format(Math.round(m.median_mw))}${partial?'*':''}</span></td>`}).join('')}</tr>`).join('')}</tbody></table></div><p class="note">Darker cells show higher generation; * marks a month with fewer reported days than calendar days. A populated day can still have missing readings. Medians use individual observations, rather than monthly averages of daily means. This historical dataset ends on ${dateLabel(history.end_date)} and is not spliced into current workbook totals.</p>${citation}`);
     return html;
   }
-  function card(label, value, unit, note) {
-    return `<div class="metric"><div class="label">${label}</div><div class="value">${format(value)}<span>${unit}</span></div><small>${note}</small></div>`;
+  function card(label, value, unit, note, rows) {
+    return `<div class="metric"><div class="label">${label}</div><div class="value">${format(value)}<span>${unit}</span></div><small>${note}</small>${root.BEGDMetricMethods?.render(label,{rows})||''}</div>`;
   }
   function monthTicks(rows) {
     const firsts=rows.map((row,i)=>row.date.endsWith('-01')?i:null).filter(i=>i!==null);
     return firsts.map((index,i)=>({index,label:new Date(rows[index].date+'T12:00:00Z').toLocaleDateString('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}),sparse:i%3===0||i===firsts.length-1}));
   }
   function plot(rows, allSeries, title, unit, stacked=false, options={}) {
-    const key=options.key||title, hidden=hiddenLayers.get(key)||new Set();
-    const series=allSeries.filter(s=>!hidden.has(s.name));
-    const W=840,H=300,L=80,R=18,T=18,B=40;
-    const values=rows.flatMap(row=>series.map(s=>s.value(row))).filter(finite);
-    const empty=!values.length;
-    const min=options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
-    const max=stacked?100:Math.max(min+1,...values)*1.08;
+    const key=options.key||title;
+    if(!hiddenLayers.has(key))hiddenLayers.set(key,new Set(allSeries.filter(s=>s.defaultVisible===false).map(s=>s.name)));
+    const hidden=hiddenLayers.get(key);
+    const series=allSeries.filter(s=>!hidden.has(s.name)&&!s.legendOnly);
+    const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
+    const W=840,H=options.compact?180:300,L=80,R=secondary.length?80:18,T=25,B=40;
+    const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
+    const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
+    const empty=!values.length&&!secondaryValues.length;
+    const extentMin=values.length?Math.min(...values):0,extentMax=values.length?Math.max(...values):1;
+    const extentPadding=Math.max((extentMax-extentMin)*0.08,Math.abs(extentMax)*0.01,0.01);
+    const min=options.fitExtent&&values.length?extentMin-extentPadding:options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
+    const max=options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08;
     const x=i=>L+i/Math.max(1,rows.length-1)*(W-L-R), y=v=>H-B-(v-min)/(max-min)*(H-T-B);
+    const secondaryMin=secondaryValues.length?Math.floor(Math.min(...secondaryValues)-2):0;
+    const secondaryMax=secondaryValues.length?Math.ceil(Math.max(...secondaryValues)+2):1;
+    const secondaryY=v=>H-B-(v-secondaryMin)/(secondaryMax-secondaryMin)*(H-T-B);
+    const seriesY=(value,s)=>s.axis==='right'?secondaryY(value):y(value);
     let body='';
-    for(let i=0;i<=4;i++) {
-      const value=min+(max-min)*i/4;
+    if(secondary.length){
+      body+=`<g class="trends-secondary-axis" aria-label="Maximum temperature, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
+      if(secondaryValues.length)for(let i=0;i<=4;i++){
+        const value=secondaryMin+(secondaryMax-secondaryMin)*i/4;
+        body+=`<text x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
+      }
+      body+='</g>';
+    }
+    const tickCount=options.compact?2:4;
+    for(let i=0;i<=tickCount;i++) {
+      const value=min+(max-min)*i/tickCount;
       body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10)}</text>`;
     }
     const ticks=options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
       :rows.length===365?monthTicks(rows)
       :[...new Set([0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
-    for(const {index:i,label,sparse} of ticks)
+    for(const {index:i,label,sparse} of options.hideDateLabels?[]:ticks)
       body+=`<text class="trends-date-tick${sparse?' tick-sparse':''}" x="${x(i)}" y="${H-12}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${escape(label)}</text>`;
     if(empty)body+=`<text x="${(L+W-R)/2}" y="${H/2}" text-anchor="middle">${series.length?'No reported values in this window':'Select a legend layer to display'}</text>`;
     if(stacked) {
@@ -92,16 +112,29 @@
     } else {
       series.forEach(s=>{
         let path='',connected=false;
-        rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${y(v)} `;connected=true});
+        rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${seriesY(v,s)} `;connected=true});
         body+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
-        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${y(v)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${format(v)} ${unit}"/>`});
+        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${format(v)} ${s.unit||unit}"/>`});
       });
     }
     const id='trend-chart-'+(++chartSerial);
-    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B});
-    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend">${allSeries.map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(s.name)?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
+    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries,syncGroup:options.syncGroup});
+    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${(options.hideLegend?[]:allSeries).map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(s.name)?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
+  function weeklyComparisonRows(rows) {
+    const keys=['generation_mwh','demand_mwh','temperature_c'],result=[];
+    for(let i=0;i<rows.length;i+=7){
+      const group=rows.slice(i,i+7),row={date:group.at(-1).date,period_start:group[0].date,period_end:group.at(-1).date,window_days:group.length};
+      for(const key of keys)row[key]=group.every(day=>finite(day[key]))?group.reduce((sum,day)=>sum+day[key],0)/group.length:null;
+      result.push(row);
+    }
+    return result;
+  }
+  function detailControls(detail) { return `<div class="trends-unit-control" role="group" aria-label="Comparison detail">${[['weekly','7-day average'],['daily','Daily']].map(([key,label])=>`<button type="button" data-temperature-detail="${key}" aria-pressed="${detail===key}">${label}</button>`).join('')}</div>`; }
+  function temperatureValue(value,unit='°C') { return finite(value)?(unit==='°F'?value*9/5+32:value):null; }
+  function temperatureSeries() { return {name:'Maximum temperature',color:'#ba477b',axis:'right',unit:temperatureUnit,defaultVisible:false,value:row=>temperatureValue(row.temperature_c,temperatureUnit)}; }
+  function temperatureControls() { return `<div class="trends-unit-control" role="group" aria-label="Maximum temperature units">${['°C','°F'].map(unit=>`<button type="button" data-temperature-unit="${unit}" aria-pressed="${temperatureUnit===unit}">${unit}</button>`).join('')}</div>`; }
   function energyValue(value,unit) { return finite(value)?value/(unit==='MW'?24:1000):null; }
   const energy = (key,name,color,dash=false,unit='GWh') => ({key,name,color,dash,value:row=>energyValue(row[key],unit)});
   function unitControls(chart) {
@@ -128,11 +161,19 @@
     const routeColors=['#4e79a7','#b07aa1','#d88931','#59a14f','#76b7b2','#e15759'];
     const routeSeries=routeNames.map((name,i)=>({name,color:routeColors[i%routeColors.length],value:r=>energyValue(r.routes?.[name],chartUnits.imports)}));
     let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${period} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
-    html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports')+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement')+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading')+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count))+'</div>';
+    html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports',rows)+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement',rows)+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading',rows)+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count),rows)+'</div>';
     html+=`<p class="note trends-method">Totals cover reported days only; incomplete windows are partial totals. Missing values stay blank and lines break at gaps. Demand requirement uses the matching-date En-Curve total, or P1 generation plus reported energy not served when that total is unavailable. This energy requirement is not a separately metered demand total. Reported load shedding is taken directly from P4; it is not inferred from demand minus generation. Energy not served: ${format(unserved.value==null?null:unserved.value/1000)} GWh (${coverage(unserved.count)}), a separate published P1 energy measure.</p>`;
     const generationUnit=chartUnits.generation, importUnit=chartUnits.imports;
+    const showTemperature=hiddenLayers.has('Generation and demand')&&!hiddenLayers.get('Generation and demand').has('Maximum temperature');
     const powerNote='Daily average power = published daily energy ÷ 24 hours · MW';
-    html+=panel('Generation & demand',`${generationUnit==='MW'?powerNote:'Daily energy · GWh'} · generation includes imports`,plot(rows,[energy('generation_mwh','Generation','#4e79a7',false,generationUnit),energy('demand_mwh','Demand requirement','#d88931',true,generationUnit)],'Generation and demand',generationUnit),unitControls('generation'));
+    const detail=temperatureDetail||(period>=60?'weekly':'daily');
+    const averaged=showTemperature&&detail==='weekly',comparisonRows=averaged?weeklyComparisonRows(rows):rows;
+    const comparisonSeries=[energy('generation_mwh','Generation','#4e79a7',false,generationUnit),energy('demand_mwh','Demand requirement','#d88931',true,generationUnit),{...temperatureSeries(),legendOnly:true}].map(series=>showTemperature?{...series,unit:series.unit||generationUnit,markers:true,width:series.axis==='right'?2.8:1.9}:series);
+    const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('Generation and demand')?.has(series.name)):null;
+    const comparisonNote=(averaged?'7-day averages · ':'')+(generationUnit==='MW'?powerNote:'Daily energy · GWh')+' · generation includes imports · value axis fitted to visible data';
+    const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
+    html+=panel('Generation & demand',comparisonNote,plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot,`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
+    if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
     html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
@@ -142,17 +183,19 @@
   }
   function tooltipRows(record,index) {
     const row=record.rows[index];
-    const values=record.series.map(s=>s.value(row));
+    const tooltipSeries=record.tooltipSeries||record.series;
+    const values=tooltipSeries.map(s=>s.value(row));
     const fullValues=(record.allSeries||record.series).map(s=>s.value(row));
     const complete=fullValues.every(finite)&&fullValues.reduce((a,b)=>a+b,0)>0;
     const sum=complete?fullValues.reduce((a,b)=>a+b,0):null;
-    let html=`<strong>${escape(dateLabel(row.date))}</strong>`;
-    if(!record.series.length)html+='<small>No layers selected</small>';
-    record.series.forEach((s,i)=>{
+    let html=`<strong>${row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
+    if(row.window_days)html+=`<small>${row.window_days}-day average · temperature averages daily maxima</small>`;
+    if(!tooltipSeries.length)html+='<small>No layers selected</small>';
+    tooltipSeries.forEach((s,i)=>{
       const value=values[i];
       const text=record.stacked
         ?complete?`${format(value/sum*100)}% · ${format(value)} GWh`:'Not reported (incomplete mix)'
-        :finite(value)?`${format(value)} ${record.unit}`:'Not reported';
+        :finite(value)?`${format(value)} ${s.unit||record.unit}`:'Not reported';
       html+=`<div><i style="background:${s.color}"></i><span>${escape(s.name)}</span><b>${escape(text)}</b></div>`;
     });
     if(row.observations!=null)html+=`<small>${format(row.observations)} retained source observation${row.observations===1?'':'s'}${row.excluded?' · '+row.excluded+' excluded for display':''}</small>`;
@@ -170,16 +213,24 @@
     host.querySelectorAll('[data-trend-chart]').forEach(wrap=>{
       const record=hoverCharts.get(wrap.dataset.trendChart), svg=wrap.querySelector('svg');
       const tip=wrap.querySelector('[role=tooltip]'),cursor=svg.querySelector('[data-trend-cursor]');
+      const linked=()=>record.syncGroup?[...host.querySelectorAll('[data-trend-chart]')].filter(other=>hoverCharts.get(other.dataset.trendChart)?.syncGroup===record.syncGroup):[wrap];
       let selected=record.rows.length-1;
       const show=(index,event)=>{
         selected=Math.max(0,Math.min(record.rows.length-1,index));
         tip.innerHTML=tooltipRows(record,selected);tip.hidden=false;
         const x=record.L+selected/Math.max(1,record.rows.length-1)*(record.W-record.L-record.R);
         cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.removeAttribute('hidden');
+        for(const other of linked()){
+          if(other===wrap)continue;
+          const otherRecord=hoverCharts.get(other.dataset.trendChart),otherCursor=other.querySelector('[data-trend-cursor]');
+          const otherX=otherRecord.L+selected/Math.max(1,otherRecord.rows.length-1)*(otherRecord.W-otherRecord.L-otherRecord.R);
+          otherCursor.setAttribute('x1',otherX);otherCursor.setAttribute('x2',otherX);otherCursor.removeAttribute('hidden');
+          other.querySelector('[role=tooltip]').hidden=true;
+        }
         const bounds=svg.getBoundingClientRect();
         positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);
       };
-      const hide=()=>{tip.hidden=true;cursor.setAttribute('hidden','')};
+      const hide=()=>{for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
       svg.addEventListener('pointermove',event=>{
         const transform=svg.getScreenCTM();if(!transform)return;
         const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
@@ -225,6 +276,14 @@
       draw();
       [...host.querySelectorAll('[data-trend-layer]')].find(input=>input.dataset.trendChartKey===key&&input.dataset.trendLayer===name)?.focus({preventScroll:true});
     }));
+    host.querySelectorAll('[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
+      temperatureDetail=control.dataset.temperatureDetail;draw();
+      [...host.querySelectorAll('[data-temperature-detail]')].find(button=>button.dataset.temperatureDetail===temperatureDetail)?.focus({preventScroll:true});
+    }));
+    host.querySelectorAll('[data-temperature-unit]').forEach(control=>control.addEventListener('click',()=>{
+      temperatureUnit=control.dataset.temperatureUnit;draw();
+      [...host.querySelectorAll('[data-temperature-unit]')].find(button=>button.dataset.temperatureUnit===temperatureUnit)?.focus({preventScroll:true});
+    }));
     host.querySelectorAll('[data-trend-unit]').forEach(control=>control.addEventListener('click',()=>{
       const chart=control.dataset.unitChart,unit=control.dataset.trendUnit;
       chartUnits[chart]=unit;draw();
@@ -248,7 +307,7 @@
     }
     await pending;
   }
-  root.BEGDTrends={mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue};
+  root.BEGDTrends={mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

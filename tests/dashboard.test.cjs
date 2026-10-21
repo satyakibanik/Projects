@@ -43,3 +43,36 @@ test('region hover and keyboard exit restore all colors; zoom resets to fitted b
  keys[0].events.pointerenter();keys[0].events.pointerleave();assertClear();
  zoomIn.events.click();assert.notEqual(svg.attrs.viewBox,home);reset.events.click();assert.equal(svg.attrs.viewBox,home);assertClear();
 });
+test('forecast numeric sorts preserve zero, order numerically and leave missing values last',()=>{
+ const c=app();
+ vm.runInContext(`var forecastFixture=[{name:'small',capacity_mw:9},{name:'large',capacity_mw:100},{name:'missing',capacity_mw:null},{name:'zero',capacity_mw:0},{name:'bad',capacity_mw:NaN}]`,c);
+ const order=direction=>JSON.parse(vm.runInContext(`JSON.stringify(sortForecastRows(forecastFixture,{key:'capacity_mw',direction:'${direction}'}).map(r=>r.name))`,c));
+ assert.deepEqual(order('asc'),['zero','small','large','missing','bad']);
+ assert.deepEqual(order('desc'),['large','small','zero','missing','bad']);
+ assert.equal(vm.runInContext('forecastFixture[0].name',c),'small');
+});
+test('forecast text sorts naturally and every column has an accessible sort control',()=>{
+ const c=app();
+ assert.equal(vm.runInContext(`sortForecastRows([{name:'Unit 10'},{name:'Unit 2'}],{key:'name',direction:'asc'})[0].name`,c),'Unit 2');
+ vm.runInContext(`data={forecast:{date:'2026-10-16',totals:{},plants:[]}}`,c);
+ const html=vm.runInContext('forecast()',c);
+ assert.equal((html.match(/data-forecast-sort=/g)||[]).length,9);
+ assert.match(html,/Scrollable generation availability forecast/);
+ assert.match(html,/Forecast for 16 Oct 2026/);
+ assert.match(html,/forecast-day/);assert.match(html,/forecast-evening/);
+});
+test('forecast subtitle distinguishes forecast target date from actuals and does not invent a missing date',()=>{
+ const c=app();
+ const forecast=vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15',published_date:'2026-10-16',forecast:{date:'2026-10-16'}})`,c);
+ assert.match(forecast,/Forecast for 16 October 2026/);assert.match(forecast,/Actuals in this workbook cover 15 October 2026/);
+ assert.doesNotMatch(forecast,/Operating date 15/);
+ assert.match(vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15'})`,c),/Forecast for unavailable/);
+ assert.match(vm.runInContext(`reportSubtitle('overview',{date:'2026-10-15'})`,c),/Operating date 15 October 2026/);
+});
+test('largest circuit flow uses signed individual observations, ignores gaps and does not sum circuits',()=>{
+ const c=app();
+ const peak=JSON.parse(vm.runInContext(`JSON.stringify(largestCircuitFlow([{time:'01:00',ishwardi_ghorashal:800,sirajganj_sreepur:900},{time:'02:00',gopalganj_aminbazar:-1338},{time:'03:00',ishwardi_ghorashal:null}]))`,c));
+ assert.deepEqual(peak,{key:'gopalganj_aminbazar',time:'02:00',value:-1338,magnitude:1338});
+ assert.equal(vm.runInContext('largestCircuitFlow([])',c),null);
+ assert.equal(vm.runInContext(`largestCircuitFlow([{time:'00:00',ishwardi_ghorashal:0}]).magnitude`,c),0);
+});

@@ -83,7 +83,7 @@ def write_data_bundle(output_dir):
         if not is_recent and trend_cache_path.is_file():
             try:
                 cached = json.loads(trend_cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"] and cached.get("_trends_only"):
+                if cached.get("report_id") == item["id"] and cached.get("_trends_only") and "temperature_c" in cached.get("summary", {}):
                     return cached
             except (OSError, ValueError):
                 pass
