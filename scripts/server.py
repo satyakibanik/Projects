@@ -619,7 +619,7 @@ def get_historical_report_for_date(target_date):
             continue
         if report["date"] == target_date.isoformat():
             return report
-    raise LookupError("No report was found for the highest-generation operating day")
+    raise LookupError("No archived report was found for that operating date")
 
 
 def get_highest_generation_day():
@@ -715,8 +715,13 @@ class DashboardHandler(SimpleHTTPRequestHandler):
                 self.send_json(200, report_archive_state())
                 return
             if parsed.path == "/api/report":
-                report_id = parse_qs(parsed.query).get("id", [""])[0]
-                self.send_json(200, get_report(report_id))
+                query = parse_qs(parsed.query)
+                if "date" in query:
+                    target = datetime.date.fromisoformat(query["date"][0])
+                    report = get_historical_report_for_date(target)
+                else:
+                    report = get_report(query.get("id", [""])[0])
+                self.send_json(200, report)
                 return
             if parsed.path == "/api/neighbor":
                 query = parse_qs(parsed.query)

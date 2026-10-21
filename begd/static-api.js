@@ -31,8 +31,9 @@
       });
     }
     if (url.pathname === "/api/report") {
-      const report = await getReport(url.searchParams.get("id"));
-      return report ? jsonResponse(report) : failure("That report is not available in the archive.");
+      const date = url.searchParams.get("date");
+      const report = await getReport(url.searchParams.has("date") ? bundle.reports_by_operating_date[date] : url.searchParams.get("id"));
+      return report && (!url.searchParams.has("date") || report.date === date) ? jsonResponse(report) : failure("That report is not available in the archive.");
     }
     if (url.pathname === "/api/current-day") {
       return jsonResponse(bundle.current_day);

@@ -86,7 +86,7 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  assert.equal(host.layers.find(input=>input.dataset.trendLayer==='Demand requirement').checked,false);
  host.buttons['365'].handler();
  assert.equal(host.layers.find(input=>input.dataset.trendLayer==='Demand requirement').checked,false);
- host.layers.filter(input=>input.dataset.trendChartKey==='Generation and demand').forEach(input=>{if(input.checked){input.checked=false;input.handler()}});
+ host.layers.filter(input=>input.dataset.trendChartKey==='generation-demand').forEach(input=>{if(input.checked){input.checked=false;input.handler()}});
  assert.match(host.innerHTML,/Select a legend layer to display/);
  const generation=host.layers.find(input=>input.dataset.trendLayer==='Generation');generation.checked=true;generation.handler();
  assert.doesNotMatch(host.innerHTML,/Select a legend layer to display/);
