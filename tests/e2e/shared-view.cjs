@@ -90,7 +90,17 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8767/begd/';
   await newPage.goto(trendsLink);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
   await newPage.reload();await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
   assert.equal(await newPage.locator('[data-trend-layer="Maximum temperature"]').isChecked(),true);assert.equal(await newPage.locator('[data-trend-layer="Generation"]').isChecked(),false);assert.equal(await newPage.locator('[data-trend-layer="Coal"]').isChecked(),false);
-  for(const days of ['30','60','90','365','10y']){await newPage.locator(`[data-trend-days="${days}"]`).click();await newPage.waitForFunction(days=>new URL(location.href).searchParams.get('days')===days,days);assert.equal((await capture(newPage)).days,days);}
+  // Existing long v1 links must open identically, then Copy link migrates to compact v2.
+  const legacyState=await newPage.evaluate(()=>window.BEGDTrends.getViewState()),legacy=new URL(trendsLink);
+  legacy.searchParams.delete('hide');legacy.searchParams.delete('show');legacy.searchParams.set('v','1');
+  const defaults=await newPage.evaluate(()=>window.BEGDViewCodec.defaults);
+  for(const key of Object.keys(defaults))legacy.searchParams.set(key,trends[key]);
+  legacy.searchParams.set('layers',JSON.stringify(trends.layers));legacy.searchParams.set('trendLayers',JSON.stringify(legacyState.trendLayers));
+  await newPage.goto(legacy.href);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
+  await newPage.locator('#copy-link').click();await newPage.waitForFunction(()=>document.querySelector('#share-url').value.includes('v=2'));
+  const migrated=await newPage.locator('#share-url').inputValue();assert.ok(migrated.length<legacy.href.length);assert.equal(new URL(migrated).searchParams.has('trendLayers'),false);assert.equal(new URL(migrated).searchParams.has('layers'),false);
+  await newPage.goto(migrated);await ready(newPage);await newPage.waitForSelector('[data-temperature-unit]');assert.deepEqual(await capture(newPage),trends);
+  for(const days of ['30','60','90','365','10y']){await newPage.locator(`[data-trend-days="${days}"]`).click();await newPage.waitForFunction(days=>(new URL(location.href).searchParams.get('days')||'30')===days,days);assert.equal((await capture(newPage)).days,days);}
   await newPage.goBack();await ready(newPage);assert.equal((await capture(newPage)).days,'365');await newPage.goForward();await ready(newPage);assert.equal((await capture(newPage)).days,'10y');
   await newContext.close();
   await page.locator('nav a[href="#overview"]').click();await ready(page);

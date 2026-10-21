@@ -4,7 +4,8 @@
   let started=false,restoring=false,revision=0,lastURL='',queued=false;
   const status=message=>{$('#view-status').textContent=message;};
   function capture(){
-    return {date:data?.date,custom:[...customComparisons.keys()],presets:Object.fromEntries(presets.filter(day=>$('#source-'+day).checked).map(day=>[day,comparisonData[day]?.date||pinnedComparisons[day]||'unavailable'])),dispatch:dispatchChartStyle,shed:shedChartStyle,fuel:fuelMixStyle,regional:regionalSnapshotStyle,curve:enCurveChartStyle,table:enCurveTableMode,layers:[...chartVisibility].sort(([a],[b])=>a.localeCompare(b)),...root.BEGDTrends.getViewState()};
+    const trends=root.BEGDTrends.getViewState();
+    return {date:data?.date,custom:[...customComparisons.keys()],presets:Object.fromEntries(presets.filter(day=>$('#source-'+day).checked).map(day=>[day,comparisonData[day]?.date||pinnedComparisons[day]||'unavailable'])),dispatch:dispatchChartStyle,shed:shedChartStyle,fuel:fuelMixStyle,regional:regionalSnapshotStyle,curve:enCurveChartStyle,table:enCurveTableMode,layers:codec.visibilityOverrides([...chartVisibility]),...trends,trendLayers:codec.visibilityOverrides(trends.trendLayers,true)};
   }
   function commit({replace=false}={}){
     if(!started||restoring)return;

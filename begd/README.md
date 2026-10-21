@@ -79,7 +79,7 @@ Optional report comparisons includes a persistent **Operating date · Bangladesh
 
 **Copy link** copies the current view and confirms success. If the clipboard is unavailable, a labeled, selected URL field is provided for manual copying. Shared settings restore after report and trends loading, on reload, and with browser Back/Forward. Existing hash links such as `#overview`, `#en-curve`, and `#trends` remain supported. Unsupported settings use defaults with a message; unavailable operating dates are explained.
 
-The public URL contract is versioned with `v=1`; parameters precede the tab hash:
+New links use the compact `v=2` URL contract; existing `v=1` links remain readable. Parameters precede the tab hash. Default options and unchanged series are omitted. A default Overview link now needs only `?v=2&date=2026-10-19#overview`.
 
 | Parameter | Meaning |
 | --- | --- |
@@ -90,10 +90,10 @@ The public URL contract is versioned with `v=1`; parameters precede the tab hash
 | `generationUnit`, `importsUnit` | Independent Trends `GWh` / `MW` settings |
 | `temperatureUnit`, `detail` | `C` / `F`; `auto`, `daily`, or `weekly` (7-day averages) |
 | `dispatch`, `shed`, `fuel`, `regional`, `curve`, `table` | Chart styles and Energy Curve table units |
-| `layers` | JSON pairs of stable `chart-id\|series-id` and visibility booleans for daily charts |
-| `trendLayers` | Equivalent Trends visibility pairs, including `generation-demand\|temperature_c` for subplot visibility |
+| `hide`, `show` | Comma-separated stable chart/series aliases for visibility changes; for example `hide=od.d` hides Overview demand and `show=tg.t` enables the Trends temperature subplot |
+| `layers`, `trendLayers` | Legacy JSON visibility pairs, still accepted when reading older links |
 
-Render counters such as `plot-123` are never serialized. Daily chart series use workbook field keys and comparison source IDs such as `generation_mw_custom_2026-10-18`; chart scopes distinguish import routes and plant names. Trends IDs are explicit contract mappings (for example `generation_mwh`, `demand_mwh`, `temperature_c`) with normalized fuel/route identifiers. Unknown retired IDs are harmless. Normal interactions update the URL/history; data refreshes and redraws do not create history entries. Resolved preset dates stay fixed when opening a saved URL, including the highest-generation day.
+Compact aliases are explicit, append-only mappings; they never depend on series order. Custom comparison aliases retain their full date (for example `od.d.c20260426`). Dynamic workbook/route/plant identifiers use a lossless escape rather than a numeric position. The original stable IDs remain the internal state and legacy-link contract. Render counters such as `plot-123` are never serialized. Daily chart series use workbook field keys and comparison source IDs such as `generation_mw_custom_2026-10-18`; chart scopes distinguish import routes and plant names. Trends IDs are explicit contract mappings (for example `generation_mwh`, `demand_mwh`, `temperature_c`) with normalized fuel/route identifiers. Unknown retired IDs are harmless. Normal interactions update the URL/history; data refreshes and redraws do not create history entries. Resolved preset dates stay fixed when opening a saved URL, including the highest-generation day.
 
 Automated offline regressions run with the full existing suites:
 
