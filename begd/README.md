@@ -2,7 +2,7 @@
 
 The dashboard is published by `.github/workflows/pages.yml`. Each hourly run fetches the current Power Grid report list, supported workbooks, and today's ERP readings, then builds a static Pages artifact.
 
-`live-data.js` contains recent workbooks and report metadata. Older supported reports are published as individual files under `archive/`, loaded on demand by the date controls. The header uses the same native operating-date picker as Optional report comparisons: choose a date and click **Load report**, or press Enter. Previous/next buttons navigate available operating dates in the published archive. Missing dates leave the displayed report in place with an explanation; report publication dates remain separately labeled. Copy link, Load report, and Add comparison share the same button styling in both themes. Parsed historical workbooks are cached by GitHub Actions.
+`live-data.js` contains recent workbooks and report metadata. Older supported reports are published as individual files under `archive/`, loaded on demand by the date controls. The header uses the same native operating-date picker as Optional report comparisons: choose a date and click **Load report**, or press Enter. Previous/next buttons navigate available operating dates in the published archive. Missing dates leave the displayed report in place with an explanation; report publication dates remain separately labeled. Load report and Add comparison share the same button styling in both themes. Parsed historical workbooks are cached by GitHub Actions.
 
 ## Long-term trends
 
@@ -77,7 +77,7 @@ The daily summary and national-recovery extractor retain signed temperatures, in
 
 Optional report comparisons includes a persistent **Operating date · Bangladesh time** picker and **Add comparison** button. Add multiple exact archived operating dates, then remove individual items. The list identifies each report's operating and publication dates separately. Duplicate dates are rejected; missing reports stay listed with an explanation and never fall back to a neighboring date. Every comparison has a deterministic date color and line pattern. Custom reports participate in the existing Overview, plant detail, Regions, and Imports comparisons.
 
-**Copy link** copies the current view and confirms success. If the clipboard is unavailable, a labeled, selected URL field is provided for manual copying. Shared settings restore after report and trends loading, on reload, and with browser Back/Forward. Existing hash links such as `#overview`, `#en-curve`, and `#trends` remain supported. Unsupported settings use defaults with a message; unavailable operating dates are explained.
+Copy the current browser address to share a view. The address bar updates automatically after settings and reports load; no Copy link button or clipboard permission is needed. Initial default views pin the resolved operating date, and older long links automatically normalize to compact URLs without adding a history entry. Shared settings restore after report and trends loading, on reload, and with browser Back/Forward. Existing hash links such as `#overview`, `#en-curve`, and `#trends` remain supported. Unsupported settings use defaults with a message; unavailable operating dates are explained.
 
 New links use the compact `v=2` URL contract; existing `v=1` links remain readable. Parameters precede the tab hash. Default options and unchanged series are omitted. A default Overview link now needs only `?v=2&date=2026-10-19#overview`.
 
@@ -102,10 +102,18 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 node --test tests/*.test.cjs
 ```
 
-The opt-in Playwright check at `tests/e2e/shared-view.cjs` runs against a local static preview with published `live-data.js`, `trends-data.json`, and a full archived comparison report. Use the preview process above, place the archived report JSON in its `begd/archive/` directory, and set `BEGD_ARCHIVE_DATE` to that report's operating date (default `2026-09-15`). It exercises a fresh browser context, clipboard success/fallback, asynchronous restoration, all Trends durations, cross-tab chart settings, keyboard controls, and desktop/mobile light/dark layouts:
+The opt-in Playwright check at `tests/e2e/shared-view.cjs` runs against a local static preview with published `live-data.js`, `trends-data.json`, and a full archived comparison report. Use the preview process above, place the archived report JSON in its `begd/archive/` directory, and set `BEGD_ARCHIVE_DATE` to that report's operating date (default `2026-09-15`). It exercises a fresh browser context, direct address-bar sharing, asynchronous restoration, all Trends durations, cross-tab chart settings, keyboard controls, and desktop/mobile light/dark layouts:
 
 ```sh
 BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/shared-view.cjs
 ```
 
 Playwright must be available to Node. `BEGD_BROWSER_EXECUTABLE` optionally selects a system Chromium/Edge executable. Screenshots are written to the system's temporary directory. These checks do not publish the dashboard.
+
+## Search visibility
+
+The visible brand, page title, descriptions, and project landing page identify **BEGD — Bangladesh Electric Grid Dashboard** consistently. A static About BEGD section describes the dashboard and its sources before JavaScript loads. Both HTML pages declare clean canonical URLs, and the published `/Projects/sitemap.xml` lists only those canonical pages rather than the many query/hash view combinations. Open Graph and Twitter description tags provide consistent link-preview text.
+
+After publishing, verify the `/Projects/` URL-prefix property in Google Search Console, submit `sitemap.xml`, and request indexing for the dashboard. These steps require access to the site owner's Search Console account and are not performed by the build. Google determines indexing and titles after crawling; adding an acronym does not guarantee a ranking. A dedicated domain or subdomain is needed for a distinct Google site-name preference: Google does not support site names scoped to a subdirectory such as `/Projects/begd/`. Do not place a misleading `robots.txt` under that subdirectory; crawler rules are read from the hostname root.
+
+References: [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide), [canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls), [site names](https://developers.google.com/search/docs/appearance/site-names), and [requesting a recrawl](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl).
