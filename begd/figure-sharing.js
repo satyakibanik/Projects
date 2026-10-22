@@ -30,8 +30,9 @@
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
+    const captureScale=4,outputScale=2;
     let contentBounds;
-    const shot=await root.html2canvas(capture,{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:2,logging:false,
+    const shot=await root.html2canvas(capture,{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:captureScale,logging:false,
       // Expand clipped chart/table containers only in the detached export document.
       onclone:(doc,clone)=>{
         const style=doc.createElement('style');
@@ -53,16 +54,17 @@
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
-    const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*2)):shot.height;
-    const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width),pad=32;
-    canvas.width=width;const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
+    const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*captureScale)):shot.height;
+    const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width/outputScale),pad=32;
+    // Render the chart and all annotations at twice the previous PNG resolution.
+    canvas.width=width*outputScale;const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
     const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=lines(ctx,info.context,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
     const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
-    const figureHeight=captureHeight*width/shot.width;canvas.height=top+figureHeight+bottom;ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 32px sans-serif';
+    const figureHeight=captureHeight*width/shot.width;canvas.height=Math.ceil((top+figureHeight+bottom)*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 32px sans-serif';
     let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
     ctx.drawImage(shot,0,0,shot.width,captureHeight,0,top,width,figureHeight);y=top+figureHeight+8;ctx.font='20px sans-serif';for(const line of notes){y+=28;ctx.fillText(line,pad,y);}
-    ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height-48);
-    ctx.font='18px sans-serif';ctx.fillText(canonical,width-pad,canvas.height-22);
+    ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height/outputScale-48);
+    ctx.font='18px sans-serif';ctx.fillText(canonical,width-pad,canvas.height/outputScale-22);
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create the PNG.')),'image/png'));
   }
   function download(blob,title){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename(title);a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
