@@ -7,7 +7,7 @@ Every export ends with these two lines together at the bottom right:
 - © Bangladesh Electric Grid Dashboard
 - https://satyakibanik.github.io/Projects/begd/
 
-The entries below list the additional text immediately beneath each figure/legend. Maps have Download PNG only. Each shareable figure also lists its current text under **Text below this figure**. Dynamic custom-comparison fuel figures use the same footer format as Fuel mix, with that report’s fuel values.
+The entries below list the additional text immediately beneath each figure/legend. Maps have Download PNG only. Dynamic custom-comparison fuel figures use the same footer format as Fuel mix, with that report’s fuel values.
 
 ## Overview
 
