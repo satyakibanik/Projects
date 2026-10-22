@@ -76,3 +76,13 @@ test('largest circuit flow uses signed individual observations, ignores gaps and
  assert.equal(vm.runInContext('largestCircuitFlow([])',c),null);
  assert.equal(vm.runInContext(`largestCircuitFlow([{time:'00:00',ishwardi_ghorashal:0}]).magnitude`,c),0);
 });
+test('real-time dispatch always contains separate aligned generation and shedding plots',()=>{
+ const c=app();
+ vm.runInContext(`currentDayData={today_date:'2026-10-22',demand_hourly:[{time:'00:00',demand_mw:12000,shed_mw:0}],generation_hourly:[{time:'00:00',total_mw:11900}],imports:[]}`,c);
+ const html=vm.runInContext('realTime()',c);
+ assert.equal((html.match(/data-sync-group="realtime-dispatch"/g)||[]).length,2);
+ const models=vm.runInContext('[...chartData.values()].filter(m=>m.syncGroup)',c);
+ assert.equal(models.length,2);assert.equal(models[0].series.some(s=>s.key==='shed_mw'),false);assert.equal(models[1].series[0].key,'shed_mw');assert.equal(models[1].rows[0].shed_mw,0);assert.equal(models[0].x(models[0].rows[0]),models[1].x(models[1].rows[0]));
+ vm.runInContext('currentDayData.demand_hourly=[];currentDayData.generation_hourly=[]',c);
+ const empty=vm.runInContext('realTime()',c);assert.equal((empty.match(/data-sync-group="realtime-dispatch"/g)||[]).length,2);assert.match(empty,/No reported load shedding readings/);
+});

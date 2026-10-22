@@ -1,5 +1,6 @@
 function setupCharts(view) {
   setupRegionalSnapshotTooltips();
+  const synchronized=new Map();
   document.querySelectorAll('.interactive-chart').forEach(wrapper => {
     const model = chartData.get(wrapper.dataset.chart);
     const tooltip = wrapper.querySelector('.chart-tooltip');
@@ -14,10 +15,11 @@ function setupCharts(view) {
       group.classList.toggle('is-dimmed', Boolean(key) && !active);
       });
     };
-    function show(index) {
+    const peers=()=>model.syncGroup?[...document.querySelectorAll('[data-sync-group="'+model.syncGroup+'"]')]:[wrapper];
+    function show(index,linked=false) {
       selected = index;
       const row = model.rows[index];
-      const visible = model.series.filter(s => wrapper.querySelector(`[data-toggle-series="${s.key}"]`).checked);
+      const visible = peers().flatMap(peer=>chartData.get(peer.dataset.chart).series.filter(s=>peer.querySelector(`[data-toggle-series="${s.key}"]`).checked));
       const ordered = model.enCurve ? visible.slice().reverse() : visible;
       tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(model.unit||'MW')}</b></div>`).join('');
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
@@ -32,8 +34,12 @@ function setupCharts(view) {
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
       cursor.removeAttribute('hidden');
+      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronized.get(peer)?.show(index,true));
     }
-    function hide() { tooltip.hidden = true; cursor.setAttribute('hidden', ''); selected = null; }
+    function hide(linked=false) { tooltip.hidden = true; cursor.setAttribute('hidden', ''); selected = null;
+      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronized.get(peer)?.hide(true));
+    }
+    synchronized.set(wrapper,{show,hide});
     wrapper.querySelectorAll('[data-series-label]').forEach(label => {
       const highlight = () => highlightSeries(label.dataset.seriesLabel);
       const clear = () => highlightSeries(null);
@@ -63,7 +69,7 @@ function setupCharts(view) {
         }
       });
     });
-    wrapper.querySelector('svg').addEventListener('pointerleave', hide);
+    wrapper.querySelector('svg').addEventListener('pointerleave', () => hide());
     wrapper.addEventListener('focusout', event => { if (!wrapper.contains(event.relatedTarget)) hide(); });
     wrapper.querySelectorAll('[data-toggle-family]').forEach(master => {
       const members=[...wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`)];
