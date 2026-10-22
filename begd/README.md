@@ -117,3 +117,29 @@ The visible brand, page title, descriptions, and project landing page identify *
 After publishing, verify the `/Projects/` URL-prefix property in Google Search Console, submit `sitemap.xml`, and request indexing for the dashboard. These steps require access to the site owner's Search Console account and are not performed by the build. Google determines indexing and titles after crawling; adding an acronym does not guarantee a ranking. A dedicated domain or subdomain is needed for a distinct Google site-name preference: Google does not support site names scoped to a subdirectory such as `/Projects/begd/`. Do not place a misleading `robots.txt` under that subdirectory; crawler rules are read from the hostname root.
 
 References: [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide), [canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls), [site names](https://developers.google.com/search/docs/appearance/site-names), and [requesting a recrawl](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl).
+
+## Figure exports and X sharing
+
+Figure titles have accessible icon buttons for Download PNG, Copy figure and sharing on X. Each icon has a tooltip and screen-reader label. Operating regions and Power plant locations offer Download PNG only. Controls stay attached through report, fuel, range and unit changes. Exports preserve visible chart data, theme, legends and source context; the website URL and `© Bangladesh Electric Grid Dashboard` appear together at bottom right. Generation/demand and its optional temperature subplot export together to retain their aligned date axis. The exact source/footer text is listed in [the figure footer inventory](../docs/figure-footer-inventory.md).
+
+The X-logo-plus-“.com” control opens an in-site progress dialog and starts copying the PNG. After copying succeeds, it shows exactly “PNG copied to your clipboard. Opening X... Paste the image into your post.” It waits 2.5 seconds, then opens the X composer with the figure title and view URL. Paste the image into the post and customize the message in X. No blank tab is opened or reserved. Cancel/Escape prevents navigation. Copy failures keep X closed; if the browser blocks delayed popups, the same dialog offers an X.com link. Nothing posts automatically. Image clipboard access needs a supported browser, HTTPS (or localhost), and permission; Download PNG remains available when copying fails.
+
+The global Share dashboard button and theme toggle sit together beside the website title on every tab. Dashboard sharing offers an editable message, initially “Check out Bangladesh Electric Grid Dashboard. See how the grid is performing live or any given day!”, and an X.com link. Fuel figure controls appear below Chart style. Voltage exports omit interactive reading/help boxes and distribution statistics controls, including when the statistics are expanded; those controls remain available on the live page. There is no LinkedIn or native Share image option.
+
+Exports use vendored MIT-licensed html2canvas 1.4.1 and do not send figure data to an export service. Browser regression against a local preview containing published `live-data.js` and `trends-data.json`:
+
+```sh
+BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/figure-sharing.cjs
+```
+
+Playwright and an installed Chromium browser are required; `BEGD_BROWSER_EXECUTABLE` can select a system browser. The test checks title-row icons, header placement across tabs/viewport sizes, actual PNG clipboard/downloads, the in-site confirmation and delayed X handoff without a blank tab, copy-denied and popup-blocked fallbacks, exact dashboard text, voltage export omissions, every chart/map export, fuel rerenders, all recent Trends windows with temperature/MW/°F, the historical heatmap and mobile/dark layouts. Social navigation is stubbed; it never posts to an account.
+
+## Real-time snapshot delivery
+
+The Pages site serves ERP snapshots produced by its scheduled build, rather than calling ERP directly from the browser. The build now emits compact `current-day.json`. Each three-minute `/api/current-day` poll fetches that file with `cache: no-store`, so an open page can receive a newly published snapshot without reloading or changing its selected daily report. The most recent valid snapshot is retained if a request fails, an artifact is malformed, the build reports an ERP failure, or an older artifact is encountered. The view distinguishes snapshot capture time and latest reading time, explains publication cadence, and warns when a snapshot is older than 90 minutes. The Python API server continues to fetch ERP with its existing three-minute cache.
+
+This does not speed up GitHub Actions scheduling or publish data between deployments. The existing approximately hourly workflow can be delayed or skipped by GitHub. See [the real-time diagnosis](../docs/realtime-refresh.md). No workflow was dispatched or site deployed during this work.
+
+Substation load and voltage has a keyboard-accessible bounded scroll area and sticky table headers. Figure headings are enlarged both in the dashboard and exported PNGs. Download completion/errors appear immediately below that figure's download button and dismiss after five seconds.
+
+To check newer snapshot delivery and fallback in a local browser, run `node tests/e2e/realtime-refresh.cjs` against a preview containing published `live-data.js` and a newer `current-day.json` (the test uses routed local fixtures and does not publish).

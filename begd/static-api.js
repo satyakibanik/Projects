@@ -2,6 +2,24 @@
   const bundle = window.BEGD_STATIC_DATA;
   const originalFetch = window.fetch.bind(window);
   const archiveBase = new URL("archive/", window.location.href);
+  const currentDayURL = new URL("current-day.json", window.location.href);
+  let currentDay = bundle?.current_day;
+  async function latestCurrentDay() {
+    try {
+      const response = await originalFetch(currentDayURL.href, { cache: "no-store" });
+      if (!response.ok) throw new Error("Snapshot unavailable");
+      const next = await response.json();
+      if (next.error || !/^\d{4}-\d{2}-\d{2}$/.test(next.today_date) || !Number.isFinite(Date.parse(next.updated_at)) ||
+          !Array.isArray(next.demand_hourly) || !Array.isArray(next.generation_hourly) || !Array.isArray(next.imports)) {
+        throw new Error("Invalid current-day snapshot");
+      }
+      if (!currentDay || !Number.isFinite(Date.parse(currentDay.updated_at)) || Date.parse(next.updated_at) >= Date.parse(currentDay.updated_at)) currentDay = next;
+      return { ...currentDay, delivery: "static", snapshot_refresh_failed: false };
+    } catch {
+      // Keep the last valid readings if a new artifact is unavailable or malformed.
+      return currentDay ? { ...currentDay, delivery: "static", snapshot_refresh_failed: true } : null;
+    }
+  }
   const reportMetadata = new Map((bundle?.reports || []).map(report => [String(report.id), report]));
   async function getReport(id) {
     if (!id) return null;
@@ -36,7 +54,8 @@
       return report && (!url.searchParams.has("date") || report.date === date) ? jsonResponse(report) : failure("That report is not available in the archive.");
     }
     if (url.pathname === "/api/current-day") {
-      return jsonResponse(bundle.current_day);
+      const latest = await latestCurrentDay();
+      return latest ? jsonResponse(latest) : failure("Real-time snapshot is unavailable.", 503);
     }
     if (url.pathname === "/api/highest-generation") {
       return bundle.highest_generation ? jsonResponse(bundle.highest_generation) : failure("Highest-generation report is unavailable in this update.");

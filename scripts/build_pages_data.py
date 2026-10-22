@@ -152,7 +152,8 @@ def write_data_bundle(output_dir):
         current_day = {"updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
                        "today_date": dt.datetime.now(dt.timezone(dt.timedelta(hours=6))).date().isoformat(),
                        "demand_hourly": [], "generation_hourly": [], "imports": [],
-                       "source_dates": {}, "source_urls": []}
+                       "source_dates": {}, "source_urls": [],
+                       "error": "ERP readings were unavailable during this build."}
 
     built_at = dt.datetime.now(dt.timezone.utc).isoformat()
     bundle = {
@@ -165,6 +166,9 @@ def write_data_bundle(output_dir):
         "failures": failures,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
+    (output_dir / "current-day.json").write_text(
+        json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8")
     (output_dir / "trends-data.json").write_text(
         json.dumps(build_trends(trend_reports, built_at), ensure_ascii=False,
                    separators=(",", ":")), encoding="utf-8")
@@ -186,7 +190,7 @@ def write_data_bundle(output_dir):
     index = index.replace(
         '<script src="app.js?v=',
         '<script src="live-data.js?build=' + version
-        + '"></script><script src="static-api.js"></script>'
+        + '"></script><script src="static-api.js?v=current-day-v2"></script>'
         + '<script src="app.js?v=',
         1,
     )
