@@ -117,3 +117,17 @@ The visible brand, page title, descriptions, and project landing page identify *
 After publishing, verify the `/Projects/` URL-prefix property in Google Search Console, submit `sitemap.xml`, and request indexing for the dashboard. These steps require access to the site owner's Search Console account and are not performed by the build. Google determines indexing and titles after crawling; adding an acronym does not guarantee a ranking. A dedicated domain or subdomain is needed for a distinct Google site-name preference: Google does not support site names scoped to a subdirectory such as `/Projects/begd/`. Do not place a misleading `robots.txt` under that subdirectory; crawler rules are read from the hostname root.
 
 References: [Google SEO Starter Guide](https://developers.google.com/search/docs/fundamentals/seo-starter-guide), [canonical URLs](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls), [site names](https://developers.google.com/search/docs/appearance/site-names), and [requesting a recrawl](https://developers.google.com/search/docs/crawling-indexing/ask-google-to-recrawl).
+
+## Figure exports and social sharing
+
+Every chart, voltage plot, regional card, map and historical heatmap offers **Copy figure**, **Download PNG** and **Share figure**. Exports retain the displayed series, units, theme, legends and report context, with `@Bangladesh Electric Grid Dashboard` in the bottom-right corner. Map exports include attribution. HTML heatmaps and SVG plots use a vendored MIT-licensed html2canvas 1.4.1; exporting does not send figure data to a service. Image clipboard access needs a supported browser, HTTPS (or localhost), and clipboard permission; Download PNG remains available when copying is denied or unsupported.
+
+**Share dashboard** and **Share figure** open a keyboard-accessible dialog with an editable custom message and the current reproducible view URL. X receives the message and link; LinkedIn receives the link and offers a separate Copy message action for pasting in its composer. Figure sharing offers the watermarked PNG for download/copy and explains how to attach/paste it. Social share URLs cannot attach a local image automatically. Nothing posts until the user reviews and submits in the social service.
+
+Browser regression using a local preview with the current published `live-data.js` and `trends-data.json`:
+
+```sh
+BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/figure-sharing.cjs
+```
+
+Playwright and an installed Chromium browser are required; `BEGD_BROWSER_EXECUTABLE` can select a system browser. The test exercises real PNG downloads, image/text clipboard round trips, editable social URLs, figure coverage across all views, rerenders, the historical heatmap and mobile/dark rendering. It never posts to a social account.
