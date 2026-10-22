@@ -35,7 +35,7 @@
       // Expand clipped chart/table containers only in the detached export document.
       onclone:(doc,clone)=>{
         const style=doc.createElement('style');
-        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "legend"}}';
+        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "legend"}}';
         doc.head.append(style);
         doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
@@ -47,10 +47,10 @@
         });
         // Measure after removing controls/help so their former height is not exported.
         const bounds=clone.getBoundingClientRect();
-        const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table,.vb-reading')].filter(node=>node.getBoundingClientRect().height>0);
+        const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
         if(visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
       },
-      ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor')||
+      ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
     const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*2)):shot.height;
@@ -81,7 +81,7 @@
   };
   function iconButton(label,icon,action){
     const element=button('',action);element.setAttribute('aria-label',label);element.title=label;
-    element.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+ICONS[icon]+'</svg>';return element;
+    element.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'+ICONS[icon]+'</svg>';if(icon==='x'){element.classList.add('x-share-control');element.insertAdjacentHTML('beforeend','<span aria-hidden="true">.com</span>');}return element;
   }
   let status;
   function announce(message){
@@ -90,27 +90,33 @@
   }
   async function shareFigure(target,control){
     const info=describe(target),url=socialURL(shareURL(location.href),info.title+' — '+BRAND);
-    // Reserve a tab in the click gesture; delayed window.open would be popup-blocked.
-    const popup=root.open('about:blank','_blank');
-    if(popup){popup.opener=null;popup.document.title='Preparing figure for X';popup.document.body.style.cssText='margin:0;padding:48px;font:16px/1.6 system-ui,sans-serif;color:#163529;background:#f4f7fa';popup.document.body.textContent='Copying the PNG to your clipboard…';}
-    control.disabled=true;announce('Copying PNG…');
+    const progress=document.createElement('dialog');progress.id='figure-share-progress';progress.className='figure-share-dialog';progress.setAttribute('data-html2canvas-ignore','');
+    const heading=document.createElement('h2');heading.id='figure-progress-title';heading.textContent='Share on X.com';progress.setAttribute('aria-labelledby',heading.id);
+    const message=document.createElement('p');message.setAttribute('role','status');message.textContent='Copying PNG…';
+    let cancelled=false;const close=button('Cancel',()=>progress.close());
+    progress.addEventListener('close',()=>{cancelled=true;progress.remove();control.disabled=false;if(control.isConnected)control.focus();});
+    progress.append(heading,message,close);document.body.append(progress);if(status)status.textContent='';progress.showModal();control.disabled=true;
     try{
-      await copyImage(target,info);
-      const message='PNG copied to your clipboard. Opening X in 2.5 seconds — paste the image into your post.';
-      announce(message);if(popup&&!popup.closed)popup.document.body.textContent=message;
-      await new Promise(resolve=>setTimeout(resolve,2500));
-      if(popup){if(!popup.closed)popup.location.replace(url);}
-      else{const a=document.createElement('a');a.href=url;a.target='_blank';a.rel='noopener noreferrer';a.textContent='Open X';announce('PNG copied. Your browser blocked the new tab. Paste the image after opening X. ').append(a);}
-    }catch(error){if(popup&&!popup.closed)popup.close();announce(error.message+' X was not opened.');}
+      await copyImage(target,info);if(cancelled)return;
+      message.textContent='PNG copied to your clipboard. Opening X... Paste the image into your post.';
+      await new Promise(resolve=>setTimeout(resolve,2500));if(cancelled)return;
+      const popup=root.open(url,'_blank');
+      if(popup){popup.opener=null;progress.close();}
+      else{
+        const help=document.createElement('p');help.textContent='Your browser blocked the new tab. Open X.com below and paste the image.';
+        const link=document.createElement('a');link.className='x-share-control';link.href=url;link.target='_blank';link.rel='noopener noreferrer';link.setAttribute('aria-label','Open X.com');link.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg><span aria-hidden="true">.com</span>';
+        progress.insertBefore(help,close);progress.insertBefore(link,close);close.textContent='Close';
+      }
+    }catch(error){if(!cancelled){message.textContent=error.message+' X was not opened.';close.textContent='Close';}}
     finally{control.disabled=false;}
   }
   let dialog;
   function openDashboardShare(opener){
     if(!dialog){dialog=document.createElement('dialog');dialog.className='figure-share-dialog';dialog.setAttribute('data-html2canvas-ignore','');document.body.append(dialog);}
     dialog.replaceChildren();const title=document.createElement('h2');title.id='figure-share-title';title.textContent='Share dashboard';dialog.setAttribute('aria-labelledby',title.id);dialog.append(title);
-    const label=document.createElement('label');label.textContent='Custom message';label.htmlFor='figure-share-message';const message=document.createElement('textarea');message.id=label.htmlFor;message.rows=4;message.value=BRAND;dialog.append(label,message);
+    const label=document.createElement('label');label.textContent='Custom message';label.htmlFor='figure-share-message';const message=document.createElement('textarea');message.id=label.htmlFor;message.rows=4;message.value='Check out Bangladesh Electric Grid Dashboard. See how the grid is performing live or any given day!';dialog.append(label,message);
     const url=shareURL(location.href),link=document.createElement('p');link.className='figure-share-link';link.textContent=url;dialog.append(link);
-    const actions=toolbar(),x=document.createElement('a');x.className='dashboard-x-link';x.setAttribute('aria-label','Share dashboard on X');x.title='Share dashboard on X';x.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg>';
+    const actions=toolbar(),x=document.createElement('a');x.className='dashboard-x-link x-share-control';x.setAttribute('aria-label','Share dashboard on X.com');x.title='Share dashboard on X.com';x.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg><span aria-hidden="true">.com</span>';
     x.target='_blank';x.rel='noopener noreferrer';const update=()=>{x.href=socialURL(url,message.value);};update();message.addEventListener('input',update);
     actions.append(x,button('Close',()=>dialog.close()));dialog.append(actions);dialog.onclose=()=>opener?.isConnected&&opener.focus();dialog.showModal();
   }
@@ -123,12 +129,17 @@
       bar.setAttribute('role','group');bar.setAttribute('aria-label','Figure options: '+describe(target).title);
       const copy=iconButton('Copy figure','copy',async()=>{try{await copyImage(target);announce('PNG copied to your clipboard.');}catch(error){announce(error.message);}});
       const save=iconButton('Download PNG','download',async()=>{save.disabled=true;try{download(await exportPNG(target),describe(target).title);announce('PNG downloaded.');}catch(error){announce(error.message);}finally{save.disabled=false;}});
-      const share=iconButton('Share figure on X','x',()=>shareFigure(target,share));
+      const share=iconButton('Share figure on X.com','x',()=>shareFigure(target,share));
       if(target.matches('.plant-map-panel,.region-map-panel'))bar.append(save);else bar.append(save,copy,share);
       if(target.matches('svg,table')){const holder=document.createElement('div');holder.className='figure-export-wrap';target.before(holder);holder.append(target);}
       const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail');
       const heading=target.matches('.fuel-report-chart')?target.querySelector('.comparison-strip-label'):target.matches('.regional-fuel-svg')?panel?.querySelector('[data-regional-fuel-selected]'):target.matches('.trends-generation-figure')?panel?.querySelector('h2'):target.querySelector('h2,h3')||panel?.querySelector('h2,h3');
-      if(heading){let row=heading.parentElement;if(!row.classList.contains('figure-title-row')){row=document.createElement('div');row.className='figure-title-row';heading.before(row);row.append(heading);}row.append(bar);}
+      if(target.matches('.fuel-report-chart')){
+        let host=panel.querySelector('.fuel-export-actions');if(!host){host=document.createElement('div');host.className='fuel-export-actions';panel.querySelector('.fuel-chart-style').after(host);}
+        if(panel.querySelectorAll('.fuel-report-chart').length>1){const label=document.createElement('span');label.className='fuel-export-label';label.textContent=cleanText(heading);bar.prepend(label);}
+        host.append(bar);
+      }
+      else if(heading){let row=heading.parentElement;if(!row.classList.contains('figure-title-row')){row=document.createElement('div');row.className='figure-title-row';heading.before(row);row.append(heading);}row.append(bar);}
       else target.before(bar);
     });
   }
