@@ -36,6 +36,7 @@ def main():
     if not text.startswith(prefix):
         raise ValueError('Unexpected published bundle')
     bundle = json.loads(text[len(prefix):].strip().removesuffix(';'))
+    (output / 'begd' / 'current-day.json').write_text(json.dumps(bundle.get('current_day'), separators=(',', ':')))
     end = max(bundle['reports_by_operating_date'])
     start = (dt.date.fromisoformat(end) - dt.timedelta(days=364)).isoformat()
     wanted = {report_id for day, report_id in bundle['reports_by_operating_date'].items() if start <= day <= end}

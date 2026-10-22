@@ -208,6 +208,7 @@ class BuildTests(unittest.TestCase):
             bundle = json.loads(text.removeprefix('window.BEGD_STATIC_DATA=').strip().removesuffix(';'))
             self.assertEqual(bundle['reports_by_operating_date']['2026-10-14'], '2')
             self.assertEqual(len(bundle['reports']), 2)
+            self.assertEqual(json.loads((output / 'current-day.json').read_text()), bundle['current_day'])
             trends = json.loads((output / 'trends-data.json').read_text())
             self.assertEqual(trends['end_date'], '2026-10-14')
             self.assertEqual(len(trends['days']), 1)

@@ -55,11 +55,11 @@
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
     const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*2)):shot.height;
     const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width),pad=32;
-    canvas.width=width;const ctx=canvas.getContext('2d');ctx.font='bold 22px sans-serif';
+    canvas.width=width;const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
     const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=lines(ctx,info.context,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
-    const top=pad+(heading.length+context.length)*30+16,bottom=notes.length*28+100;
-    const figureHeight=captureHeight*width/shot.width;canvas.height=top+figureHeight+bottom;ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 22px sans-serif';
-    let y=pad;for(const line of heading){y+=30;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
+    const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
+    const figureHeight=captureHeight*width/shot.width;canvas.height=top+figureHeight+bottom;ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 32px sans-serif';
+    let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
     ctx.drawImage(shot,0,0,shot.width,captureHeight,0,top,width,figureHeight);y=top+figureHeight+8;ctx.font='20px sans-serif';for(const line of notes){y+=28;ctx.fillText(line,pad,y);}
     ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height-48);
     ctx.font='18px sans-serif';ctx.fillText(canonical,width-pad,canvas.height-22);
@@ -87,6 +87,12 @@
   function announce(message){
     if(!status){status=document.createElement('div');status.id='figure-action-status';status.setAttribute('role','status');status.setAttribute('data-html2canvas-ignore','');document.body.append(status);}
     status.replaceChildren();status.textContent=message;return status;
+  }
+  function downloadStatus(control,message){
+    const bar=control.closest('.figure-actions');let note=bar.querySelector('.figure-download-status');
+    if(!note){note=document.createElement('span');note.className='figure-download-status';note.setAttribute('role','status');note.setAttribute('data-html2canvas-ignore','');bar.append(note);}
+    clearTimeout(note.dismissTimer);note.textContent=message;
+    note.dismissTimer=setTimeout(()=>note.remove(),5000);
   }
   async function shareFigure(target,control){
     const info=describe(target),url=socialURL(shareURL(location.href),info.title+' — '+BRAND);
@@ -128,7 +134,7 @@
       target.dataset.figureActions='true';const bar=toolbar();installed.set(target,bar);
       bar.setAttribute('role','group');bar.setAttribute('aria-label','Figure options: '+describe(target).title);
       const copy=iconButton('Copy figure','copy',async()=>{try{await copyImage(target);announce('PNG copied to your clipboard.');}catch(error){announce(error.message);}});
-      const save=iconButton('Download PNG','download',async()=>{save.disabled=true;try{download(await exportPNG(target),describe(target).title);announce('PNG downloaded.');}catch(error){announce(error.message);}finally{save.disabled=false;}});
+      const save=iconButton('Download PNG','download',async()=>{save.disabled=true;try{download(await exportPNG(target),describe(target).title);downloadStatus(save,'PNG downloaded.');}catch(error){downloadStatus(save,error.message);}finally{save.disabled=false;}});
       const share=iconButton('Share figure on X.com','x',()=>shareFigure(target,share));
       if(target.matches('.plant-map-panel,.region-map-panel'))bar.append(save);else bar.append(save,copy,share);
       if(target.matches('svg,table')){const holder=document.createElement('div');holder.className='figure-export-wrap';target.before(holder);holder.append(target);}

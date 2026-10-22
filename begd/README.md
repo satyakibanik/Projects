@@ -133,3 +133,13 @@ BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/figure-sharing.cjs
 ```
 
 Playwright and an installed Chromium browser are required; `BEGD_BROWSER_EXECUTABLE` can select a system browser. The test checks title-row icons, header placement across tabs/viewport sizes, actual PNG clipboard/downloads, the in-site confirmation and delayed X handoff without a blank tab, copy-denied and popup-blocked fallbacks, exact dashboard text, voltage export omissions, every chart/map export, fuel rerenders, all recent Trends windows with temperature/MW/°F, the historical heatmap and mobile/dark layouts. Social navigation is stubbed; it never posts to an account.
+
+## Real-time snapshot delivery
+
+The Pages site serves ERP snapshots produced by its scheduled build, rather than calling ERP directly from the browser. The build now emits compact `current-day.json`. Each three-minute `/api/current-day` poll fetches that file with `cache: no-store`, so an open page can receive a newly published snapshot without reloading or changing its selected daily report. The most recent valid snapshot is retained if a request fails, an artifact is malformed, the build reports an ERP failure, or an older artifact is encountered. The view distinguishes snapshot capture time and latest reading time, explains publication cadence, and warns when a snapshot is older than 90 minutes. The Python API server continues to fetch ERP with its existing three-minute cache.
+
+This does not speed up GitHub Actions scheduling or publish data between deployments. The existing approximately hourly workflow can be delayed or skipped by GitHub. See [the real-time diagnosis](../docs/realtime-refresh.md). No workflow was dispatched or site deployed during this work.
+
+Substation load and voltage has a keyboard-accessible bounded scroll area and sticky table headers. Figure headings are enlarged both in the dashboard and exported PNGs. Download completion/errors appear immediately below that figure's download button and dismiss after five seconds.
+
+To check newer snapshot delivery and fallback in a local browser, run `node tests/e2e/realtime-refresh.cjs` against a preview containing published `live-data.js` and a newer `current-day.json` (the test uses routed local fixtures and does not publish).
