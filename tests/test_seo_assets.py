@@ -29,3 +29,22 @@ class SearchAssetsTests(unittest.TestCase):
             self.assertEqual((output / 'sitemap.xml').read_text(), (ROOT / 'sitemap.xml').read_text())
             self.assertIn('BEGD', (output / 'index.html').read_text())
             self.assertIn('About BEGD', (output / 'begd/index.html').read_text())
+
+    def test_social_previews_and_browser_icons_are_static_and_published(self):
+        import struct
+        for page, prefix in [('index.html', 'begd/'), ('begd/index.html', '')]:
+            html = (ROOT / page).read_text()
+            self.assertIn('name="twitter:card" content="summary_large_image"', html)
+            self.assertIn('property="og:image" content="https://satyakibanik.github.io/Projects/begd/social-preview.png"', html)
+            self.assertIn(f'href="{prefix}favicon.svg"', html)
+            self.assertIn(f'href="{prefix}favicon-32.png"', html)
+        for name, size in [('social-preview.png', (1200, 630)), ('favicon-32.png', (32, 32)), ('apple-touch-icon.png', (180, 180))]:
+            raw = (ROOT / 'begd' / name).read_bytes()
+            self.assertEqual(raw[:8], b'\x89PNG\r\n\x1a\n')
+            self.assertEqual(struct.unpack('>II', raw[16:24]), size)
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / 'site'
+            with patch.object(sys, 'argv', ['build_pages_data.py', '--output-dir', str(output)]), patch.object(build, 'write_data_bundle'):
+                build.main()
+            for name in ['social-preview.png', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png']:
+                self.assertEqual((output / 'begd' / name).read_bytes(), (ROOT / 'begd' / name).read_bytes())

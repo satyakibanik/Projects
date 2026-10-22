@@ -143,3 +143,11 @@ This does not speed up GitHub Actions scheduling or publish data between deploym
 Substation load and voltage has a keyboard-accessible bounded scroll area and sticky table headers. Figure headings are enlarged both in the dashboard and exported PNGs. Download completion/errors appear immediately below that figure's download button and dismiss after five seconds.
 
 To check newer snapshot delivery and fallback in a local browser, run `node tests/e2e/realtime-refresh.cjs` against a preview containing published `live-data.js` and a newer `current-day.json` (the test uses routed local fixtures and does not publish).
+
+## Social previews and dashboard screenshots
+
+Both entry pages publish a static 1200 × 630 BEGD logo/name card through Open Graph and Twitter metadata, with SVG/PNG browser icons and an Apple touch icon. Social platforms may cache older previews until they crawl the URL again.
+
+Share dashboard → X.com copies a PNG of National overview for the selected operating report before opening the composer. It preserves the Overview chart selections and report comparisons, excludes the Optional report comparisons controls, and leaves the current tab unchanged. Paste the copied image into X; the browser cannot attach clipboard images automatically. Clipboard failures keep X closed and show feedback; blocked popups provide an explicit X link.
+
+Real time always displays generation/demand above a separate reported-load-shedding subplot, with aligned time axes and independent MW scales. Hover, tap or keyboard focus on either plot shows values from both at the same timestamp, with missing readings displayed as unavailable. Escape or leaving the plot clears both cursors.
