@@ -11,13 +11,23 @@ test('forecast panel is second, initially collapsed and does not construct a hid
  assert.doesNotMatch(html,/id="study-demand"/);
  assert.equal(vm.runInContext('[...chartData.values()].length',c),2);
 });
-test('expansion shows 24 forecasts, two source-correct actuals and no supply series',()=>{
+test('expansion separates demand and generation into subplots with their own model controls',()=>{
  const {c,open}=load();open();const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
  const model=vm.runInContext('[...chartData.values()][0]',c);
  assert.equal(model.rows.length,24);assert.equal(model.rows.filter(r=>r.demand_mw!==null).length,1);
  assert.equal(model.rows.filter(r=>Number.isFinite(r.demand_forecast_mw)).length,24);
  assert.equal(model.rows[0].demand_forecast_mw,105);assert.equal(model.rows[0].generation_forecast_mw,115);
  assert.equal(model.series.some(s=>s.key==='supply_mw'),false);
+ const plots=vm.runInContext('[...chartData.values()].slice(-2)',c);
+ assert.equal(plots.length,2);
+ for(const [index,target] of ['demand','generation'].entries()){
+  assert.deepEqual(Array.from(plots[index].series,s=>s.key),[target+'_mw',target+'_forecast_mw']);
+  assert.equal(plots[index].rows.length,24);
+  const subplot=html.match(new RegExp('<section class="forecast-subplot" data-forecast-target="'+target+'"[^>]*>([^]*?)</section>'))[1];
+  assert.match(subplot,new RegExp('id="study-'+target+'"'));
+  assert.doesNotMatch(subplot,new RegExp('id="study-'+(target==='demand'?'generation':'demand')+'"'));
+  assert.match(subplot,/Evaluation MAE/);assert.match(subplot,/model-description/);
+ }
  assert.match(html,/Generation actual · ERP/);assert.match(html,/Operating date/);
  assert.match(html,/D\+1 assumed/);assert.match(html,/Constituent models \(2\)/);assert.match(html,/SVR weather/);
 });
@@ -57,7 +67,7 @@ test('PGCB curves require the explicitly matching operating day and preserve the
 });
 test('hue families and unique markers remain readable on both chart themes',()=>{
  const bundle=fixture();bundle.default_date='2026-10-21';const {c,open}=load(bundle);open();
- const html=vm.runInContext('window.BEGDIndependentStudy.render()',c),series=vm.runInContext('[...chartData.values()][0].series',c);
+ const html=vm.runInContext('window.BEGDIndependentStudy.render()',c),series=vm.runInContext('[...chartData.values()].slice(-2).flatMap(p=>p.series)',c);
  const hue=color=>{const [r,g,b]=color.slice(1).match(/../g).map(s=>parseInt(s,16)/255);const max=Math.max(r,g,b),min=Math.min(r,g,b),delta=max-min;return (max===r?(g-b)/delta:max===g?2+(b-r)/delta:4+(r-g)/delta)*60};
  for(const s of series.filter(s=>s.key.includes('demand')))assert.ok(hue(s.color)>25&&hue(s.color)<45);
  for(const s of series.filter(s=>s.key.includes('generation')))assert.ok(hue(s.color)>195&&hue(s.color)<220);

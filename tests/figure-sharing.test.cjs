@@ -10,3 +10,9 @@ test('social links keep the exact view but never leak a local preview origin',()
 
 });
 test('PNG names cannot contain paths or unsafe punctuation and remain bounded',()=>{const a=api();assert.equal(a.filename('../Demand & generation / MW'),'begd-demand-generation-mw.png');assert.ok(a.filename('x'.repeat(1000)).length<105);});
+test('dispatch export uses the main chart title instead of its load shedding subheading',()=>{
+ const heading={textContent:'Demand, supply, & load shedding.'};
+ const panel={querySelector:selector=>selector==='h2'?heading:null,querySelectorAll:()=>[],matches:()=>false};
+ const target={closest:()=>panel,matches:selector=>selector.includes('.realtime-dispatch-plots'),querySelector:selector=>selector==='h2,h3'?{textContent:'Reported load shedding'}:null,querySelectorAll:()=>[]};
+ assert.equal(api().describe(target).title,heading.textContent);
+});
