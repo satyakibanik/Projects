@@ -166,7 +166,7 @@ def fetch_current_day():
         demand_hourly.append({
             "time": time_label,
             "demand_mw": parse_number(row[2]),
-            "generation_mw": parse_number(row[3]),
+            "supply_mw": parse_number(row[3]),
             "shed_mw": parse_number(row[4]),
         })
 
@@ -218,6 +218,19 @@ def get_current_day():
     if fresh:
         return cached
     result = fetch_current_day()
+    # Local API mode reads the same frozen output prepared by the static build.
+    # Realtime polling must never train or revise the models.
+    from daily_forecast import VERSION, valid_forecast
+    day = result.get('today_date', '')
+    result['independent_forecast'] = dict(date=day, status='unavailable')
+    if re.fullmatch(r'\d{4}-\d{2}-\d{2}', day):
+        path = ROOT / '.cache' / 'daily-forecasts' / VERSION / (day + '.json')
+        try:
+            saved = json.loads(path.read_text())
+            if valid_forecast(saved, day):
+                result['independent_forecast'] = saved
+        except (OSError, ValueError, TypeError):
+            pass
     with cache_lock:
         current_day_cache = result
         current_day_cache_time = time.time()

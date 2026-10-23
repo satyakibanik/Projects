@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
   schedule:
-    - cron: '17 * * * *'
+    - cron: '7,22,37,52 * * * *'
   workflow_dispatch:
 permissions:
   contents: read
@@ -11,7 +11,7 @@ permissions:
   id-token: write
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -32,8 +32,15 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install parser dependencies
-        run: python -m pip install -r requirements.txt
+      - name: Restore frozen daily forecasts and their input cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/daily-forecasts
+          key: begd-erp-independent-top3-v3-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            begd-erp-independent-top3-v3-
+      - name: Install parser and independent forecasting dependencies
+        run: python -m pip install -r requirements-forecast.txt
       - name: Verify Power Grid TLS certificate chain
         run: |
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem
@@ -83,7 +90,9 @@ jobs:
                   print("Verified ERP TLS peer:", secure.getpeercert()["issuer"])
           PY
           echo "BEGD_ERP_INTERMEDIATE_CERT=/tmp/erp-issuer.pem" >> "$GITHUB_ENV"
-      - name: Build static site and hourly ERP data
+      - name: Build static site, ERP snapshot and frozen daily forecasts
+        env:
+          BEGD_PUBLISHED_FORECAST_BASE_URL: https://satyakibanik.github.io/Projects/begd/daily-forecasts
         run: python scripts/build_pages_data.py
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5

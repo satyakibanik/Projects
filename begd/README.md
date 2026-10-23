@@ -1,12 +1,42 @@
 # BEGD static deployment
 
-The dashboard is published by `.github/workflows/pages.yml`. Each hourly run fetches the current Power Grid report list, supported workbooks, and today's ERP readings, then builds a static Pages artifact.
+The dashboard is published by `.github/workflows/pages.yml`. Builds are scheduled at minutes 7, 22, 37 and 52 each hour, fetch current Power Grid reports and ERP readings, then publish a static Pages artifact. GitHub can delay scheduled jobs; the schedule is polling, not an ERP event subscription.
+
+## Independent daily forecasts
+
+Independent demand forecasts use **ERP substation-side demand** from `view_demand_supply_loadshed`; generation forecasts use **ERP Generation(MW)** from `view_generations`, including imports. Workbook P4 demand and generation are not target labels. The chart displays substation supply separately. Positive reported load shedding is substation demand minus supply at the same timestamp. The optional PGCB scenario retains its generation-side label; it is not a substation-demand benchmark. The former forecast-minus-generation estimated-shedding panel has been removed.
+
+The first realtime panel, **Demand, supply, & load shedding.**, contains only substation-side ERP demand, supply and reported shedding, with aligned demand/supply and shedding plots. The second panel, **BEGD generated forecasts**, is collapsed initially and constructs its interactive chart on expansion. It compares ERP substation demand and national generation including imports with independent forecasts; substation supply is excluded. Later panels retain their layout.
+
+The forecast panel offers only the top three models per target from the 24 September–21 October evaluation, defaults to rank 1, and preserves manual choices across live refreshes and date changes. Demand: Independent full-pool convex, Independent mean ensemble, Independent convex stack. Generation: Independent median ensemble, Independent inverse-error blend, Independent mean ensemble. Left/right buttons move through available operating dates. Explicitly date-matched PGCB demand and generation scenarios remain separate references; generation-side PGCB demand is not scored against substation demand. Model descriptions and expandable constituent lists appear below the chart.
+
+`scripts/daily_forecast.py` uses the same 19 base implementations as the study. Ensemble calibration uses earlier out-of-sample origins whose labels are available by D−1: up to 28 calibration dates preceded by up to 28 warm-up origins. Base fits are cached by input hash; the first build can take longer while it prepares those origins. Training uses up to 100 eligible days, with a minimum of 35. Inputs include lagged ERP profiles, calendar, lagged published workbook temperature/energy and availability, and four-location GFS forecasts at nominal 48-hour lead. Target-day PGCB scenarios and current-day observations never enter fitting. ERP historical availability on D+1 remains an explicit assumption.
+
+Ranked publication starts on 23 October, after the evaluation labels are available by the forecast cutoff. The publisher prepares today and tomorrow, and retains successful forecasts under `.cache/daily-forecasts/erp-independent-top3-v3/YYYY-MM-DD.json`. Missing inputs cause explicit unavailability and a later retry. Each issued file contains three complete candidate curves per target, issue time, cutoffs, sources, weather provenance, diagnostics and ensemble-calibration audits. Current snapshots also include up to 35 previously issued operating dates with matching ERP actuals, without changing their frozen forecast files. Realtime API polling reads issued files and never fits models. The version and target-basis checks reject legacy seven-member and generation-side demand caches.
+
+The checked-in `independent-study-data.js` is a compact dated archive of the 56 operating dates (including PGCB-only days), retaining only the three reviewed candidates per target. It supplies retrospective comparisons and the explicitly timed 23 October forward study forecast. New snapshots add subsequently issued forecasts. The archive is not a prospective validation set and is never moved onto a later date.
+
+### Independent-model comparison and local preview
+
+`scripts/independent_models.py` ports all **19 independent base methods and 8 ensembles** from the local challenge, excluding PGCB-assisted methods. `scripts/independent_study.py` evaluates both ERP targets over 82 historical origins. Each fixed evaluation window follows 14 earlier selection dates and a one-day embargo. Ensemble calibration uses only earlier out-of-sample errors whose assumed availability is within the cutoff. The study also supports an unscored current-day preview, with its actual issue time.
+
+```sh
+python scripts/prepare_independent_study.py --start 2026-05-25 --end 2026-10-21 --forecast-date 2026-10-23
+python scripts/independent_study.py --records .cache/erp-study/records.json --weather .cache/erp-study/weather.json --output .cache/erp-study/results --forecast-date 2026-10-23
+python scripts/preview_independent_study.py --output /absolute/path/to/local-preview/begd
+```
+
+Preparation can reuse parsed workbook metadata with `--workbook-records` and a previous-runs weather snapshot with `--weather-input`. Raw ERP captures, full predictions and ensemble audits stay in `.cache/erp-study/`. Compact scores, cutoff audits, source hashes and interpretation are in [research/erp-independent-forecasts](../research/erp-independent-forecasts/README.md).
+
+The preview uses the same production panel and ranked model catalog. Future actuals remain blank, and orange demand / blue generation curves use distinct matching plot and legend markers. Rebuild the compact published study archive with `python scripts/preview_independent_study.py --publish-archive begd/independent-study-data.js --current-day .cache/erp-study/current-day.json`. Source scenarios come from cached study records or static report snapshots; optional `--pgcb-records` supplies separate parsed scenarios with explicit dates. The full 27-candidate rankings remain in the research evidence.
+
+Install `requirements-forecast.txt` before building. The dedicated forecast CI job tests the scientific dependencies; the parser-only suite can skip those model fits. Offline checks cover feature leakage, timing, frozen cache reuse, one-reading days, unavailable/wrong-date curves, grouping and visibility. The first cache fill downloads roughly five months of national workbook history; subsequent builds reuse it. Realtime readouts remain available when forecasting fails. Forecasts are experimental and were shortlisted after historical evaluation; they need prospective accuracy monitoring.
 
 `live-data.js` contains recent workbooks and report metadata. Older supported reports are published as individual files under `archive/`, loaded on demand by the date controls. The header uses the same native operating-date picker as Optional report comparisons: choose a date and click **Load report**, or press Enter. Previous/next buttons navigate available operating dates in the published archive. Missing dates leave the displayed report in place with an explanation; report publication dates remain separately labeled. Load report and Add comparison share the same button styling in both themes. Parsed historical workbooks are cached by GitHub Actions.
 
 ## Long-term trends
 
-The `#trends` tab offers 30, 60, 90, and 365 calendar days ending on the latest available operating day. The build emits a compact `trends-data.json` from parsed workbooks, so opening this tab does not download hundreds of full reports. It refreshes with the existing hourly build. The daily workbook selection uses the same next-day-publication preference as the archive and counts each operating date once.
+The `#trends` tab offers 30, 60, 90, and 365 calendar days ending on the latest available operating day. The build emits a compact `trends-data.json` from parsed workbooks, so opening this tab does not download hundreds of full reports. It refreshes with the scheduled build. The daily workbook selection uses the same next-day-publication preference as the archive and counts each operating date once.
 
 - **Generation:** published P1 daily energy, including imports, in GWh.
 - **Demand requirement:** matching-date En-Curve total energy requirement when available; otherwise P1 generation plus reported energy not served. This is an energy requirement, not independently metered demand. The data bundle records which method was used.
@@ -51,7 +81,7 @@ python3 scripts/preview_trends.py --offline
 
 The preview script reads public report snapshots; `--recover-missing` also downloads original national workbooks for isolated omitted reports whose neighboring report IDs identify a single candidate, and verifies their operating dates. Original workbooks are cached under `.cache/trends-workbooks/`. The full ERP build performs national recovery directly from listing records. The preview script does not publish, push, or change GitHub Pages. For a full build directly from ERP, run `python scripts/build_pages_data.py` with the parser dependencies installed.
 
-For deployment, set the repository's Pages source to **GitHub Actions**. Scheduled runs are approximately hourly; GitHub may delay or drop scheduled runs during high load.
+For deployment, set the repository's Pages source to **GitHub Actions**. Runs are scheduled every 15 minutes; GitHub may delay or drop scheduled runs during high load.
 
 All Trends charts have date/value tooltips across the plot area, including historical lines without point markers. Fuel tooltips include both percent shares and GWh. Monthly cells show medians and observation/day counts, including an explicit no-observations message for missing months. Focus a chart and use Left/Right, Home/End, or Escape to navigate or dismiss tooltips; monthly cells also support focus and Escape.
 
@@ -136,7 +166,7 @@ Playwright and an installed Chromium browser are required; `BEGD_BROWSER_EXECUTA
 
 ## Real-time snapshot delivery
 
-The Pages site serves ERP snapshots produced by its scheduled build, rather than calling ERP directly from the browser. The build now emits compact `current-day.json`. Each three-minute `/api/current-day` poll fetches that file with `cache: no-store`, so an open page can receive a newly published snapshot without reloading or changing its selected daily report. The most recent valid snapshot is retained if a request fails, an artifact is malformed, the build reports an ERP failure, or an older artifact is encountered. The view distinguishes snapshot capture time and latest reading time, explains publication cadence, and warns when a snapshot is older than 90 minutes. The Python API server continues to fetch ERP with its existing three-minute cache.
+The Pages site serves ERP snapshots produced by its scheduled build, rather than calling ERP directly from the browser. The build now emits compact `current-day.json`. Each three-minute `/api/current-day` poll fetches that file with `cache: no-store`, so an open page can receive a newly published snapshot without reloading or changing its selected daily report. The most recent valid snapshot is retained if a request fails, an artifact is malformed, the build reports an ERP failure, or an older artifact is encountered. The view distinguishes snapshot capture time and latest reading time, explains publication cadence, and warns when a snapshot is older than 90 minutes. The Python API server fetches ERP with its three-minute cache and reads already-generated independent forecasts from the same daily cache. It does not fit models while polling; run the build first to prepare forecasts.
 
 This does not speed up GitHub Actions scheduling or publish data between deployments. The existing approximately hourly workflow can be delayed or skipped by GitHub. See [the real-time diagnosis](../docs/realtime-refresh.md). No workflow was dispatched or site deployed during this work.
 

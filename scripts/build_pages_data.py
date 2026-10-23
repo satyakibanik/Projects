@@ -22,6 +22,53 @@ from import_report import parse_report
 from trends import build_trends, extract_trend_workbook
 
 
+def attach_forecasts(records, reports_by_id, current_day, cache_dir):
+    """Keep realtime forecasts independent of the report selected in the browser."""
+    from daily_forecast import prepare_forecasts
+    today = current_day.get('today_date')
+    if not isinstance(today, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', today):
+        current_day['pgcb_forecast'] = None
+        current_day['independent_forecast'] = dict(status='unavailable', reason='Missing operating date')
+        return {}
+    matches = [r for r in reports_by_id.values()
+               if r.get('forecast', {}).get('scenario_date') == today]
+    pgcb = max(matches, key=lambda r: (r['published_date'], int(r['report_id'])), default=None)
+    current_day['pgcb_forecast'] = (dict(date=today, hourly=pgcb['forecast']['demand_hourly'],
+                                         report_name=pgcb['report_name'], source_url=pgcb['source_url'],
+                                         published_date=pgcb['published_date']) if pgcb else None)
+    forecasts = prepare_forecasts(records, current_day, cache_dir)
+    current_day['independent_forecast'] = forecasts[today]
+    # Expose previously issued curves with dated ERP actuals without changing
+    # their immutable forecast files. The browser never borrows another day.
+    from daily_forecast import VERSION, valid_forecast
+    history = dict(forecasts)
+    for path in (cache_dir/VERSION).glob('*.json'):
+        try:
+            value=json.loads(path.read_text())
+            if valid_forecast(value,path.stem):history[path.stem]=value
+        except (OSError,ValueError,TypeError):
+            pass
+    actuals={}
+    for kind in ('demand','generation'):
+        path=cache_dir/'erp-history'/kind/'manifest.json'
+        try:actuals[kind]=json.loads(path.read_text())['days']
+        except (OSError,ValueError,KeyError,TypeError):actuals[kind]={}
+    scenarios={}
+    for report in sorted(reports_by_id.values(),key=lambda r:r.get('published_date','')):
+        forecast=report.get('forecast',{})
+        day=forecast.get('scenario_date')
+        if day:scenarios[day]=dict(date=day,hourly=forecast.get('demand_hourly',[]),
+            published_date=report.get('published_date'),source_url=report.get('source_url'))
+    fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date')
+    ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
+    dates=sorted(set(ready_history)|set(scenarios))[-35:]
+    current_day['forecast_history']={day:dict(forecast={k:ready_history[day].get(k) for k in fields} if day in ready_history else None,
+        demand_hourly=actuals['demand'].get(day,[]),
+        generation_hourly=[dict(time=r['time'],total_mw=r.get('generation_mw')) for r in actuals['generation'].get(day,[])],
+        pgcb_forecast=scenarios.get(day)) for day in dates}
+    return forecasts
+
+
 def available_reports():
     first_page, total_pages = server.fetch_listing_page(1)
     if not first_page:
@@ -155,6 +202,7 @@ def write_data_bundle(output_dir):
                        "source_dates": {}, "source_urls": [],
                        "error": "ERP readings were unavailable during this build."}
 
+    forecasts = attach_forecasts(records, reports_by_id, current_day, ROOT / '.cache' / 'daily-forecasts')
     built_at = dt.datetime.now(dt.timezone.utc).isoformat()
     bundle = {
         "generated_at": built_at,
@@ -166,6 +214,19 @@ def write_data_bundle(output_dir):
         "failures": failures,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
+    forecast_dir = output_dir / 'daily-forecasts'
+    forecast_dir.mkdir(exist_ok=True)
+    for day, forecast in forecasts.items():
+        (forecast_dir / f'{day}.json').write_text(json.dumps(forecast, allow_nan=False, separators=(',', ':')))
+    # Preserve earlier issued forecasts for later scoring; never replace them with a refit.
+    from daily_forecast import VERSION, valid_forecast
+    for saved in (ROOT / '.cache' / 'daily-forecasts' / VERSION).glob('*.json'):
+        try:
+            value = json.loads(saved.read_text())
+            if valid_forecast(value, saved.stem):
+                shutil.copy2(saved, forecast_dir / saved.name)
+        except (OSError, ValueError, TypeError):
+            pass
     (output_dir / "current-day.json").write_text(
         json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
