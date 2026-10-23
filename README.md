@@ -13,7 +13,7 @@ BEGD is an interactive dashboard for Power Grid Bangladesh PLC and the National 
 - **Power plants** — a Bangladesh-only plant-location map with neutral district and division boundaries, fuel-colored markers, nearby-unit grouping, and a sidebar showing the selected report's table values. The capacity/output table and map share search and status filters; marker cards link to plant details, hourly output, and the matched OpenStreetMap feature when available.
 - **Regions** — regional energy and fuel mix alongside evening-peak demand and load shedding.
 - **Imports** — hourly MW and daily energy by cross-border route, with imports’ share of reported national energy.
-- **Real time** — ERP demand, generation, and India-import readings dated today in Bangladesh time.
+- **Real time** — substation-side demand, supply, and reported load shedding, with export controls in the chart header. Expand BEGD generated forecasts for separate demand and ERP generation subplots, each with its own top-three model selector and matching operating-day PGCB scenario. ERP fuel and India-import readings follow. All dates use Bangladesh time.
 - **Substations** — daily maximum served load and its time, plus minimum and maximum voltage by voltage class. Per-unit voltage bands and box-and-whisker distributions compare 400, 230 and 132 kV readings, with station search, class toggles and keyboard-accessible station details.
 - **Operations detail** — planned and forced shutdowns, the P1 event log, and hourly east–west interconnector power flows.
 - **Forecast** — forecast and effective available generation for day and evening peaks, with unit-level details. These are forecasts of available generation, not demand or dispatched generation.

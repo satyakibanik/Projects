@@ -3,7 +3,7 @@
   'use strict';
   const BRAND='Bangladesh Electric Grid Dashboard';
   const COPYRIGHT='© '+BRAND;
-  const SELECTOR='.realtime-dispatch-plots, .interactive-chart, .fuel-report-chart, .regional-snapshot-chart-wrap, .regional-fuel-svg, .plant-map-panel, .region-map-panel, .vb-combined, .trends-generation-figure, .trends-chart, .trends-heatmap, .region-card';
+  const SELECTOR='.realtime-dispatch-plots, .forecast-subplot, .interactive-chart, .fuel-report-chart, .regional-snapshot-chart-wrap, .regional-fuel-svg, .plant-map-panel, .region-map-panel, .vb-combined, .trends-generation-figure, .trends-chart, .trends-heatmap, .region-card';
   const canonical='https://satyakibanik.github.io/Projects/begd/';
   const cleanText=node=>(node?.innerText||node?.textContent||'').replace(/\s+/g,' ').trim();
   function shareURL(href){const source=new URL(href),url=new URL(canonical);url.search=source.search;url.hash=source.hash;return url.href;}
@@ -11,10 +11,12 @@
   function filename(title){return 'begd-'+title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90)+'.png';}
   function describe(target){
     const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail'),svg=target.matches('svg')?target:target.querySelector('svg:not(.series-swatch)');
-    const heading=(target.matches('.trends-generation-figure')?cleanText(panel?.querySelector('h2')):cleanText(target.querySelector('h2,h3')))||cleanText(panel?.querySelector('h2,h3'))||'Grid figure';
+    const heading=(target.matches('.trends-generation-figure,.realtime-dispatch-plots')?cleanText(panel?.querySelector('h2')):cleanText(target.querySelector('h2,h3')))||cleanText(panel?.querySelector('h2,h3'))||'Grid figure';
     const label=target.matches('.fuel-report-chart')?cleanText(target.querySelector('.comparison-strip-label')):target.matches('.trends-chart,.regional-fuel-svg')?svg?.getAttribute('aria-label')?.split('. Missing dates')[0]||'':'';
     const note=cleanText(panel?.querySelector('.panel-head p'));
-    const source=[...panel?.querySelectorAll('.note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
+    const sourceRoot=target.matches('.forecast-subplot')?target:panel;
+    const source=[...sourceRoot?.querySelectorAll('.note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
+    if(target.matches('.forecast-subplot'))source.push(...[...panel?.querySelectorAll('.forecast-body > .note')||[]].map(cleanText));
     if(panel?.matches('.plant-detail'))source.push('Source: GenLog · hourly plant output · MW · Bangladesh time.');
     if(target.matches('.trends-generation-figure')&&panel?.nextElementSibling?.matches('.trends-temperature-note'))source.push(cleanText(panel.nextElementSibling));
     source.push(...[...target.querySelectorAll('.fuel-mix-segment')].map(node=>node.getAttribute('aria-label')));
@@ -36,7 +38,7 @@
       // Expand clipped chart/table containers only in the detached export document.
       onclone:(doc,clone)=>{
         const style=doc.createElement('style');
-        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "legend"}}';
+        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.forecast-subplot-controls label,.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "legend"}}';
         doc.head.append(style);
         doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
@@ -159,7 +161,7 @@
       if(target.matches('.plant-map-panel,.region-map-panel'))bar.append(save);else bar.append(save,copy,share);
       if(target.matches('svg,table')){const holder=document.createElement('div');holder.className='figure-export-wrap';target.before(holder);holder.append(target);}
       const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail');
-      const heading=target.matches('.fuel-report-chart')?target.querySelector('.comparison-strip-label'):target.matches('.regional-fuel-svg')?panel?.querySelector('[data-regional-fuel-selected]'):target.matches('.trends-generation-figure')?panel?.querySelector('h2'):target.querySelector('h2,h3')||panel?.querySelector('h2,h3');
+      const heading=target.matches('.fuel-report-chart')?target.querySelector('.comparison-strip-label'):target.matches('.regional-fuel-svg')?panel?.querySelector('[data-regional-fuel-selected]'):target.matches('.trends-generation-figure,.realtime-dispatch-plots')?panel?.querySelector('h2'):target.querySelector('h2,h3')||panel?.querySelector('h2,h3');
       if(target.matches('.fuel-report-chart')){
         let host=panel.querySelector('.fuel-export-actions');if(!host){host=document.createElement('div');host.className='fuel-export-actions';panel.querySelector('.fuel-chart-style').after(host);}
         if(panel.querySelectorAll('.fuel-report-chart').length>1){const label=document.createElement('span');label.className='fuel-export-label';label.textContent=cleanText(heading);bar.prepend(label);}

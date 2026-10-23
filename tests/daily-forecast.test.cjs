@@ -35,9 +35,9 @@ test('PGCB curves match the forecast operating date and ignore the workbook sele
 });
 test('live refresh preserves the selected ranked model and legend visibility',()=>{
  const {c,controls,open}=live();open();controls.get('study-demand').events.change({target:{value:'Ridge'}});
- vm.runInContext("chartVisibility.set('independent-study:2026-10-23|generation_forecast_mw',false)",c);
+ vm.runInContext("chartVisibility.set('independent-study:2026-10-23:generation|generation_forecast_mw',false)",c);
  vm.runInContext('realTime()',c);const before=plot(c).rows[0].demand_forecast_mw;
  c.fixture.demand_hourly.push({time:'01:00',demand_mw:14400,supply_mw:14390,shed_mw:10});vm.runInContext('realTime()',c);
  assert.equal(plot(c).rows[0].demand_forecast_mw,before);assert.equal(plot(c).rows[1].demand_mw,14400);
- assert.equal(plot(c).series.find(s=>s.key==='generation_forecast_mw').defaultVisible,false);
+ assert.equal(vm.runInContext('[...chartData.values()].filter(p=>p.series.some(s=>s.key==="generation_forecast_mw")).at(-1).series.find(s=>s.key==="generation_forecast_mw").defaultVisible',c),false);
 });
