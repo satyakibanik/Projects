@@ -142,7 +142,8 @@
     dialog.replaceChildren();const title=document.createElement('h2');title.id='figure-share-title';title.textContent='Share dashboard';dialog.setAttribute('aria-labelledby',title.id);dialog.append(title);
     const label=document.createElement('label');label.textContent='Custom message';label.htmlFor='figure-share-message';const message=document.createElement('textarea');message.id=label.htmlFor;message.rows=4;message.value='Check out Bangladesh Electric Grid Dashboard. See how the grid is performing live or any given day!';dialog.append(label,message);
     const hint=document.createElement('p');hint.textContent='Copies National overview for the selected report as a PNG, without comparison controls. Paste the image into your X post.';dialog.append(hint);
-    const url=shareURL(location.href),link=document.createElement('p');link.className='figure-share-link';link.textContent=url;dialog.append(link);
+    // Share one stable, crawlable URL instead of a separately cached card for every view.
+    const url=canonical,link=document.createElement('p');link.className='figure-share-link';link.textContent=url;dialog.append(link);
     const actions=toolbar(),x=document.createElement('a');x.className='dashboard-x-link x-share-control';x.setAttribute('aria-label','Share dashboard on X.com');x.title='Share dashboard on X.com';x.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg><span aria-hidden="true">.com</span>';
     x.addEventListener('click',event=>{event.preventDefault();dialog.close();shareFigure(null,x,{dashboard:true,url:x.href});});
     x.target='_blank';x.rel='noopener noreferrer';const update=()=>{x.href=socialURL(url,message.value);};update();message.addEventListener('input',update);
