@@ -18,7 +18,7 @@ Retrospective development evidence on current ERP snapshots; neither window is a
 
 Each champion minimizes MAE on 14 earlier selection dates. A one-day embargo ensures selection labels are available by the first evaluation cutoff. Ensembles calibrate on at most 28 earlier out-of-sample origins whose labels are available by D-1.
 
-The current-day local preview uses the development-window selected model for each target. These are candidates for review, not an automatically promoted production replacement. The scheduled publisher retains its prior fixed seven-member ensembles with the corrected ERP target basis.
+The local preview defaults to rank 1 by observed evaluation MAE for each target, initially in the development window. Changing the evaluation window selects its rank-1 models; manual comparisons remain available. This is a retrospective choice after evaluation, distinct from each earlier-selected champion above. The scheduled publisher retains its prior fixed seven-member ensembles with the corrected ERP target basis.
 
 ## Subsequent evaluation rankings
 
@@ -74,6 +74,6 @@ python scripts/independent_study.py --records .cache/erp-study/records.json --we
 python scripts/preview_independent_study.py --output /absolute/path/to/local-preview/begd
 ```
 
-The preview command requires an existing ERP `live-data.js` snapshot. It shows 27 candidates per target, operating-day controls, both evaluation windows and an independent group labeled **BEGD generated forecasts**. Current-day forecasts retain their actual completion time; forecasts generated after midnight are identified accordingly. Future actuals remain absent. No merge or deployment is performed.
+The preview command requires an existing ERP `live-data.js` snapshot. It shows 27 candidates per target, operating-day controls, both evaluation windows and an independent group labeled **BEGD generated forecasts**. Matching PGCB demand and generation scenarios are display-only references, keyed by the explicitly printed scenario date. The exporter reads cached study records and static report snapshots; `--pgcb-records` can supply separate records with `forecast_date` and `pgcb_scenario`. No date is inferred from a workbook operating date or plant-availability header. PGCB demand remains generation-side and is not scored against substation demand. Demand curves share orange shades and generation curves share blue shades, with distinct marker shapes. Current-day forecasts retain their actual completion time; forecasts generated after midnight are identified accordingly. Future actuals remain absent. No merge or deployment is performed.
 
 The study caches full per-origin predictions and ensemble-weight audits locally. Compact scores, publication-cutoff audits, fit warnings, runtime versions and source hashes are retained here. Re-fetching current ERP tables may yield revisions; compare raw hashes before claiming identical reproduction.
