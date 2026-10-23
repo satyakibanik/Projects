@@ -9,7 +9,7 @@ function app(){
 }
 function fixture(c,forecastDate='2026-10-23'){
  c.fixture={today_date:'2026-10-23',source_dates:{generation:'2026-10-23',demand:'2026-10-23'},generation_hourly:[{time:'00:00',total_mw:14000}],demand_hourly:[{time:'00:00',demand_mw:14500,shed_mw:0}],imports:[],
-  independent_forecast:{status:'ready',date:forecastDate,issued_at:'2026-10-22T17:00:00Z',max_actual_input_date:'2026-10-21',issue_timing:'before operating day',hourly:Array.from({length:24},(_,h)=>({time:String(h).padStart(2,'0')+':00',generation_mw:13000+h*100,demand_mw:13500+h*100}))}};
+  independent_forecast:{status:'ready',date:forecastDate,target_basis:{demand:'ERP substation side',generation:'ERP generation including imports'},issued_at:'2026-10-22T17:00:00Z',max_actual_input_date:'2026-10-21',issue_timing:'before operating day',hourly:Array.from({length:24},(_,h)=>({time:String(h).padStart(2,'0')+':00',generation_mw:13000+h*100,demand_mw:13500+h*100}))}};
  vm.runInContext('currentDayData=fixture',c);
 }
 test('one live reading still exposes two complete independent curves, off by default',()=>{
@@ -33,6 +33,17 @@ test('wrong-day or partial independent forecasts cannot leak into today',()=>{
  assert.doesNotMatch(html,/data-toggle-series="independent_/);assert.match(html,/not available/);
  fixture(c);c.fixture.independent_forecast.hourly=Array(24).fill(null);c.fixture.pgcb_forecast={date:'2026-10-23',hourly:{}};
  html=vm.runInContext('realTime()',c);assert.doesNotMatch(html,/data-toggle-series="independent_/);assert.match(html,/substation side/);
+});
+test('generation-side cached demand cannot masquerade as the new substation forecast',()=>{
+ const c=app();fixture(c);c.fixture.independent_forecast.target_basis.demand='P4 generation side';
+ assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="independent_/);
+});
+test('substation supply is plotted separately and no forecast-generation shedding estimate is shown',()=>{
+ const c=app();fixture(c);c.fixture.demand_hourly[0].supply_mw=14490;c.fixture.demand_hourly[0].shed_mw=10;
+ const html=vm.runInContext('realTime()',c);
+ const plot=vm.runInContext('[...chartData.values()].find(p=>p.series.some(s=>s.key==="supply_mw"))',c);
+ assert.equal(plot.rows[0].supply_mw,14490);assert.equal(plot.rows[0].total_mw,14000);
+ assert.match(html,/demand − supply/);assert.doesNotMatch(html,/Estimated load shedding/);
 });
 test('PGCB is absent when unavailable, dates must match, and selected workbook is irrelevant',()=>{
  const c=app();fixture(c);

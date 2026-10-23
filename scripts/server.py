@@ -166,7 +166,7 @@ def fetch_current_day():
         demand_hourly.append({
             "time": time_label,
             "demand_mw": parse_number(row[2]),
-            "generation_mw": parse_number(row[3]),
+            "supply_mw": parse_number(row[3]),
             "shed_mw": parse_number(row[4]),
         })
 

@@ -1,7 +1,8 @@
 """Immutable independent 24-hour forecasts for the static realtime dashboard.
 
-Only historical reports published by D-1 and nominal 48h-lead weather are
-inputs. Today's realtime observations trigger publication, never model fitting.
+ERP substation-demand and generation history are the targets. Lagged workbook
+metadata and nominal 48h-lead weather are auxiliary inputs. Historical ERP
+availability is assumed on D+1. Today's observations never enter model fitting.
 """
 import datetime as dt
 import hashlib
@@ -16,7 +17,8 @@ from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-VERSION = 'independent-seven-v1'
+VERSION = 'erp-independent-seven-v2'
+TARGET_BASIS = dict(demand='ERP substation side', generation='ERP generation including imports')
 MEMBERS = ('Ridge enriched', 'Boosted weather MAE', 'CatBoost MAE',
            'Extra Trees weather', 'SVR weather', 'MLP weather', 'Daily PCA ridge')
 FIELDS = ('temperature_2m', 'relative_humidity_2m', 'precipitation',
@@ -46,6 +48,8 @@ def valid_forecast(value, day):
     if value.get('version') != VERSION or value.get('date') != day or value.get('status') != 'ready':
         return False
     if value.get('input_cutoff_date') != shift(day, 1):
+        return False
+    if value.get('target_basis') != TARGET_BASIS:
         return False
     if (value.get('max_actual_input_date', day) > shift(day, 2) or
             value.get('max_training_publication', day) > shift(day, 1) or
@@ -186,6 +190,8 @@ def fit_forecast(records, weather, target_day):
     from threadpoolctl import threadpool_limits
     from forecast_features import Dataset, features
 
+    if not records or any(record.get('label_basis') != TARGET_BASIS for record in records):
+        raise ValueError('Forecast labels must be ERP substation demand and ERP generation')
     data = Dataset(records, weather['hourly'])
     training = data.training_days(target_day)
     if len(training) < 35 or not data.eligible(target_day):
@@ -235,13 +241,15 @@ def fit_forecast(records, weather, target_day):
             combined = np.array([predictions[name] for name in MEMBERS])
             output[target] = (np.median(combined, axis=0) if target == 'generation' else combined.mean(axis=0)).tolist()
     record_fields = ('operating_date', 'published_date', 'report_id', 'source_url', 'sha256',
-                     'actual', 'temperature_c', 'energy_mwh', 'availability', 'availability_forecast_date')
+                     'actual', 'label_basis', 'temperature_c', 'energy_mwh', 'availability', 'availability_forecast_date')
     records_used = [{k: data.by_day[d].get(k) for k in record_fields}
                     for d in sorted(data.days) if d <= shift(target_day, 2)]
     # Record completion, not the start of a fit that might cross midnight.
     issued = utc_now()
     issue_date = dt.datetime.fromisoformat(issued).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
+    from erp_history import URLS, AVAILABILITY
     result = dict(version=VERSION, status='ready', date=target_day, issued_at=issued, fit_started_at=fit_started,
+                  target_basis=TARGET_BASIS, target_sources=URLS, availability_assumption=AVAILABILITY,
                   timezone='Asia/Dhaka', input_cutoff_date=shift(target_day, 1),
                   max_actual_input_date=shift(target_day, 2),
                   max_training_label_date=max(training),
@@ -287,9 +295,16 @@ def prepare_forecasts(listing, current_day, cache):
             records, failures = load_history(listing, cache, target)
             if not records:
                 raise ValueError('No published training history')
+            from erp_history import load_erp_history
+            records, provenance = load_erp_history(records, min(r['operating_date'] for r in records), shift(target, 2), cache)
+            if not records:
+                raise ValueError('No complete paired ERP demand/generation history')
             weather = load_weather(shift(min(r['operating_date'] for r in records), 2), target, cache)
             forecast = fit_forecast(records, weather, target)
             forecast['history_failures'] = failures
+            forecast['erp_snapshots'] = {kind: dict(source=provenance[kind]['source'],
+                captures=provenance[kind]['captures']) for kind in ('demand', 'generation')}
+            forecast['erp_rejected_days'] = provenance['rejected']
             atomic_json(path, forecast)
             result[target] = forecast
         except Exception as error:

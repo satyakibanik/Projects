@@ -20,6 +20,7 @@ HAS_MODELS = all(importlib.util.find_spec(m) for m in ('numpy', 'sklearn', 'catb
 
 def ready(day='2026-10-23'):
     return dict(version=daily.VERSION, status='ready', date=day,
+                target_basis=daily.TARGET_BASIS,
                 issued_at=daily.shift(day, 1) + 'T12:00:00+00:00',
                 input_cutoff_date=daily.shift(day, 1), max_actual_input_date=daily.shift(day, 2),
                 max_training_publication=daily.shift(day, 1),
@@ -121,6 +122,7 @@ class ModelTests(unittest.TestCase):
             for h in range(24):
                 cls.weather['hourly'][day + f'T{h:02}:00'] = [28 + 3 * np.sin(h / 24 * 6.28), 70, 0, 30, max(0, 500 * np.sin((h - 6) / 24 * 6.28))] * 4
             cls.records.append(dict(operating_date=day, published_date=daily.shift(day, -1), report_id=str(i), source_url='https://example.test/' + day,
+                label_basis=daily.TARGET_BASIS,
                 actual=[dict(time=f'{h:02}:00', demand=14000 + i * 3 + 500 * np.cos(h / 24 * 6.28), generation=13900 + i * 3 + 500 * np.cos(h / 24 * 6.28)) for h in range(24)],
                 temperature_c=30, energy_mwh=330000, availability={}, availability_forecast_date=daily.shift(day, -1)))
         cls.origin = cls.records[-2]['operating_date']
