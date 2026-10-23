@@ -132,12 +132,18 @@ class ModelTests(unittest.TestCase):
         self.assertLessEqual(max(original.days[d]['published_date'] for d in original.training_days(self.origin)), daily.shift(self.origin, 1))
 
     def test_seven_models_produce_both_complete_targets_without_pgcb_or_live_data(self):
-        result = daily.fit_forecast(self.records, self.weather, self.origin, issued_at='2026-10-01T00:00:00+00:00')
+        before = daily.shift(self.origin, 1) + 'T17:59:59+00:00'
+        after = daily.shift(self.origin, 1) + 'T18:00:01+00:00'
+        with patch.object(daily, 'utc_now', side_effect=[before, after]):
+            result = daily.fit_forecast(self.records, self.weather, self.origin)
         self.assertTrue(daily.valid_forecast(result, self.origin))
         self.assertEqual(result['members'], list(daily.MEMBERS))
         self.assertEqual(len(result['diagnostics']), 12)
         self.assertGreaterEqual(result['training_days'], 35)
         self.assertEqual(result['max_actual_input_date'], daily.shift(self.origin, 2))
+        self.assertEqual(result['fit_started_at'], before)
+        self.assertEqual(result['issued_at'], after)
+        self.assertEqual(result['issue_timing'], 'after operating day began')
 
 
 if __name__ == '__main__':

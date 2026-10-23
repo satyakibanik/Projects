@@ -25,6 +25,10 @@ CITIES = ((23.81, 90.41), (22.36, 91.78), (24.37, 88.60), (22.82, 89.55))
 HOURS = [f'{h:02}:00' for h in range(24)]
 
 
+def utc_now():
+    return dt.datetime.now(dt.timezone.utc).isoformat()
+
+
 def shift(day, n):
     return (dt.date.fromisoformat(day) - dt.timedelta(days=n)).isoformat()
 
@@ -167,7 +171,7 @@ def load_weather(start, end, cache):
     return value
 
 
-def fit_forecast(records, weather, target_day, issued_at=None):
+def fit_forecast(records, weather, target_day):
     import numpy as np
     from catboost import CatBoostRegressor
     from sklearn.compose import TransformedTargetRegressor
@@ -186,7 +190,8 @@ def fit_forecast(records, weather, target_day, issued_at=None):
     training = data.training_days(target_day)
     if len(training) < 35 or not data.eligible(target_day):
         raise ValueError('At least 35 eligible days and every required published lag are needed')
-    issued = issued_at or dt.datetime.now(dt.timezone.utc).isoformat()
+    fit_started = utc_now()
+    issued = fit_started
     # A precomputed forecast must not use a report published on a later calendar date.
     issue_date = dt.datetime.fromisoformat(issued).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
     if max(data.days[d]['published_date'] for d in training) > min(shift(target_day, 1), issue_date):
@@ -233,7 +238,10 @@ def fit_forecast(records, weather, target_day, issued_at=None):
                      'actual', 'temperature_c', 'energy_mwh', 'availability', 'availability_forecast_date')
     records_used = [{k: data.by_day[d].get(k) for k in record_fields}
                     for d in sorted(data.days) if d <= shift(target_day, 2)]
-    result = dict(version=VERSION, status='ready', date=target_day, issued_at=issued,
+    # Record completion, not the start of a fit that might cross midnight.
+    issued = utc_now()
+    issue_date = dt.datetime.fromisoformat(issued).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
+    result = dict(version=VERSION, status='ready', date=target_day, issued_at=issued, fit_started_at=fit_started,
                   timezone='Asia/Dhaka', input_cutoff_date=shift(target_day, 1),
                   max_actual_input_date=shift(target_day, 2),
                   max_training_label_date=max(training),
