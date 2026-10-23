@@ -101,3 +101,7 @@ nav a.nav-live.active:before{display:none}
 .about-begd{margin:28px 0 20px;padding-top:20px;border-top:1px solid var(--line)}
 .about-begd h2{margin:0 0 10px;font:600 24px var(--heading,var(--body));color:var(--ink)}
 .about-begd p{max-width:85ch;margin:8px 0;color:var(--muted);font:13px/1.6 var(--body)}
+.forecast-layer{margin:12px 0;padding:10px 14px;border:1px solid var(--line,#ccd4d8);border-radius:8px;min-width:0}
+.forecast-layer legend{padding:0 7px;font-weight:700;font-size:12px}
+.forecast-layer legend label{display:inline-flex;align-items:center;gap:8px}
+.forecast-layer .legend{margin:0}

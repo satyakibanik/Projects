@@ -58,8 +58,13 @@ function legendSwatch(item,index=0){
  else sample=`${item.pointsOnly&&!item.connectPoints?'':`<path d="M 2 8 H 44" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="${dash}" ${item.dot?'stroke-linecap="round"':''}/>`}${item.noMarkers?'':[10,23,36].map(x=>`<circle cx="${x}" cy="8" r="${item.pointsOnly?3:2.5}" fill="${color}"/>`).join('')}`;
  return `<svg class="series-swatch" width="46" height="16" viewBox="0 0 46 16" role="img" aria-label="${esc((item.name||'Series')+' · '+kind)}"><title>${esc(kind)}</title>${sample}</svg>`;
 }
-function chartLegend(series,balanceLegend,wrapLegend,familyLegend){
+function chartLegend(series,balanceLegend,wrapLegend,familyLegend,forecastLegend){
  const swatch=s=>legendSwatch(s,series.indexOf(s));
+ if(forecastLegend){
+  const label=s=>`<label><input type="checkbox" data-toggle-series="${s.key}" ${s.family==='forecast'?'data-series-family="forecast"':''} ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`;
+  const forecasts=series.filter(s=>s.family==='forecast'),actuals=series.filter(s=>s.family!=='forecast');
+  return `<div class="legend legend-wrap">${actuals.map(label).join('')}</div>${forecasts.length?`<fieldset class="forecast-layer"><legend><label><input type="checkbox" data-toggle-family="forecast" ${forecasts.every(s=>s.defaultVisible!==false)?'checked':''}>Forecast</label></legend><div class="legend legend-wrap">${forecasts.map(label).join('')}</div></fieldset>`:''}`;
+ }
  if(familyLegend){
   const family=familyLegend.family,items=series.filter(s=>s.family===family);
   return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`).join('')}</div></div>`;
@@ -88,7 +93,7 @@ function chart(rows,series,options={}){
  for(const s of plotSeries){body+=`<g data-series="${s.key}"${s.defaultVisible===false?' style="display:none"':''}>`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} ${unit}</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(s)}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;body+=`<circle data-row-index="${rowIndex}" cx="${x(r)}" cy="${y(r[s.key])}" r="${s.pointRadius??(s.pointsOnly?5:3)}" fill="${s.color}"><title>${s.name}, ${r.time}: ${fmt(r[s.key],2)} ${unit}</title></circle>`}}body+=`</g>`}
  rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" "+unit).join(", "))}"/>`});
  const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}">${options.styleSetting==='en-curve'?`<option value="area" ${selectedStyle==='area'?'selected':''}>Stacked area</option><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option>`:`<option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option>`}</select></label></div>`:'';
- return `<div class="interactive-chart${options.styleSetting==='en-curve'?' en-curve-chart':''}" data-chart="${id}"${options.syncGroup?' data-sync-group="'+esc(options.syncGroup)+'"':''}>${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in ${unit==='%'?'percent':'megawatts'}"><title>${esc(series.map(s=>s.name).join(" and "))} in ${unit}</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(plotSeries,options.balanceLegend,options.wrapLegend,options.familyLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
+ return `<div class="interactive-chart${options.styleSetting==='en-curve'?' en-curve-chart':''}" data-chart="${id}"${options.syncGroup?' data-sync-group="'+esc(options.syncGroup)+'"':''}>${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in ${unit==='%'?'percent':'megawatts'}"><title>${esc(series.map(s=>s.name).join(" and "))} in ${unit}</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(plotSeries,options.balanceLegend,options.wrapLegend,options.familyLegend,options.forecastLegend)}<p class="chart-help">Hover, tap, or focus the chart for values. Use the legend to select series.</p></div>`;
 
 }
 const panel=(title,subtitle,body,tag='MW')=>`<section class="panel"><div class="panel-head"><div><h2>${title}</h2><p>${subtitle}</p></div><span class="tag">${tag}</span></div>${body}</section>`;
@@ -347,24 +352,35 @@ function realTime(){
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
  const forecastDate=currentDayData.today_date||currentDayData.date;
- const forecastRows=data?.forecast?.date===forecastDate?(data.forecast.demand_hourly||[]):[];
- const forecastSource=forecastRows.length?`${data.report_name||data.source_file||'Daily Report'} · Forecast Scenario · ${shortDate(forecastDate)}`:'';
+ const pgcb=currentDayData.pgcb_forecast;
+ const forecastRows=pgcb?.date===forecastDate&&Array.isArray(pgcb.hourly)?pgcb.hourly.filter(r=>r&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(r.time)&&typeof r.demand_mw==='number'&&Number.isFinite(r.demand_mw)):[];
+ const forecastSource=forecastRows.length?`${pgcb.report_name||'Daily Report'} · PGCB Forecast Scenario · ${shortDate(forecastDate)} · published ${shortDate(pgcb.published_date)}`:'';
+ const independent=currentDayData.independent_forecast;
+ const modelRows=independent?.status==='ready'&&independent.date===forecastDate&&Array.isArray(independent.hourly)&&independent.hourly.length===24&&independent.hourly.every((r,i)=>r&&r.time===String(i).padStart(2,'0')+':00'&&['generation_mw','demand_mw'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k])&&r[k]>=0))?independent.hourly:[];
  const combinedRowsByTime=new Map();
- const rowFor=time=>{if(!combinedRowsByTime.has(time))combinedRowsByTime.set(time,{time,total_mw:null,demand_mw:null,shed_mw:null,forecasted_demand_mw:null});return combinedRowsByTime.get(time)};
+ const rowFor=time=>{if(!combinedRowsByTime.has(time))combinedRowsByTime.set(time,{time,total_mw:null,demand_mw:null,shed_mw:null,forecasted_demand_mw:null,independent_generation_mw:null,independent_demand_mw:null});return combinedRowsByTime.get(time)};
  for(const row of rows)Object.assign(rowFor(row.time),{demand_mw:row.demand_mw,shed_mw:row.shed_mw});
  for(const row of generation)rowFor(row.time).total_mw=row.total_mw;
  for(const point of forecastRows)rowFor(point.time).forecasted_demand_mw=point.demand_mw;
+ for(const point of modelRows)Object.assign(rowFor(point.time),{independent_generation_mw:point.generation_mw,independent_demand_mw:point.demand_mw});
  const generationChartRows=[...combinedRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
  const combinedSeries=[
   {key:'total_mw',name:'generation (real time)',color:'#263238'},
-  {key:'demand_mw',name:'Demand (real time)',color:'#c48722'},
-  {key:'forecasted_demand_mw',name:'Demand (forecasted previous day)',color:'#df6f9b',dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}
+  {key:'demand_mw',name:'Demand · realtime, substation side',color:'#c48722'},
+  ...(forecastRows.length?[{key:'forecasted_demand_mw',name:'Demand · PGCB published scenario (generation side)',color:'#df6f9b',family:'forecast',defaultVisible:false,dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[]),
+  ...(modelRows.length?[
+   {key:'independent_generation_mw',name:'Generation · Independent median ensemble',color:'#2584bd',family:'forecast',defaultVisible:false,dashArray:'8 4',noMarkers:true},
+   {key:'independent_demand_mw',name:'Demand · Independent mean ensemble (generation side)',color:'#9655b5',family:'forecast',defaultVisible:false,dashArray:'3 4',noMarkers:true}
+  ]:[])
  ];
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const combinedCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings · ${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
  const shedSeries=[{key:'shed_mw',name:'Load shedding (real time)',color:'#b95442'}];
+ const modelNote=modelRows.length?`Independent forecasts for ${shortDate(forecastDate)} · issued ${new Date(independent.issued_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'})} BST · ${independent.issue_timing||'issue time recorded'} · historical actual inputs through ${shortDate(independent.max_actual_input_date)}. Experimental forecasts; generation includes imports. Full-day forecasts stay fixed while live readings arrive.`:`Independent forecasts are not available for ${shortDate(forecastDate)} yet; the next scheduled build will retry.`;
+ const pgcbNote=forecastRows.length?'PGCB scenario shown only for its explicitly dated operating day; prior-day publication is not verified.':`No matching PGCB hourly scenario is available for ${shortDate(forecastDate)}.`;
  const combinedPanel=panel('Demand, Generation & load shedding',combinedCaption,
-  '<div class="realtime-dispatch-plots">'+chart(generationChartRows,combinedSeries,{syncGroup:'realtime-dispatch'})+
+  '<div class="realtime-dispatch-plots">'+chart(generationChartRows,combinedSeries,{syncGroup:'realtime-dispatch',forecastLegend:true})+
+  `<p class="note forecast-status">${esc(modelNote)} ${esc(pgcbNote)} Forecast layers are off by default.</p><p class="note">Demand forecasts are generation-side; ERP realtime demand is substation-side. Their difference is not a forecast error. Score demand forecasts against the matching P4 actuals published the following day.</p>`+
   '<h3>Reported load shedding</h3>'+chart(generationChartRows,shedSeries,{syncGroup:'realtime-dispatch',height:160})+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
@@ -396,7 +412,7 @@ function realTime(){
  const shareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'}];
  const sharePanel=generation.length?panel('Import dependence (%) & renewable share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Imported renewables are not classified',chart(shareRows,shareSeries,{unit:'%'}),'%'):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
- const refreshNote=currentDayData.delivery==='static'?'Checks for newer published snapshots every three minutes; upstream data is published by the scheduled site build, approximately hourly.':'Checks ERP readings every three minutes.';
+ const refreshNote=currentDayData.delivery==='static'?'Checks for newer published snapshots every three minutes; site builds are scheduled every 15 minutes and may be delayed.':'Checks ERP readings every three minutes.';
  const latestReading=[...rows,...generation,...routes.flatMap(route=>route.hourly||[])].map(row=>row.time).filter(Boolean).sort().at(-1)||'unavailable';
  const oldSnapshot=currentDayData.delivery==='static'&&Date.now()-Date.parse(currentDayData.updated_at)>90*60000;
  const refreshWarning=(currentDayData.snapshot_refresh_failed?' Could not check the latest published snapshot; showing the last available readings.':'')+(oldSnapshot?' This snapshot is over 90 minutes old; a newer publication may be pending.':'');

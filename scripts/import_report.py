@@ -353,7 +353,14 @@ def parse_report(report_bytes, source_file):
         None,
     )
     forecast_demand_hourly = []
+    scenario_date = None
     if scenario_row is not None:
+        match = re.search(r'(\d{2}-\d{2}-\d{4})', str(forecast_sheet.cell(scenario_row, 5).value))
+        if match:
+            try:
+                scenario_date = datetime.datetime.strptime(match[1], '%d-%m-%Y').date().isoformat()
+            except ValueError:
+                pass
         header_row = next(
             (row for row in range(scenario_row + 1, min(scenario_row + 4, forecast_sheet.max_row + 1))
              if forecast_sheet.cell(row, 5).value == "Hour"
@@ -467,7 +474,7 @@ def parse_report(report_bytes, source_file):
                                        energy_west_to_east_kwh=number(summary_sheet["E54"].value),
                                        peak_west_to_east_mw=number(summary_sheet["E55"].value),
                                        max_west_to_east_mw=number(summary_sheet["E56"].value))),
-        forecast=dict(date=forecast_date, plants=forecast_plants, totals=system_forecast,
+        forecast=dict(date=forecast_date, scenario_date=scenario_date, plants=forecast_plants, totals=system_forecast,
                       demand_hourly=forecast_demand_hourly),
     )
 

@@ -4,6 +4,15 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 function codec(){const window={};vm.runInNewContext(fs.readFileSync(path.join(root,'begd/view-state.js'),'utf8'),{window,URL,Date});return window.BEGDViewCodec;}
 const plain=value=>JSON.parse(JSON.stringify(value));
+test('independent realtime forecasts are off by default and explicit selections survive URL roundtrip',()=>{
+ const api=codec(),gen='realtime:total_mw|independent_generation_mw',demand='realtime:total_mw|independent_demand_mw';
+ const base={...api.defaults,date:'2026-10-21',custom:[],presets:{},trendLayers:[]};
+ const off=api.encode('https://example.test/begd/#realtime',{...base,layers:[[gen,false],[demand,false]]});
+ assert.equal(new URL(off).searchParams.has('hide'),false);
+ const on=api.encode('https://example.test/begd/#realtime',{...base,layers:[[gen,true],[demand,true]]});
+ assert.match(new URL(on).searchParams.get('show'),/rt\.ig/);assert.match(new URL(on).searchParams.get('show'),/rt\.id/);
+ assert.deepEqual(plain(api.decode(on).state.layers),[[demand,true],[gen,true]]);
+});
 test('view URL roundtrip preserves settings, resolved dates, stable series IDs and legacy hashes',()=>{
  const api=codec(),state={...api.defaults,date:'2026-10-19',custom:['2026-08-01','2026-07-02'],presets:{yesterday:'2026-10-18',tomorrow:'unavailable',highest:'2026-05-20'},dispatch:'bar',shed:'line',fuel:'ring',regional:'line',curve:'line',table:'mw',days:'365',generationUnit:'MW',importsUnit:'MW',temperatureUnit:'F',detail:'weekly',layers:[['overview:dispatch|generation_mw',false],['imports:Adani|mw',true]],trendLayers:[['generation-demand|temperature_c',true],['fuel-mix|coal',false]]};
  for(const hash of ['overview','trends','en-curve','regions','realtime']){

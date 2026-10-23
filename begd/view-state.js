@@ -5,15 +5,15 @@
   const defaults={dispatch:'line',shed:'bar',fuel:'bar',regional:'stacked',curve:'area',table:'energy',days:'30',generationUnit:'GWh',importsUnit:'GWh',temperatureUnit:'C',detail:'auto'};
   const names=['date','compare','yesterday','tomorrow','highest','layers','trendLayers','hide','show','v',...Object.keys(choices)];
   // Append-only aliases: these IDs must not depend on chart/legend render order.
-  const dailyCharts={'overview:dispatch':'od','overview:shed':'os','en-curve:en-curve':'ec','en-curve:shortage_mw':'es','imports:total_mw':'it'};
-  const dailySeries={generation_mw:'g',demand_mw:'d',shed_mw:'s',forecasted_demand_mw:'f',east_grid_mw:'e',west_grid_mw:'w',shortage_mw:'q',total_mw:'i',mw:'m',output_selected:'o'};
+  const dailyCharts={'overview:dispatch':'od','overview:shed':'os','en-curve:en-curve':'ec','en-curve:shortage_mw':'es','imports:total_mw':'it','realtime:total_mw':'rt'};
+  const dailySeries={generation_mw:'g',demand_mw:'d',shed_mw:'s',forecasted_demand_mw:'f',east_grid_mw:'e',west_grid_mw:'w',shortage_mw:'q',total_mw:'i',mw:'m',output_selected:'o',independent_generation_mw:'ig',independent_demand_mw:'id'};
   const trendCharts={'generation-demand':'tg','load-shedding':'tl','fuel-mix':'tf',imports:'ti','dependence-renewables':'td','unserved-share':'tu','historical-generation':'th','temperature-subplot':'tt'};
   const trendSeries={tg:{generation_mwh:'g',demand_mwh:'d',temperature_c:'t'},tl:{shed_peak_mw:'s'},tf:{gas:'g',coal:'c',hfo:'o',hsd:'d',hydro:'h',solar:'s',imports:'i',wind:'w'},ti:{imports_mwh:'i'},td:{'import-share':'i','renewable-share':'r'},tu:{'unserved-share':'u'},th:{'daily-mean':'d','rolling-mean':'r'},tt:{temperature_c:'t'}};
   const lookup=(map,key)=>Object.hasOwn(map,key)?map[key]:undefined;
   const reverse=map=>Object.fromEntries(Object.entries(map).map(([key,value])=>[value,key]));
   const dailyChartNames=reverse(dailyCharts),dailySeriesNames=reverse(dailySeries),trendChartNames=reverse(trendCharts);
   const trendSeriesNames=Object.fromEntries(Object.entries(trendSeries).map(([chart,series])=>[chart,reverse(series)]));
-  function defaultVisible(id,trends=false){return trends?id!=='generation-demand|temperature_c':!['overview:dispatch|east_grid_mw','overview:dispatch|west_grid_mw'].includes(id);}
+  function defaultVisible(id,trends=false){return trends?id!=='generation-demand|temperature_c':!['overview:dispatch|east_grid_mw','overview:dispatch|west_grid_mw','realtime:total_mw|forecasted_demand_mw','realtime:total_mw|independent_generation_mw','realtime:total_mw|independent_demand_mw'].includes(id);}
   function visibilityOverrides(pairs,trends=false){
     return [...new Map(pairs||[])].filter(([id,visible])=>visible!==defaultVisible(id,trends)).sort(([a],[b])=>a.localeCompare(b));
   }
