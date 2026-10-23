@@ -1,69 +1,43 @@
-const {test}=require('node:test');
-const assert=require('node:assert/strict');
-const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-const root=path.resolve(__dirname,'..');
-function app(){
- const source=fs.readFileSync(path.join(root,'begd/app.js'),'utf8').replace('loadCurrentDay();window.setInterval(loadCurrentDay,180000);','').replace(/refreshDateList\(\);\s*$/,'');
- const c=vm.createContext({document:{addEventListener(){},querySelector(){return {addEventListener(){}}}},window:{addEventListener(){}},location:{hash:'#realtime'},console});
- vm.runInContext(source,c);return c;
-}
+const {test}=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm');
+const {load,fixture:archive}=require('./helpers/forecast-fixture.cjs');
 function fixture(c,forecastDate='2026-10-23'){
- c.fixture={today_date:'2026-10-23',source_dates:{generation:'2026-10-23',demand:'2026-10-23'},generation_hourly:[{time:'00:00',total_mw:14000}],demand_hourly:[{time:'00:00',demand_mw:14500,shed_mw:0}],imports:[],
-  independent_forecast:{status:'ready',date:forecastDate,target_basis:{demand:'ERP substation side',generation:'ERP generation including imports'},issued_at:'2026-10-22T17:00:00Z',max_actual_input_date:'2026-10-21',issue_timing:'before operating day',hourly:Array.from({length:24},(_,h)=>({time:String(h).padStart(2,'0')+':00',generation_mw:13000+h*100,demand_mw:13500+h*100}))}};
+ c.fixture={today_date:'2026-10-23',source_dates:{generation:'2026-10-23',demand:'2026-10-23'},generation_hourly:[{time:'00:00',total_mw:14000}],demand_hourly:[{time:'00:00',demand_mw:14500,supply_mw:14490,shed_mw:10}],imports:[],independent_forecast:{version:'erp-independent-top3-v3',status:'ready',date:forecastDate,target_basis:{demand:'ERP substation side',generation:'ERP generation including imports'},issued_at:'2026-10-22T17:00:00Z',hourly:Array.from({length:24},(_,h)=>({time:String(h).padStart(2,'0')+':00',demand_models:{Trees:13500+h,Ridge:13400+h,Median:13300+h},generation_models:{Median:14000+h,Ridge:13900+h,Trees:13800+h}}))}};
  vm.runInContext('currentDayData=fixture',c);
 }
-test('one live reading still exposes two complete independent curves, off by default',()=>{
- const c=app();fixture(c);const html=vm.runInContext('realTime()',c);
- assert.match(html,/>Forecast<\/label>/);assert.match(html,/Independent median ensemble/);assert.match(html,/Independent mean ensemble/);
- assert.doesNotMatch(html,/forecasted previous day/);
- const main=vm.runInContext('[...chartData.values()].find(m=>m.series.some(s=>s.key==="independent_generation_mw"))',c);
- assert.equal(main.rows.length,24);
- assert.equal(main.rows.filter(r=>r.total_mw!==null).length,1);
- for(const key of ['independent_generation_mw','independent_demand_mw']){
-  assert.equal(main.rows.filter(r=>Number.isFinite(r[key])).length,24);
-  assert.equal(main.series.find(s=>s.key===key).defaultVisible,false);
-  assert.match(html,new RegExp('data-series="'+key+'" style="display:none"'));
+function live(){const bundle=archive();bundle.days={};bundle.pgcb_forecasts={};const state=load(bundle);fixture(state.c);return state}
+function plot(c){return vm.runInContext('[...chartData.values()].filter(p=>p.series.some(s=>s.key==="demand_forecast_mw")).at(-1)',c)}
+test('first panel is wholly substation-side, with reported shedding and no ERP generation or forecast layers',()=>{
+ const {c}=live();const html=vm.runInContext('realTime()',c),models=vm.runInContext('[...chartData.values()].filter(p=>p.syncGroup)',c);
+ assert.equal(models.length,2);assert.deepEqual(Array.from(models[0].series,s=>s.key),['demand_mw','supply_mw']);
+ assert.equal(models[0].rows[0].supply_mw,14490);assert.equal(models[1].rows[0].shed_mw,10);
+ assert.match(html,/demand − supply/);assert.doesNotMatch(html.split('id="independent-study-panel"')[0],/Generation · realtime|forecasted_demand_mw|independent_generation_mw/);
+ assert.deepEqual(Array.from(models[0].rows,r=>r.time),Array.from(models[1].rows,r=>r.time));
+});
+test('expanded live forecast has all 24 horizons while future demand and generation actuals stay absent',()=>{
+ const {c,open}=live();open();const html=vm.runInContext('realTime()',c),model=plot(c);
+ assert.equal(model.rows.length,24);assert.equal(model.rows.filter(r=>r.demand_mw!==null).length,1);assert.equal(model.rows.filter(r=>r.generation_mw!==null).length,1);
+ assert.equal(model.rows.filter(r=>Number.isFinite(r.demand_forecast_mw)).length,24);assert.equal(model.series.some(s=>s.key==='supply_mw'),false);
+ assert.match(html,/Issued/);assert.match(html,/Demand forecast · Trees/);
+});
+test('wrong-day, partial, nonfinite and generation-side legacy forecasts cannot masquerade as ranked ERP forecasts',()=>{
+ for(const mutate of [v=>v.date='2026-10-22',v=>v.hourly.pop(),v=>v.hourly[0]=null,v=>v.hourly[0].demand_models.Trees=NaN,v=>v.target_basis.demand='P4 generation side',v=>v.version='erp-independent-seven-v2']){
+  const {c,open}=live();mutate(c.fixture.independent_forecast);open();const html=vm.runInContext('realTime()',c);
+  assert.ok(plot(c).rows.every(r=>r.demand_forecast_mw===null));assert.match(html,/not available for this operating date/);
  }
- assert.doesNotMatch(html,/data-toggle-family="forecast" checked/);
 });
-test('wrong-day or partial independent forecasts cannot leak into today',()=>{
- const c=app();fixture(c,'2026-10-22');let html=vm.runInContext('realTime()',c);
- assert.doesNotMatch(html,/data-toggle-series="independent_/);
- fixture(c);c.fixture.independent_forecast.hourly.pop();html=vm.runInContext('realTime()',c);
- assert.doesNotMatch(html,/data-toggle-series="independent_/);assert.match(html,/not available/);
- fixture(c);c.fixture.independent_forecast.hourly=Array(24).fill(null);c.fixture.pgcb_forecast={date:'2026-10-23',hourly:{}};
- html=vm.runInContext('realTime()',c);assert.doesNotMatch(html,/data-toggle-series="independent_/);assert.match(html,/substation side/);
-});
-test('generation-side cached demand cannot masquerade as the new substation forecast',()=>{
- const c=app();fixture(c);c.fixture.independent_forecast.target_basis.demand='P4 generation side';
- assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="independent_/);
-});
-test('substation supply is plotted separately and no forecast-generation shedding estimate is shown',()=>{
- const c=app();fixture(c);c.fixture.demand_hourly[0].supply_mw=14490;c.fixture.demand_hourly[0].shed_mw=10;
- const html=vm.runInContext('realTime()',c);
- const plot=vm.runInContext('[...chartData.values()].find(p=>p.series.some(s=>s.key==="supply_mw"))',c);
- assert.equal(plot.rows[0].supply_mw,14490);assert.equal(plot.rows[0].total_mw,14000);
- assert.match(html,/demand − supply/);assert.doesNotMatch(html,/Estimated load shedding/);
-});
-test('PGCB is absent when unavailable, dates must match, and selected workbook is irrelevant',()=>{
- const c=app();fixture(c);
- vm.runInContext("data={forecast:{date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:99999}]}}",c);
- let html=vm.runInContext('realTime()',c);
- assert.doesNotMatch(html,/data-toggle-series="forecasted_demand_mw"/);assert.match(html,/No matching PGCB/);
+test('PGCB curves match the forecast operating date and ignore the workbook selected in other tabs',()=>{
+ const {c,open}=live();open();vm.runInContext("data={forecast:{date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:99999}]}}",c);
+ assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="pgcb_/);
  c.fixture.pgcb_forecast={date:'2026-10-22',hourly:[{time:'00:00',demand_mw:99999}]};
- html=vm.runInContext('realTime()',c);assert.doesNotMatch(html,/data-toggle-series="forecasted_demand_mw"/);
- c.fixture.pgcb_forecast={date:'2026-10-23',published_date:'2026-10-23',report_name:'23 October workbook',hourly:[{time:'00:00',demand_mw:15000}]};
- html=vm.runInContext('realTime()',c);assert.match(html,/Demand · PGCB published scenario/);
- const model=vm.runInContext('[...chartData.values()].filter(m=>m.series.some(s=>s.key==="forecasted_demand_mw")).at(-1)',c);
- assert.equal(model.series.find(s=>s.key==='forecasted_demand_mw').defaultVisible,false);
- assert.equal(model.rows[0].forecasted_demand_mw,15000);
+ assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="pgcb_/);
+ c.fixture.pgcb_forecast={date:'2026-10-23',hourly:[{time:'00:00',demand_mw:15000,generation_mw:14900}]};
+ assert.match(vm.runInContext('realTime()',c),/Demand · PGCB/);assert.equal(plot(c).rows[0].pgcb_demand_mw,15000);
 });
-test('forecast visibility remains selected across refresh and both plots keep matching timestamps',()=>{
- const c=app();fixture(c);
- vm.runInContext("chartVisibility.set('realtime:total_mw|independent_generation_mw',true)",c);
- vm.runInContext('realTime()',c);
- const models=vm.runInContext('[...chartData.values()].filter(m=>m.syncGroup)',c);
- assert.equal(models[0].series.find(s=>s.key==='independent_generation_mw').defaultVisible,true);
- assert.equal(models[0].series.find(s=>s.key==='independent_demand_mw').defaultVisible,false);
- assert.deepEqual(models[0].rows.map(r=>r.time),models[1].rows.map(r=>r.time));
+test('live refresh preserves the selected ranked model and legend visibility',()=>{
+ const {c,controls,open}=live();open();controls.get('study-demand').events.change({target:{value:'Ridge'}});
+ vm.runInContext("chartVisibility.set('independent-study:2026-10-23|generation_forecast_mw',false)",c);
+ vm.runInContext('realTime()',c);const before=plot(c).rows[0].demand_forecast_mw;
+ c.fixture.demand_hourly.push({time:'01:00',demand_mw:14400,supply_mw:14390,shed_mw:10});vm.runInContext('realTime()',c);
+ assert.equal(plot(c).rows[0].demand_forecast_mw,before);assert.equal(plot(c).rows[1].demand_mw,14400);
+ assert.equal(plot(c).series.find(s=>s.key==='generation_forecast_mw').defaultVisible,false);
 });

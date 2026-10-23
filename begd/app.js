@@ -362,40 +362,16 @@ function realTime(){
  if(!currentDayData)return independentStudyPanel+`<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
- const forecastDate=currentDayData.today_date||currentDayData.date;
- const pgcb=Object.hasOwn(currentDayData,'pgcb_forecast')?currentDayData.pgcb_forecast:
-  data?.forecast?.scenario_date===forecastDate?{date:forecastDate,hourly:data.forecast.demand_hourly,report_name:data.report_name,source_url:data.source_url,published_date:data.published_date}:null;
- const forecastRows=pgcb?.date===forecastDate&&Array.isArray(pgcb.hourly)?pgcb.hourly.filter(r=>r&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(r.time)&&typeof r.demand_mw==='number'&&Number.isFinite(r.demand_mw)):[];
- const forecastSource=forecastRows.length?`${pgcb.report_name||'Daily Report'} · PGCB Forecast Scenario · ${shortDate(forecastDate)} · published ${shortDate(pgcb.published_date)}`:'';
- const independent=currentDayData.independent_forecast;
- const modelRows=independent?.status==='ready'&&independent.target_basis?.demand==='ERP substation side'&&independent.target_basis?.generation==='ERP generation including imports'&&independent.date===forecastDate&&Array.isArray(independent.hourly)&&independent.hourly.length===24&&independent.hourly.every((r,i)=>r&&r.time===String(i).padStart(2,'0')+':00'&&['generation_mw','demand_mw'].every(k=>typeof r[k]==='number'&&Number.isFinite(r[k])&&r[k]>=0))?independent.hourly:[];
- const combinedRowsByTime=new Map();
- const rowFor=time=>{if(!combinedRowsByTime.has(time))combinedRowsByTime.set(time,{time,total_mw:null,demand_mw:null,supply_mw:null,shed_mw:null,forecasted_demand_mw:null,independent_generation_mw:null,independent_demand_mw:null});return combinedRowsByTime.get(time)};
- // The old static bundle called the supply column generation_mw.
- for(const row of rows)Object.assign(rowFor(row.time),{demand_mw:row.demand_mw,supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw});
- for(const row of generation)rowFor(row.time).total_mw=row.total_mw;
- for(const point of forecastRows)rowFor(point.time).forecasted_demand_mw=point.demand_mw;
- for(const point of modelRows)Object.assign(rowFor(point.time),{independent_generation_mw:point.generation_mw,independent_demand_mw:point.demand_mw});
- const generationChartRows=[...combinedRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
- const combinedSeries=[
-  {key:'total_mw',name:'Generation · realtime, including imports',color:'#263238'},
-  {key:'demand_mw',name:'Demand · realtime, substation side',color:'#c48722'},
-  {key:'supply_mw',name:'Supply · realtime, substation side',color:'#1976b9'},
-  ...(forecastRows.length?[{key:'forecasted_demand_mw',name:'Demand · PGCB published scenario (generation side)',color:'#df6f9b',family:'forecast',defaultVisible:false,dash:true,dot:true,pointsOnly:true,connectPoints:true,pointRadius:2.5}]:[]),
-  ...(modelRows.length?[
-   {key:'independent_generation_mw',name:'Generation · Independent median ensemble (ERP)',color:'#2584bd',family:'forecast',defaultVisible:false,dashArray:'8 4',noMarkers:true},
-   {key:'independent_demand_mw',name:'Demand · Independent mean ensemble (substation side)',color:'#9655b5',family:'forecast',defaultVisible:false,dashArray:'3 4',noMarkers:true}
-  ]:[])
- ];
+ const demandRows=rows.map(row=>({time:row.time,demand_mw:row.demand_mw,
+  supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const combinedCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings · ${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
- const shedSeries=[{key:'shed_mw',name:'Load shedding (real time)',color:'#b95442'}];
- const modelNote=modelRows.length?`Independent forecasts for ${shortDate(forecastDate)} · issued ${new Date(independent.issued_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'})} BST · ${independent.issue_timing||'issue time recorded'} · historical actual inputs through ${shortDate(independent.max_actual_input_date)}. Experimental forecasts; generation includes imports. Full-day forecasts stay fixed while live readings arrive.`:`Independent forecasts are not available for ${shortDate(forecastDate)} yet.`;
- const pgcbNote=forecastRows.length?'PGCB scenario shown only for its explicitly dated operating day; prior-day publication is not verified.':`No matching PGCB hourly scenario is available for ${shortDate(forecastDate)}.`;
- const combinedPanel=panel('Demand, supply, generation & load shedding',combinedCaption,
-  '<div class="realtime-dispatch-plots">'+chart(generationChartRows,combinedSeries,{syncGroup:'realtime-dispatch',forecastLegend:true})+
-  `<p class="note forecast-status">${esc(modelNote)} ${esc(pgcbNote)} Forecast layers are off by default.</p><p class="note">Independent demand forecasts use ERP substation-side demand; independent generation forecasts use ERP generation including imports. Substation-side load shedding = demand − supply at the same timestamp. The optional PGCB demand scenario remains generation-side and is not scored against substation demand.</p>`+
-  '<h3>Reported load shedding</h3>'+chart(generationChartRows,shedSeries,{syncGroup:'realtime-dispatch',height:160})+
+ const combinedPanel=panel('Demand, supply, & load shedding.',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
+  '<div class="realtime-dispatch-plots">'+chart(demandRows,[
+   {key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},
+   {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}
+  ],{syncGroup:'realtime-dispatch'})+
+  '<h3>Reported load shedding</h3>'+chart(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],{syncGroup:'realtime-dispatch',height:160})+
+  '<p class="note">Substation-side load shedding = demand − supply at the same timestamp.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
@@ -427,8 +403,8 @@ function realTime(){
  const latestReading=[...rows,...generation,...routes.flatMap(route=>route.hourly||[])].map(row=>row.time).filter(Boolean).sort().at(-1)||'unavailable';
  const oldSnapshot=currentDayData.delivery==='static'&&Date.now()-Date.parse(currentDayData.updated_at)>90*60000;
  const refreshWarning=(currentDayData.snapshot_refresh_failed?' Could not check the latest published snapshot; showing the last available readings.':'')+(oldSnapshot?' This snapshot is over 90 minutes old; a newer publication may be pending.':'');
- const panels=`${combinedPanel}${sharePanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
- return independentStudyPanel+`<p class="note" id="current-status" role="status">Snapshot date · ${esc(today)} Bangladesh time · ERP snapshot captured ${esc(updated)} · latest reading ${esc(latestReading)} BST. Only sources with readings dated this date are shown. ${esc(refreshNote)}${esc(refreshWarning)}</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
+ const panels=`${combinedPanel}${independentStudyPanel}${sharePanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
+ return `<p class="note" id="current-status" role="status">Snapshot date · ${esc(today)} Bangladesh time · ERP snapshot captured ${esc(updated)} · latest reading ${esc(latestReading)} BST. Only sources with readings dated this date are shown. ${esc(refreshNote)}${esc(refreshWarning)}</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function substationRows(report){

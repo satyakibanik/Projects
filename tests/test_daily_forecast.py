@@ -24,8 +24,10 @@ def ready(day='2026-10-23'):
                 issued_at=daily.shift(day, 1) + 'T12:00:00+00:00',
                 input_cutoff_date=daily.shift(day, 1), max_actual_input_date=daily.shift(day, 2),
                 max_training_publication=daily.shift(day, 1),
-                models=dict(generation='Independent median ensemble', demand='Independent mean ensemble'),
-                hourly=[dict(time=t, generation_mw=14000., demand_mw=14500.) for t in daily.HOURS])
+                models=daily.DEFAULT_MODELS,
+                hourly=[dict(time=t, generation_mw=14000., demand_mw=14500.,
+                    generation_models={n:14000. for n in daily.TOP_MODELS['generation']},
+                    demand_models={n:14500. for n in daily.TOP_MODELS['demand']}) for t in daily.HOURS])
 
 
 class PublicationTests(unittest.TestCase):
@@ -48,6 +50,32 @@ class PublicationTests(unittest.TestCase):
                 one = daily.prepare_forecasts([], dict(today_date='2026-10-23', generation_hourly=[]), cache)
                 two = daily.prepare_forecasts([], dict(today_date='2026-10-23', generation_hourly=[dict(time='00:00', total_mw=99999)]), cache)
             self.assertEqual(one, two)
+
+    def test_candidate_maps_and_rank_one_values_must_be_complete_and_consistent(self):
+        for change in ('missing','nonfinite','primary'):
+            value=ready()
+            if change=='missing':value['hourly'][0]['demand_models'].pop(daily.TOP_MODELS['demand'][2])
+            if change=='nonfinite':value['hourly'][0]['generation_models'][daily.TOP_MODELS['generation'][1]]=float('inf')
+            if change=='primary':value['hourly'][0]['demand_mw']+=1
+            self.assertFalse(daily.valid_forecast(value,'2026-10-23'))
+        self.assertFalse(daily.valid_forecast(ready('2026-10-22'),'2026-10-22'))
+
+    def test_history_keeps_issued_predictions_and_uses_date_matched_erp_actuals(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache=Path(directory)
+            previous=ready('2026-10-23')
+            daily.atomic_json(cache/daily.VERSION/'2026-10-23.json',previous)
+            daily.atomic_json(cache/'erp-history/demand/manifest.json',dict(days={'2026-10-23':[dict(time='00:00',demand_mw=100,supply_mw=99)]}))
+            daily.atomic_json(cache/'erp-history/generation/manifest.json',dict(days={'2026-10-23':[dict(time='00:00',generation_mw=110)]}))
+            current=dict(today_date='2026-10-24')
+            with patch.object(daily,'prepare_forecasts',return_value={'2026-10-24':ready('2026-10-24')}):
+                build.attach_forecasts([],{},current,cache)
+            history=current['forecast_history']['2026-10-23']
+            self.assertEqual(history['forecast']['hourly'],previous['hourly'])
+            self.assertEqual(history['generation_hourly'],[dict(time='00:00',total_mw=110)])
+            self.assertEqual(history['demand_hourly'][0]['supply_mw'],99)
+            self.assertEqual(current['forecast_history']['2026-10-24']['generation_hourly'],[])
+            self.assertEqual(json.loads((cache/daily.VERSION/'2026-10-23.json').read_text()),previous)
 
     def test_local_api_reads_frozen_forecast_without_training_on_live_data(self):
         import server
@@ -86,6 +114,17 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(current['pgcb_forecast']['date'], '2026-10-23')
         self.assertEqual(current['independent_forecast'], ready())
 
+    def test_pgcb_only_history_day_remains_selectable_without_a_model_forecast(self):
+        current=dict(today_date='2026-10-23')
+        report=dict(published_date='2026-10-22',forecast=dict(scenario_date='2026-10-22',
+            demand_hourly=[dict(time='00:00',demand_mw=150,generation_mw=149)]))
+        with tempfile.TemporaryDirectory() as directory, patch.object(daily,'prepare_forecasts',return_value={'2026-10-23':ready()}):
+            build.attach_forecasts([],{'22':report},current,Path(directory))
+        day=current['forecast_history']['2026-10-22']
+        self.assertIsNone(day['forecast'])
+        self.assertEqual(day['pgcb_forecast']['date'],'2026-10-22')
+        self.assertEqual(day['pgcb_forecast']['hourly'][0]['demand_mw'],150)
+
     def test_parser_keeps_hourly_scenario_date_separate_from_plant_availability(self):
         book = workbook()
         f = book['Forecast']
@@ -116,7 +155,7 @@ class ModelTests(unittest.TestCase):
     def setUpClass(cls):
         import numpy as np
         cls.records, cls.weather = [], dict(hourly={})
-        start = dt.date(2026, 6, 1)
+        start = dt.date(2026, 7, 20)
         for i in range(100):
             day = (start + dt.timedelta(days=i)).isoformat()
             for h in range(24):
@@ -142,19 +181,34 @@ class ModelTests(unittest.TestCase):
         self.assertEqual(original.training_days(self.origin), other.training_days(self.origin))
         self.assertLessEqual(max(original.days[d]['published_date'] for d in original.training_days(self.origin)), daily.shift(self.origin, 1))
 
-    def test_seven_models_produce_both_complete_targets_without_pgcb_or_live_data(self):
+    def test_top_three_publication_calibrates_only_on_available_earlier_origins(self):
+        from independent_models import BASE_MODELS
         before = daily.shift(self.origin, 1) + 'T17:59:59+00:00'
         after = daily.shift(self.origin, 1) + 'T18:00:01+00:00'
-        with patch.object(daily, 'utc_now', side_effect=[before, after]):
-            result = daily.fit_forecast(self.records, self.weather, self.origin)
-        self.assertTrue(daily.valid_forecast(result, self.origin))
-        self.assertEqual(result['members'], list(daily.MEMBERS))
-        self.assertEqual(len(result['diagnostics']), 12)
-        self.assertGreaterEqual(result['training_days'], 35)
-        self.assertEqual(result['max_actual_input_date'], daily.shift(self.origin, 2))
-        self.assertEqual(result['fit_started_at'], before)
-        self.assertEqual(result['issued_at'], after)
-        self.assertEqual(result['issue_timing'], 'after operating day began')
+        def fit(data,origin,target):
+            values={name:(data.days[daily.shift(origin,2)][target]+i).tolist() for i,name in enumerate(BASE_MODELS)}
+            return values,dict(origin=origin,target=target),[dict(model='fixture',warnings=[])]
+        with tempfile.TemporaryDirectory() as directory, patch('independent_models.fit_origin',side_effect=fit) as fitted, patch.object(daily,'utc_now',side_effect=[before,after,before,after]):
+            result=daily.fit_forecast(self.records,self.weather,self.origin,cache=Path(directory))
+            fits=fitted.call_count
+            changed=copy.deepcopy(self.records)
+            for record in changed:
+                record['pgcb_scenario']=[dict(time='00:00',demand=1e12,generation=1e12)]
+                if record['operating_date']>=daily.shift(self.origin,1):
+                    for row in record['actual']:row['demand']=row['generation']=1e12
+            second=daily.fit_forecast(changed,self.weather,self.origin,cache=Path(directory))
+            self.assertEqual(fitted.call_count,fits)
+        self.assertTrue(daily.valid_forecast(result,self.origin))
+        self.assertEqual(result['hourly'],second['hourly'])
+        self.assertEqual(result['members'],list(BASE_MODELS))
+        self.assertEqual(result['models'],daily.DEFAULT_MODELS)
+        self.assertEqual(len(result['hourly'][0]['demand_models']),3)
+        self.assertEqual(len(result['hourly'][0]['generation_models']),3)
+        for audit in result['calibration']:
+            self.assertLess(max(audit['calibration_dates']),self.origin)
+            self.assertLessEqual(audit['max_calibration_publication'],daily.shift(self.origin,1))
+        self.assertEqual(result['issued_at'],after)
+        self.assertEqual(result['issue_timing'],'after operating day began')
 
 
 if __name__ == '__main__':

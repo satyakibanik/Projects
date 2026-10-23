@@ -38,6 +38,34 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir):
                                          published_date=pgcb['published_date']) if pgcb else None)
     forecasts = prepare_forecasts(records, current_day, cache_dir)
     current_day['independent_forecast'] = forecasts[today]
+    # Expose previously issued curves with dated ERP actuals without changing
+    # their immutable forecast files. The browser never borrows another day.
+    from daily_forecast import VERSION, valid_forecast
+    history = dict(forecasts)
+    for path in (cache_dir/VERSION).glob('*.json'):
+        try:
+            value=json.loads(path.read_text())
+            if valid_forecast(value,path.stem):history[path.stem]=value
+        except (OSError,ValueError,TypeError):
+            pass
+    actuals={}
+    for kind in ('demand','generation'):
+        path=cache_dir/'erp-history'/kind/'manifest.json'
+        try:actuals[kind]=json.loads(path.read_text())['days']
+        except (OSError,ValueError,KeyError,TypeError):actuals[kind]={}
+    scenarios={}
+    for report in sorted(reports_by_id.values(),key=lambda r:r.get('published_date','')):
+        forecast=report.get('forecast',{})
+        day=forecast.get('scenario_date')
+        if day:scenarios[day]=dict(date=day,hourly=forecast.get('demand_hourly',[]),
+            published_date=report.get('published_date'),source_url=report.get('source_url'))
+    fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date')
+    ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
+    dates=sorted(set(ready_history)|set(scenarios))[-35:]
+    current_day['forecast_history']={day:dict(forecast={k:ready_history[day].get(k) for k in fields} if day in ready_history else None,
+        demand_hourly=actuals['demand'].get(day,[]),
+        generation_hourly=[dict(time=r['time'],total_mw=r.get('generation_mw')) for r in actuals['generation'].get(day,[])],
+        pgcb_forecast=scenarios.get(day)) for day in dates}
     return forecasts
 
 

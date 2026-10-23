@@ -10,6 +10,10 @@ import re
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
+if __package__:
+    from .forecast_catalog import CATALOG, TOP_MODELS
+else:
+    from forecast_catalog import CATALOG, TOP_MODELS
 
 
 def pgcb_scenarios(records, current, reports=()):
@@ -64,10 +68,9 @@ def build_bundle(study, current, pgcb_records=(), reports=()):
     methods = list(summary['model_registry'])
     scenarios = pgcb_scenarios(pgcb_records, current, reports)
     dates = sorted(set(d for c in summary['champions'] for d in c['evaluation_dates']) | set(summary['forecast_dates']))
+    dates = sorted(set(dates) | {day for day in scenarios if dates[0]<=day<=dates[-1]})
     days = {}
     for day in dates:
-        if day not in predictions:
-            raise ValueError(f'Missing model predictions for {day}')
         live_demand = {r['time']:r for r in current.get('demand_hourly',[])} if current.get('today_date')==day else {}
         live_generation = {r['time']:r for r in current.get('generation_hourly',[])} if current.get('today_date')==day else {}
         observed = actuals.get(day)
@@ -75,7 +78,8 @@ def build_bundle(study, current, pgcb_records=(), reports=()):
         rows = []
         for h in range(24):
             clock=f'{h:02}:00'; d=live_demand.get(clock,{}); g=live_generation.get(clock,{})
-            models={target:{name:predictions[day][target][name][h] for name in methods} for target in ('demand','generation')}
+            models={target:{name:predictions[day][target][name][h] if day in predictions else None
+                            for name in methods} for target in ('demand','generation')}
             rows.append(dict(time=clock,demand_mw=observed['demand'][h] if observed else d.get('demand_mw'),
                 supply_mw=observed['supply'][h] if observed else d.get('supply_mw',d.get('generation_mw')),
                 generation_mw=observed['generation'][h] if observed else g.get('total_mw'),
@@ -88,7 +92,7 @@ def build_bundle(study, current, pgcb_records=(), reports=()):
               for target in ('demand','generation')}
     return dict(dates=dates,default_date=dates[-1],default_models=defaults,
         models=dict(demand=methods,generation=methods),days=days,scores=scores,
-        windows=summary['windows'],champions=summary['champions'],
+        windows=summary['windows'],champions=summary['champions'],catalog=CATALOG,
         pgcb_forecasts={day:{k:v for k,v in scenarios[day].items() if k!='hourly'} for day in dates if day in scenarios},
         availability=summary['availability'],issued_at=summary['completed_at'],
         forward_dates=summary['forecast_dates'],model_count=summary['model_count'])
@@ -116,13 +120,11 @@ def write_preview(study, output, current_path=None, pgcb_path=None):
     (output/'independent-study-data.js').write_text('window.BEGD_INDEPENDENT_STUDY='+payload+';\n')
     index=(ROOT/'begd/index.html').read_text()
     scripts=''
-    for name in ('live-data.js','static-api.js','independent-study-data.js','independent-study.js'):
+    for name in ('live-data.js','static-api.js'):
         digest=hashlib.sha256((output/name).read_bytes()).hexdigest()[:12]
         scripts+=f'<script src="{name}?v={digest}"></script>'
     digest=hashlib.sha256((output/'app.js').read_bytes()).hexdigest()[:12]
     index=index.replace('<script src="app.js?v=',scripts+'<script src="app.js?v='+digest+'-',1)
-    digest=hashlib.sha256((output/'independent-study.css').read_bytes()).hexdigest()[:12]
-    index=index.replace('</head>',f'<link rel="stylesheet" href="independent-study.css?v={digest}"></head>',1)
     def version_asset(match):
         asset=output/match[2]
         digest=hashlib.sha256(asset.read_bytes()).hexdigest()[:12]
@@ -132,13 +134,37 @@ def write_preview(study, output, current_path=None, pgcb_path=None):
     print(f'Local independent comparison: {bundle["model_count"]} models per target; latest {bundle["default_date"]}')
 
 
+def publish_archive(study, output, current_path=None, pgcb_path=None):
+    """Keep the reviewed top-three curves as a dated, retrospective archive."""
+    current=json.loads(current_path.read_text()) if current_path else {}
+    pgcb_path=pgcb_path or study.parent/'records.json'
+    records=json.loads(pgcb_path.read_text()) if pgcb_path.is_file() else []
+    bundle=build_bundle(study,current,records)
+    bundle['models']=TOP_MODELS
+    bundle['scores']=[r for r in bundle['scores'] if r['window']=='development' and r['model'] in TOP_MODELS[r['target']]]
+    for rows in bundle['days'].values():
+        for row in rows:
+            row.pop('supply_mw',None)
+            for target,names in TOP_MODELS.items():
+                row[target+'_models']={name:row[target+'_models'][name] for name in names}
+    payload=json.dumps(bundle,ensure_ascii=False,separators=(',',':'),allow_nan=False).replace('<','\\u003c')
+    output.write_text('window.BEGD_INDEPENDENT_STUDY='+payload+';\n')
+    print(f'Published archive: {len(bundle["dates"])} operating dates, three models per target')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--study',type=Path,default=ROOT/'.cache/erp-study/results')
-    parser.add_argument('--output',type=Path,required=True)
+    destination=parser.add_mutually_exclusive_group(required=True)
+    destination.add_argument('--output',type=Path)
+    destination.add_argument('--publish-archive',type=Path)
     parser.add_argument('--current-day',type=Path)
     parser.add_argument('--pgcb-records',type=Path,help='Optional records with explicit forecast_date and pgcb_scenario; defaults to the study records.json')
-    args=parser.parse_args();write_preview(args.study,args.output,args.current_day,args.pgcb_records)
+    args=parser.parse_args()
+    if args.publish_archive:
+        publish_archive(args.study,args.publish_archive,args.current_day,args.pgcb_records)
+    else:
+        write_preview(args.study,args.output,args.current_day,args.pgcb_records)
 
 
 if __name__=='__main__':main()

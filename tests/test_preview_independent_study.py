@@ -59,6 +59,14 @@ class IndependentPreviewTests(unittest.TestCase):
             self.assertTrue(all(r['model']=='Earlier choice' for r in bundle['scores'] if r['selected']))
             self.assertTrue(all(r['demand_mw'] is None for r in bundle['days']['2026-10-23']))
 
+    def test_pgcb_only_day_is_selectable_without_fabricating_independent_curves(self):
+        records=[dict(forecast_date='2026-10-22',pgcb_scenario=[dict(time='00:00',demand=150,generation=149)])]
+        with tempfile.TemporaryDirectory() as directory:
+            bundle=build_bundle(self.study(Path(directory)),{},records)
+        self.assertIn('2026-10-22',bundle['dates'])
+        self.assertEqual(bundle['days']['2026-10-22'][0]['pgcb_demand_mw'],150)
+        self.assertTrue(all(value is None for row in bundle['days']['2026-10-22'] for value in row['demand_models'].values()))
+
     def test_missing_invalid_or_undated_scenarios_do_not_borrow_dates_or_values(self):
         rows = [dict(time='00:00', demand=1)]
         records = [dict(operating_date='2026-10-21', availability_forecast_date='2026-10-21', pgcb_scenario=rows),

@@ -12,15 +12,14 @@ import math
 import os
 from pathlib import Path
 import re
-import warnings
 from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlencode
 from urllib.request import urlopen
 
-VERSION = 'erp-independent-seven-v2'
+from forecast_catalog import CATALOG, TOP_MODELS, DEFAULT_MODELS
+
+VERSION = 'erp-independent-top3-v3'
 TARGET_BASIS = dict(demand='ERP substation side', generation='ERP generation including imports')
-MEMBERS = ('Ridge enriched', 'Boosted weather MAE', 'CatBoost MAE',
-           'Extra Trees weather', 'SVR weather', 'MLP weather', 'Daily PCA ridge')
 FIELDS = ('temperature_2m', 'relative_humidity_2m', 'precipitation',
           'cloud_cover', 'shortwave_radiation')
 CITIES = ((23.81, 90.41), (22.36, 91.78), (24.37, 88.60), (22.82, 89.55))
@@ -45,7 +44,8 @@ def atomic_json(path, value):
 def valid_forecast(value, day):
     if not isinstance(value, dict):
         return False
-    if value.get('version') != VERSION or value.get('date') != day or value.get('status') != 'ready':
+    if (day <= shift(CATALOG['window']['end'], -1) or value.get('version') != VERSION or
+            value.get('date') != day or value.get('status') != 'ready'):
         return False
     if value.get('input_cutoff_date') != shift(day, 1):
         return False
@@ -53,7 +53,7 @@ def valid_forecast(value, day):
         return False
     if (value.get('max_actual_input_date', day) > shift(day, 2) or
             value.get('max_training_publication', day) > shift(day, 1) or
-            value.get('models') != dict(generation='Independent median ensemble', demand='Independent mean ensemble')):
+            value.get('models') != DEFAULT_MODELS):
         return False
     try:
         issue = dt.datetime.fromisoformat(value.get('issued_at', ''))
@@ -64,8 +64,12 @@ def valid_forecast(value, day):
     rows = value.get('hourly', [])
     return (isinstance(rows, list) and all(isinstance(r, dict) for r in rows) and
             [r.get('time') for r in rows] == HOURS and
-            all(isinstance(r.get(k), (float, int)) and math.isfinite(r[k]) and r[k] >= 0
-                for r in rows for k in ('generation_mw', 'demand_mw')))
+            all(type(r.get(k)) in (float, int) and math.isfinite(r[k]) and r[k] >= 0
+                for r in rows for k in ('generation_mw', 'demand_mw')) and
+            all(isinstance(r.get(t+'_models'), dict) and set(r[t+'_models'])==set(names) and
+                all(type(r[t+'_models'][n]) in (float, int) and math.isfinite(r[t+'_models'][n]) and r[t+'_models'][n]>=0 for n in names) and
+                r[t+'_mw']==r[t+'_models'][names[0]]
+                for r in rows for t,names in TOP_MODELS.items()))
 
 
 def history_record(body, item):
@@ -175,21 +179,13 @@ def load_weather(start, end, cache):
     return value
 
 
-def fit_forecast(records, weather, target_day):
-    import numpy as np
-    from catboost import CatBoostRegressor
-    from sklearn.compose import TransformedTargetRegressor
-    from sklearn.decomposition import PCA
-    from sklearn.ensemble import ExtraTreesRegressor, HistGradientBoostingRegressor
-    from sklearn.impute import SimpleImputer
-    from sklearn.linear_model import Ridge
-    from sklearn.neural_network import MLPRegressor
-    from sklearn.pipeline import make_pipeline
-    from sklearn.preprocessing import StandardScaler
-    from sklearn.svm import SVR
+def fit_forecast(records, weather, target_day, cache=None):
     from threadpoolctl import threadpool_limits
-    from forecast_features import Dataset, features
+    from forecast_features import Dataset
+    from independent_models import BASE_MODELS, add_ensembles, fit_origin
 
+    if target_day <= shift(CATALOG['window']['end'], -1):
+        raise ValueError('Ranked publication requires evaluation labels to be available by D-1')
     if not records or any(record.get('label_basis') != TARGET_BASIS for record in records):
         raise ValueError('Forecast labels must be ERP substation demand and ERP generation')
     data = Dataset(records, weather['hourly'])
@@ -197,49 +193,49 @@ def fit_forecast(records, weather, target_day):
     if len(training) < 35 or not data.eligible(target_day):
         raise ValueError('At least 35 eligible days and every required published lag are needed')
     fit_started = utc_now()
-    issued = fit_started
-    # A precomputed forecast must not use a report published on a later calendar date.
-    issue_date = dt.datetime.fromisoformat(issued).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
+    issue_date = dt.datetime.fromisoformat(fit_started).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
     if max(data.days[d]['published_date'] for d in training) > min(shift(target_day, 1), issue_date):
         raise ValueError('Training label unavailable at issue time')
-    output, diagnostics = {}, []
-    def normalized(model):
-        return TransformedTargetRegressor(regressor=make_pipeline(SimpleImputer(), StandardScaler(), model), transformer=StandardScaler())
+    # Up to 28 warm-up origins precede the 28-date calibration window, so
+    # nested fixed-pool ensembles also receive their full earlier calibration. Cache base
+    # predictions separately; a new live observation never refits an issued day.
+    origins = [d for d in sorted(data.days) if d < target_day and
+               data.days[d]['published_date'] <= shift(target_day, 1) and
+               data.eligible(d) and len(data.training_days(d)) >= 35][-56:] + [target_day]
+    if len(origins)<8:
+        raise ValueError('At least seven earlier out-of-sample calibration origins are required')
+    all_predictions, diagnostics = {}, []
+    record_keys = ('operating_date','published_date','actual','label_basis','temperature_c',
+                   'energy_mwh','availability','availability_forecast_date')
     with threadpool_limits(limits=2):
-        for target in ('generation', 'demand'):
-            x = np.concatenate([data.strict(d, target) for d in training])
-            test = data.strict(target_day, target)
-            y = np.concatenate([data.days[d][target] for d in training])
-            def compact(day):
-                return np.c_[features(data.days, day, target), data.weather_day(day).reshape(24, 4, 5).mean(axis=1)]
-            compact_x = np.concatenate([compact(d) for d in training])
-            compact_test = compact(target_day)
-            # A wholly missing availability column has no training information.
-            # Drop only these columns for histogram binning; retain native partial-NaN handling.
-            nonempty = np.isfinite(x).any(axis=0)
-            estimators = {
-                'Ridge enriched': (make_pipeline(SimpleImputer(), StandardScaler(), Ridge(alpha=100)), x, test),
-                'Boosted weather MAE': (HistGradientBoostingRegressor(loss='absolute_error', max_iter=160, max_leaf_nodes=10, min_samples_leaf=30, l2_regularization=20, early_stopping=False, random_state=42), x[:, nonempty], test[:, nonempty]),
-                'CatBoost MAE': (CatBoostRegressor(loss_function='MAE', depth=4, iterations=350, learning_rate=.05, l2_leaf_reg=10, random_seed=42, thread_count=2, verbose=False, allow_writing_files=False), x, test),
-                'Extra Trees weather': (make_pipeline(SimpleImputer(), ExtraTreesRegressor(n_estimators=150, max_depth=14, min_samples_leaf=6, max_features=.8, n_jobs=2, random_state=42)), x, test),
-                'SVR weather': (normalized(SVR(C=5, epsilon=.08)), compact_x, compact_test),
-                'MLP weather': (normalized(MLPRegressor(hidden_layer_sizes=(32, 16), activation='tanh', alpha=1, max_iter=2000, n_iter_no_change=30, early_stopping=False, shuffle=False, random_state=42)), compact_x, compact_test),
-            }
-            predictions = {}
-            for name, (model, train_x, predict_x) in estimators.items():
-                with warnings.catch_warnings(record=True) as caught:
-                    warnings.simplefilter('always')
-                    predictions[name] = np.maximum(0, model.fit(train_x, y).predict(predict_x))
-                diagnostics.append(dict(target=target, model=name, warnings=[str(w.message) for w in caught]))
-            daily_x = np.array([data.daily(d, target) for d in training])
-            daily_y = np.array([data.days[d][target] for d in training])
-            means = daily_y.mean(axis=1)
-            pca = PCA(n_components=5).fit(daily_y - means[:, None])
-            latent = np.c_[means, pca.transform(daily_y - means[:, None])]
-            daily = make_pipeline(StandardScaler(), Ridge(alpha=100)).fit(daily_x, latent).predict(data.daily(target_day, target)[None, :])
-            predictions['Daily PCA ridge'] = np.maximum(0, pca.inverse_transform(daily[:, 1:])[0] + daily[0, 0])
-            combined = np.array([predictions[name] for name in MEMBERS])
-            output[target] = (np.median(combined, axis=0) if target == 'generation' else combined.mean(axis=0)).tolist()
+        for origin in origins:
+            inputs = dict(records=[{k:r.get(k) for k in record_keys} for r in records
+                                   if r['operating_date'] <= shift(origin, 2)],
+                          weather={k:v for k,v in weather['hourly'].items() if k[:10] <= origin})
+            digest = hashlib.sha256(json.dumps(inputs,sort_keys=True).encode()).hexdigest()
+            for target in ('demand','generation'):
+                path = Path(cache)/VERSION/'origins'/f'{origin}-{target}.json' if cache else None
+                saved = None
+                if path and path.exists():
+                    try:
+                        candidate = json.loads(path.read_text())
+                        if candidate.get('inputs_sha256')==digest:
+                            values = candidate.get('predictions',{})
+                            if set(values)==set(BASE_MODELS) and all(len(values[n])==24 and
+                                all(type(v) in (int,float) and math.isfinite(v) and v>=0 for v in values[n]) for n in BASE_MODELS):
+                                saved = candidate
+                    except (OSError,ValueError,TypeError):
+                        pass
+                if saved is None:
+                    predictions,audit,found = fit_origin(data,origin,target)
+                    saved = dict(inputs_sha256=digest,predictions=predictions,audit=audit,diagnostics=found)
+                    if path: atomic_json(path,saved)
+                all_predictions[origin,target] = dict(saved['predictions'])
+                if origin==target_day:
+                    diagnostics.extend(dict(target=target,**d) for d in saved['diagnostics'])
+        calibration = add_ensembles(data,all_predictions,origins)
+    output = {target:{name:[float(v) for v in all_predictions[target_day,target][name]] for name in names}
+              for target,names in TOP_MODELS.items()}
     record_fields = ('operating_date', 'published_date', 'report_id', 'source_url', 'sha256',
                      'actual', 'label_basis', 'temperature_c', 'energy_mwh', 'availability', 'availability_forecast_date')
     records_used = [{k: data.by_day[d].get(k) for k in record_fields}
@@ -254,14 +250,18 @@ def fit_forecast(records, weather, target_day):
                   max_actual_input_date=shift(target_day, 2),
                   max_training_label_date=max(training),
                   max_training_publication=max(data.days[d]['published_date'] for d in training),
-                  training_days=len(training), members=list(MEMBERS),
-                  models=dict(generation='Independent median ensemble', demand='Independent mean ensemble'),
+                  training_days=len(training), members=list(BASE_MODELS),
+                  models=DEFAULT_MODELS, model_catalog=CATALOG,
+                  calibration=[a for a in calibration if a['origin']==target_day],
                   issue_timing='before operating day' if issue_date < target_day else 'after operating day began',
                   inputs_sha256=hashlib.sha256(json.dumps(records_used, sort_keys=True).encode()).hexdigest(),
                   weather={k: v for k, v in weather.items() if k != 'hourly'},
                   sources=[dict(report_id=r['report_id'], date=r['operating_date'], published_date=r['published_date'], source_url=r['source_url'], sha256=r.get('sha256')) for r in records_used],
                   diagnostics=diagnostics,
-                  hourly=[dict(time=clock, generation_mw=output['generation'][i], demand_mw=output['demand'][i]) for i, clock in enumerate(HOURS)])
+                  hourly=[dict(time=clock, generation_mw=output['generation'][DEFAULT_MODELS['generation']][i],
+                    demand_mw=output['demand'][DEFAULT_MODELS['demand']][i],
+                    generation_models={n:v[i] for n,v in output['generation'].items()},
+                    demand_models={n:v[i] for n,v in output['demand'].items()}) for i, clock in enumerate(HOURS)])
     if not valid_forecast(result, target_day):
         raise ValueError('Forecast output failed validation')
     return result
@@ -300,7 +300,7 @@ def prepare_forecasts(listing, current_day, cache):
             if not records:
                 raise ValueError('No complete paired ERP demand/generation history')
             weather = load_weather(shift(min(r['operating_date'] for r in records), 2), target, cache)
-            forecast = fit_forecast(records, weather, target)
+            forecast = fit_forecast(records, weather, target, cache=cache)
             forecast['history_failures'] = failures
             forecast['erp_snapshots'] = {kind: dict(source=provenance[kind]['source'],
                 captures=provenance[kind]['captures']) for kind in ('demand', 'generation')}

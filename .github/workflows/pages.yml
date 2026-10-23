@@ -36,9 +36,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .cache/daily-forecasts
-          key: begd-erp-independent-seven-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          key: begd-erp-independent-top3-v3-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            begd-erp-independent-seven-v2-
+            begd-erp-independent-top3-v3-
       - name: Install parser and independent forecasting dependencies
         run: python -m pip install -r requirements-forecast.txt
       - name: Verify Power Grid TLS certificate chain
