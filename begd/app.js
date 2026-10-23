@@ -352,7 +352,8 @@ function realTime(){
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
  const forecastDate=currentDayData.today_date||currentDayData.date;
- const pgcb=currentDayData.pgcb_forecast;
+ const pgcb=Object.hasOwn(currentDayData,'pgcb_forecast')?currentDayData.pgcb_forecast:
+  data?.forecast?.scenario_date===forecastDate?{date:forecastDate,hourly:data.forecast.demand_hourly,report_name:data.report_name,source_url:data.source_url,published_date:data.published_date}:null;
  const forecastRows=pgcb?.date===forecastDate&&Array.isArray(pgcb.hourly)?pgcb.hourly.filter(r=>r&&/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(r.time)&&typeof r.demand_mw==='number'&&Number.isFinite(r.demand_mw)):[];
  const forecastSource=forecastRows.length?`${pgcb.report_name||'Daily Report'} · PGCB Forecast Scenario · ${shortDate(forecastDate)} · published ${shortDate(pgcb.published_date)}`:'';
  const independent=currentDayData.independent_forecast;
@@ -376,7 +377,7 @@ function realTime(){
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
  const combinedCaption=`Demand/supply ERP page · ${dateFor('demand')} · ${rows.length} readings · ${generationDate}${forecastRows.length?` · ${forecastSource}`:''}`;
  const shedSeries=[{key:'shed_mw',name:'Load shedding (real time)',color:'#b95442'}];
- const modelNote=modelRows.length?`Independent forecasts for ${shortDate(forecastDate)} · issued ${new Date(independent.issued_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'})} BST · ${independent.issue_timing||'issue time recorded'} · historical actual inputs through ${shortDate(independent.max_actual_input_date)}. Experimental forecasts; generation includes imports. Full-day forecasts stay fixed while live readings arrive.`:`Independent forecasts are not available for ${shortDate(forecastDate)} yet; the next scheduled build will retry.`;
+ const modelNote=modelRows.length?`Independent forecasts for ${shortDate(forecastDate)} · issued ${new Date(independent.issued_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'})} BST · ${independent.issue_timing||'issue time recorded'} · historical actual inputs through ${shortDate(independent.max_actual_input_date)}. Experimental forecasts; generation includes imports. Full-day forecasts stay fixed while live readings arrive.`:`Independent forecasts are not available for ${shortDate(forecastDate)} yet.`;
  const pgcbNote=forecastRows.length?'PGCB scenario shown only for its explicitly dated operating day; prior-day publication is not verified.':`No matching PGCB hourly scenario is available for ${shortDate(forecastDate)}.`;
  const combinedPanel=panel('Demand, Generation & load shedding',combinedCaption,
   '<div class="realtime-dispatch-plots">'+chart(generationChartRows,combinedSeries,{syncGroup:'realtime-dispatch',forecastLegend:true})+

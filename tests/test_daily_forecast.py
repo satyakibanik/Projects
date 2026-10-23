@@ -48,6 +48,15 @@ class PublicationTests(unittest.TestCase):
                 two = daily.prepare_forecasts([], dict(today_date='2026-10-23', generation_hourly=[dict(time='00:00', total_mw=99999)]), cache)
             self.assertEqual(one, two)
 
+    def test_local_api_reads_frozen_forecast_without_training_on_live_data(self):
+        import server
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            daily.atomic_json(root / '.cache/daily-forecasts' / daily.VERSION / '2026-10-23.json', ready())
+            with patch.object(server, 'ROOT', root), patch.object(server, 'current_day_cache', None), patch.object(server, 'fetch_current_day', return_value=dict(today_date='2026-10-23', generation_hourly=[dict(time='00:00', total_mw=99999)])), patch.object(daily, 'fit_forecast', side_effect=AssertionError('Realtime polling must not fit')):
+                result = server.get_current_day()
+            self.assertEqual(result['independent_forecast'], ready())
+
     def test_prepare_today_and_tomorrow_retries_failures_without_reusing_yesterday(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {}, clear=True), patch.object(daily, 'load_history', return_value=([], [])) as history:
             result = daily.prepare_forecasts([], dict(today_date='2026-10-23'), Path(directory))
