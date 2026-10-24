@@ -10,7 +10,7 @@ test('realtime shows today only while the full comparison leads the Forecast wor
  assert.ok(html.indexOf('Demand and Supply at the Substation side')<html.indexOf('id="today-forecast-panel"'));
  assert.doesNotMatch(html,/load shedding\.<\/h2>/);
  assert.doesNotMatch(html,/id="study-(date|demand|generation)"|id="independent-study-panel"/);
- assert.match(html,/All dates &amp; models/);assert.match(html,/Demand forecast · Trees/);assert.match(html,/Generation forecast · Median/);
+ assert.match(html,/All dates &amp; models/);assert.match(html,/BEGD - Demand \(Substation side\) - Model: Trees/);assert.match(html,/BEGD - Generation - Model: Median/);
  assert.doesNotMatch(html,/forecast-best-model/);
  assert.equal(vm.runInContext('[...chartData.values()].length',c),4);
  const workspace=vm.runInContext('forecast()',c);
@@ -48,7 +48,7 @@ test('only three ranked choices are offered for each target, rank one is selecte
  controls.get('study-date').events.change({target:{value:'2026-10-21'}});
  controls.get('study-generation').events.change({target:{value:'Fourth'}});
  html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
- assert.match(html,/Demand forecast · Ridge/);assert.match(html,/Generation forecast · Median/);
+ assert.match(html,/BEGD - Demand \(Substation side\) - Model: Ridge/);assert.match(html,/BEGD - Generation - Model: Median/);
  assert.equal(JSON.stringify(bundle),before);
 });
 test('date arrows skip absent days, stop at either end and retain the open panel',()=>{
@@ -66,7 +66,7 @@ test('PGCB curves require the explicitly matching operating day and preserve the
  assert.doesNotMatch(vm.runInContext('window.BEGDIndependentStudy.render()',c),/data-toggle-series="pgcb_/);
  controls.get('study-date').events.change({target:{value:'2026-10-21'}});
  const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
- assert.match(html,/data-toggle-family="published" checked/);assert.match(html,/Demand · PGCB \(generation side\)/);
+ assert.match(html,/data-toggle-family="forecasts" checked/);assert.match(html,/PGCB - Demand \(Generation side\)/);
  assert.match(html,/never substation demand/);assert.match(html,/source workbook/);
  const mismatch=fixture();mismatch.pgcb_forecasts['2026-10-21'].date='2026-10-20';mismatch.default_date='2026-10-21';
  const other=load(mismatch);other.open();assert.doesNotMatch(vm.runInContext('window.BEGDIndependentStudy.render()',other.c),/data-toggle-series="pgcb_/);
@@ -155,7 +155,7 @@ test('today view remains rank one and follows midnight independently of full-vie
  controls.get('study-date').events.change({target:{value:'2026-10-21'}});
  controls.get('study-demand').events.change({target:{value:'Ridge'}});
  let html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
- assert.match(html,/Operating date · 23 Oct 2026/);assert.match(html,/Demand forecast · Trees/);assert.doesNotMatch(html,/Demand forecast · Ridge/);
+ assert.match(html,/Operating date · 23 Oct 2026/);assert.match(html,/BEGD - Demand \(Substation side\) - Model: Trees/);assert.doesNotMatch(html,/BEGD - Demand \(Substation side\) - Model: Ridge/);
  vm.runInContext("currentDayData={today_date:'2026-10-24',demand_hourly:[],generation_hourly:[]}",c);
  html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
  assert.match(html,/Operating date · 24 Oct 2026/);assert.match(html,/BEGD forecast unavailable for 24 Oct 2026/);

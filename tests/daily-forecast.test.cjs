@@ -23,7 +23,7 @@ test('expanded live forecast has all 24 horizons while future demand and generat
  const {c,open}=live();open();const html=vm.runInContext('realTime()',c),model=plot(c);
  assert.equal(model.rows.length,24);assert.equal(model.rows.filter(r=>r.demand_mw!==null).length,1);assert.equal(model.rows.filter(r=>r.generation_mw!==null).length,1);
  assert.equal(model.rows.filter(r=>Number.isFinite(r.demand_forecast_mw)).length,24);assert.equal(model.series.some(s=>s.key==='supply_mw'),false);
- assert.match(html,/Issued/);assert.match(html,/Demand forecast · Trees/);
+ assert.match(html,/Issued/);assert.match(html,/BEGD - Demand \(Substation side\) - Model: Trees/);
 });
 test('wrong-day, partial, nonfinite and generation-side legacy forecasts cannot masquerade as ranked ERP forecasts',()=>{
  for(const mutate of [v=>v.date='2026-10-22',v=>v.hourly.pop(),v=>v.hourly[0]=null,v=>v.hourly[0].demand_models.Trees=NaN,v=>v.target_basis.demand='P4 generation side',v=>v.version='erp-independent-seven-v2']){
@@ -45,14 +45,14 @@ test('realtime includes matching PGCB scenarios and scores demand only against g
  assert.match(demand,/Day MAE \(matched hours\)/);
  assert.match(demand,/PGCB: <strong>—<\/strong> <small>\(0\/24\)<\/small>/);
  assert.match(demand,/BEGD: <strong>1,000 MW<\/strong> <small>\(1\/24\)<\/small>/);
- assert.match(demand,/PGCB actuals unavailable/);
+ assert.match(demand,/PGCB MAE unavailable: no generation-side actuals in this snapshot/);
  const generation=html.match(/data-forecast-target="generation"[^]*?<\/section>/)[0];
  assert.match(generation,/Day MAE \(1\/24 matched hours\)/);
  assert.match(generation,/PGCB: <strong>900 MW<\/strong>/);
  assert.match(generation,/BEGD: <strong>0 MW<\/strong>/);
  c.fixture.generation_side_demand_hourly=[{time:'00:00',demand_mw:14800}];
  assert.match(vm.runInContext('realTime()',c),/PGCB: <strong>200 MW<\/strong>/);
- assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/Demand · PGCB/);
+ assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/PGCB - Demand/);
 });
 test('compact live MAE preserves distinct coverage and keeps model names only in the chart layer',()=>{
  const {c}=live();
@@ -64,7 +64,7 @@ test('compact live MAE preserves distinct coverage and keeps model names only in
  assert.match(generation,/PGCB: <strong>900 MW<\/strong> <small>\(1\/24\)<\/small>/);
  assert.match(generation,/BEGD: <strong>0 MW<\/strong> <small>\(2\/24\)<\/small>/);
  assert.doesNotMatch(html,/forecast-best-model|#1 · Median|#1 · Trees/);
- assert.match(generation,/Generation forecast · Median/);
+ assert.match(generation,/BEGD - Generation - Model: Median/);
 });
 test('realtime excludes wrong-day PGCB scenarios and names their absence',()=>{
  const {c}=live();
@@ -72,6 +72,26 @@ test('realtime excludes wrong-day PGCB scenarios and names their absence',()=>{
  const html=vm.runInContext('realTime()',c);
  assert.doesNotMatch(html,/data-toggle-series="pgcb_/);
  assert.match(html,/No matching PGCB scenario/);
+});
+test('forecast legend combines PGCB and BEGD under one master while preserving individual visibility',()=>{
+ const {c}=live();
+ c.fixture.pgcb_forecast={date:'2026-10-23',hourly:[{time:'00:00',demand_mw:15000,generation_mw:14900}]};
+ const demandHtml=()=>vm.runInContext('realTime()',c).match(/data-forecast-target="demand"[^]*?<\/section>/)[0];
+ let html=demandHtml();
+ assert.equal((html.match(/<fieldset class="forecast-layer">/g)||[]).length,1);
+ const group=html.match(/<fieldset class="forecast-layer">[^]*?<\/fieldset>/)[0];
+ assert.match(group,/data-toggle-family="forecasts" checked>Forecasts/);
+ assert.match(group,/PGCB - Demand \(Generation side\)/);
+ assert.match(group,/BEGD - Demand \(Substation side\) - Model: Trees/);
+ assert.ok(group.indexOf('data-toggle-series="pgcb_demand_mw"')<group.indexOf('data-toggle-series="demand_forecast_mw"'));
+ assert.equal((group.match(/data-series-family="forecasts"/g)||[]).length,2);
+ assert.doesNotMatch(group,/data-toggle-series="demand_mw"/);
+ vm.runInContext("chartVisibility.set('today-forecast:2026-10-23:demand|pgcb_demand_mw',false)",c);
+ html=demandHtml();
+ assert.match(html,/data-toggle-family="forecasts" >Forecasts/);
+ const model=plot(c);
+ assert.equal(model.series.find(s=>s.key==='pgcb_demand_mw').defaultVisible,false);
+ assert.equal(model.series.find(s=>s.key==='demand_forecast_mw').defaultVisible,true);
 });
 test('live refresh preserves rank-one predictions and legend visibility',()=>{
  const {c,controls,open}=live();open();controls.get('study-demand').events.change({target:{value:'Ridge'}});

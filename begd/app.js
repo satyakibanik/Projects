@@ -71,8 +71,10 @@ function legendSwatch(item,index=0){
 function chartLegend(series,balanceLegend,wrapLegend,familyLegend,forecastLegend,publishedLegend){
  const swatch=s=>legendSwatch(s,series.indexOf(s));
  if(forecastLegend){
-  const label=s=>`<label><input type="checkbox" data-toggle-series="${s.key}" ${s.family==='forecast'||s.family==='published'?'data-series-family="'+s.family+'"':''} ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`;
-  const group=(family,title)=>{const items=series.filter(s=>s.family===family);return items.length?`<fieldset class="forecast-layer"><legend><label><input type="checkbox" data-toggle-family="${family}" ${items.every(s=>s.defaultVisible!==false)?'checked':''}>${esc(title)}</label></legend><div class="legend legend-wrap">${items.map(label).join('')}</div></fieldset>`:''};
+  const combined=typeof forecastLegend==='object'&&forecastLegend.combine;
+  const label=s=>`<label><input type="checkbox" data-toggle-series="${s.key}" ${s.family==='forecast'||s.family==='published'?'data-series-family="'+(combined?'forecasts':s.family)+'"':''} ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${esc(s.name)}</span></label>`;
+  const group=(family,title,items=series.filter(s=>s.family===family))=>items.length?`<fieldset class="forecast-layer"><legend><label><input type="checkbox" data-toggle-family="${family}" ${items.every(s=>s.defaultVisible!==false)?'checked':''}>${esc(title)}</label></legend><div class="legend legend-wrap">${items.map(label).join('')}</div></fieldset>`:'';
+  if(combined)return `<div class="legend legend-wrap">${series.filter(s=>s.family!=='forecast'&&s.family!=='published').map(label).join('')}</div>${group('forecasts',forecastLegend.title||'Forecasts',[...series.filter(s=>s.family==='published'),...series.filter(s=>s.family==='forecast')])}`;
   return `<div class="legend legend-wrap">${series.filter(s=>s.family!=='forecast'&&s.family!=='published').map(label).join('')}</div>${group('forecast',typeof forecastLegend==='string'?forecastLegend:'Forecast')}${group('published',publishedLegend||'Published forecast')}`;
  }
  if(familyLegend){
