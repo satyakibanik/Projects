@@ -5,6 +5,8 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+import tempfile
+from unittest.mock import patch
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'scripts'))
 import erp_history as erp
@@ -40,6 +42,41 @@ class ERPTests(unittest.TestCase):
         self.assertTrue(erp.complete(rows,'demand'))
         self.assertFalse(erp.complete(rows+[rows[0]],'demand'))
         rows[0]['demand_mw']=None;self.assertFalse(erp.complete(rows,'demand'))
+
+    def test_range_fetches_only_missing_dates_and_isolates_conflicting_old_rows(self):
+        header = '<tr><th>Date</th><th>Time</th><th>Demand Substation Side</th><th>Supply</th><th>Loadshed</th><th>Remarks</th></tr>'
+        rows = ''.join(f'<tr><td>23-10-2026</td><td>{t}</td><td>100</td><td>99</td><td>1</td><td></td></tr>' for t in daily.HOURS)
+        irrelevant = '<tr><td>12-05-2026</td><td>21:00</td><td>1</td><td>1</td><td>0</td><td></td></tr><tr><td>12-05-2026</td><td>21:00</td><td>2</td><td>2</td><td>0</td><td></td></tr>'
+        with tempfile.TemporaryDirectory() as directory, patch.object(erp, 'download', return_value=(header+rows+irrelevant).encode()) as fetch:
+            cache = Path(directory)
+            result = erp.load_range('demand', '2026-10-23', '2026-10-23', cache)
+            self.assertTrue(erp.complete(result['days']['2026-10-23'], 'demand'))
+            self.assertEqual(set(result['days']), {'2026-10-23'})
+            self.assertIn('search=23-10-2026', fetch.call_args.args[0])
+            erp.load_range('demand', '2026-10-23', '2026-10-23', cache)
+            self.assertEqual(fetch.call_count, 1)
+
+    def test_bad_day_does_not_abort_other_dates_and_is_retried(self):
+        header = '<tr><th>Date</th><th>Time</th><th>Demand Substation Side</th><th>Supply</th><th>Loadshed</th><th>Remarks</th></tr>'
+        def body(day, value):
+            return f'<tr><td>{day}-10-2026</td><td>00:00</td><td>{value}</td><td>1</td><td>0</td><td></td></tr>'
+        def fetch(url):
+            return (header+body('22',1)+body('22',2)+body('23',3)).encode()
+        with tempfile.TemporaryDirectory() as directory, patch.object(erp, 'download', side_effect=fetch):
+            result = erp.load_range('demand', '2026-10-22', '2026-10-23', Path(directory))
+        self.assertIn('Conflicting demand rows', result['failures']['2026-10-22'])
+        self.assertNotIn('2026-10-22', result['days'])
+        self.assertEqual(result['days']['2026-10-23'][0]['demand_mw'],3)
+
+    def test_searched_day_follows_pagination_before_accepting_complete_history(self):
+        header = '<tr><th>Date</th><th>Time</th><th>Demand Substation Side</th><th>Supply</th><th>Loadshed</th><th>Remarks</th></tr>'
+        def fetch(url):
+            hours = daily.HOURS[12:] if 'page=2' in url else daily.HOURS[:12]
+            return (header+''.join(f'<tr><td>23-10-2026</td><td>{t}</td><td>100</td><td>99</td><td>1</td><td></td></tr>' for t in hours)+'<a href="?page=2">2</a>').encode()
+        with tempfile.TemporaryDirectory() as directory, patch.object(erp, 'download', side_effect=fetch) as download:
+            result = erp.load_range('demand', '2026-10-23', '2026-10-23', Path(directory))
+        self.assertEqual(download.call_count,2)
+        self.assertTrue(erp.complete(result['days']['2026-10-23'],'demand'))
 
 
 @unittest.skipUnless(HAS_MODELS,'Install requirements-forecast.txt')

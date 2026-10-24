@@ -20,7 +20,7 @@ URLS = dict(demand='https://erp.powergrid.gov.bd/web/generations/view_demand_sup
 AVAILABILITY = 'ERP historical issue/revision timestamps are unavailable; availability on D+1 is assumed for retrospective evaluation.'
 
 
-def parse_table(body, kind):
+def parse_table(body, kind, expected_date=None):
     from server import DataTableParser, parse_number
     parser = DataTableParser()
     text = body.decode('utf-8', errors='replace')
@@ -37,6 +37,8 @@ def parse_table(body, kind):
         try:
             day = dt.datetime.strptime(row[0], '%d-%m-%Y').date().isoformat()
         except ValueError:
+            continue
+        if expected_date is not None and day != expected_date:
             continue
         clock = re.match(r'^(\d{1,2}:\d{2})(?::\d{2})?\b', row[1])
         if not clock:
@@ -76,48 +78,49 @@ def load_range(kind, start, end, cache):
     manifest = json.loads(manifest_path.read_text()) if manifest_path.exists() else dict(source=URLS[kind], captures=[], days={})
     folder.mkdir(parents=True, exist_ok=True)
 
-    def fetch(params):
-        url = URLS[kind] + '?' + urlencode(params)
-        body = download(url)
-        rows, pages = parse_table(body, kind)
-        digest = hashlib.sha256(body).hexdigest()
-        raw = folder / 'raw' / (digest + '.html')
-        raw.parent.mkdir(exist_ok=True)
-        if not raw.exists():
-            raw.write_bytes(body)
-        return rows, pages, dict(url=url, retrieved_at=utc_now(), sha256=digest, raw=str(raw.relative_to(folder)))
+    def fetch(day):
+        params = dict(search=dt.date.fromisoformat(day).strftime('%d-%m-%Y'))
+        observed, captures = {}, []
+        page, pages = 1, 1
+        while page <= pages:
+            url = URLS[kind] + '?' + urlencode(dict(params, page=page))
+            body = download(url)
+            rows, pages = parse_table(body, kind, expected_date=day)
+            digest = hashlib.sha256(body).hexdigest()
+            raw = folder / 'raw' / (digest + '.html')
+            raw.parent.mkdir(exist_ok=True)
+            if not raw.exists():
+                raw.write_bytes(body)
+            captures.append(dict(url=url, retrieved_at=utc_now(), sha256=digest,
+                                 raw=str(raw.relative_to(folder))))
+            for row in rows:
+                if row['time'] in observed and observed[row['time']] != row:
+                    raise ValueError(f"Conflicting {kind} rows at {day} {row['time']}")
+                observed[row['time']] = row
+            page += 1
+        return sorted(observed.values(), key=lambda r: r['time']), captures
 
-    def merge(result):
-        rows, pages, capture = result
-        manifest['captures'].append(capture)
-        grouped = {}
-        for row in rows:
-            grouped.setdefault(row['date'], []).append(row)
-        for day, observed in grouped.items():
-            existing = {r['time']: r for r in manifest['days'].get(day, [])}
-            existing.update({r['time']: r for r in observed})
-            manifest['days'][day] = sorted(existing.values(), key=lambda r: r['time'])
-        manifest.update(availability=AVAILABILITY, updated_at=utc_now())
-        atomic_json(manifest_path, manifest)
-        return pages, min(r['date'] for r in rows)
-
-    # First capture paginated history once. Subsequent runs fetch only missing dates.
-    if not manifest['days']:
-        pages, oldest = merge(fetch(dict(page=1)))
-        with ThreadPoolExecutor(max_workers=3) as pool:
-            for first in range(2, pages + 1, 3):
-                for result in pool.map(fetch, [dict(page=p) for p in range(first, min(first+3, pages+1))]):
-                    _, day = merge(result)
-                    oldest = min(oldest, day)
-                print(f'ERP {kind}: {len(manifest["captures"])} pages; oldest {oldest}', flush=True)
-                if oldest < start:
-                    break
     wanted = [(dt.date.fromisoformat(start) + dt.timedelta(days=n)).isoformat()
               for n in range((dt.date.fromisoformat(end)-dt.date.fromisoformat(start)).days+1)]
     missing = [d for d in wanted if not complete(manifest['days'].get(d, []), kind)]
+    # Query only needed dates. A duplicate on an unrelated old archive page must
+    # not abort every forecast, and one failed day must not discard other days.
     with ThreadPoolExecutor(max_workers=3) as pool:
-        for result in pool.map(fetch, [dict(search=dt.date.fromisoformat(d).strftime('%d-%m-%Y')) for d in missing]):
-            merge(result)
+        futures = [(day, pool.submit(fetch, day)) for day in missing]
+        for day, future in futures:
+            try:
+                rows, captures = future.result()
+                manifest['captures'].extend(captures)
+                existing = {r['time']: r for r in manifest['days'].get(day, [])}
+                existing.update({r['time']: r for r in rows})
+                manifest['days'][day] = sorted(existing.values(), key=lambda r: r['time'])
+                manifest.setdefault('failures', {}).pop(day, None)
+            except Exception as error:
+                manifest.setdefault('failures', {})[day] = f'{type(error).__name__}: {error}'
+                print(f'ERP {kind} unavailable for {day}: {error}', flush=True)
+            manifest.update(availability=AVAILABILITY, updated_at=utc_now())
+            atomic_json(manifest_path, manifest)
+
     return manifest
 
 

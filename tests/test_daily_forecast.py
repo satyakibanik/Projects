@@ -31,6 +31,16 @@ def ready(day='2026-10-23'):
 
 
 class PublicationTests(unittest.TestCase):
+    def setUp(self):
+        # ERP retrieval is tested separately. These publication tests use only
+        # the manifest created by each fixture and must stay offline.
+        def cached(kind, start, end, cache):
+            path = cache/'erp-history'/kind/'manifest.json'
+            return json.loads(path.read_text()) if path.exists() else {'days': {}}
+        self.erp = patch('erp_history.load_range', side_effect=cached)
+        self.erp.start()
+        self.addCleanup(self.erp.stop)
+
     def test_forecast_requires_complete_finite_correctly_dated_output(self):
         value = ready()
         self.assertTrue(daily.valid_forecast(value, '2026-10-23'))
@@ -77,6 +87,53 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(current['forecast_history']['2026-10-24']['generation_hourly'],[])
             self.assertEqual(json.loads((cache/daily.VERSION/'2026-10-23.json').read_text()),previous)
 
+    def test_refresh_actuals_even_when_all_predictions_are_frozen(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            previous = ready('2026-10-23')
+            daily.atomic_json(cache/daily.VERSION/'2026-10-23.json', previous)
+            rows = [dict(time=t, demand_mw=100+h, generation_mw=110+h)
+                    for h,t in enumerate(daily.HOURS)]
+            current = dict(today_date='2026-10-24')
+            with patch.object(daily, 'prepare_forecasts', return_value={'2026-10-24': ready('2026-10-24')}), patch('erp_history.load_range', return_value=dict(days={'2026-10-23': rows})) as refresh:
+                build.attach_forecasts([], {}, current, cache)
+            self.assertEqual(refresh.call_count, 2)
+            history = current['forecast_history']['2026-10-23']
+            self.assertEqual(len(history['demand_hourly']), 24)
+            self.assertEqual(len(history['generation_hourly']), 24)
+            self.assertEqual(history['forecast']['hourly'], previous['hourly'])
+            self.assertEqual(json.loads((cache/daily.VERSION/'2026-10-23.json').read_text()), previous)
+
+    def test_failed_forecast_still_refreshes_actuals_and_publishes_diagnostic(self):
+        with tempfile.TemporaryDirectory() as directory:
+            current = dict(today_date='2026-10-24')
+            failed = dict(date='2026-10-23', status='unavailable', reason='Missing weather')
+            forecasts = {'2026-10-24': ready('2026-10-24'), '2026-10-23': failed}
+            with patch.object(daily, 'prepare_forecasts', return_value=forecasts), patch('erp_history.load_range', return_value=dict(days={'2026-10-23': [dict(time='23:00', demand_mw=100, generation_mw=110)]})):
+                build.attach_forecasts([], {}, current, Path(directory))
+            day = current['forecast_history']['2026-10-23']
+            self.assertEqual(day['forecast_error'], 'Missing weather')
+            self.assertEqual(day['demand_hourly'][0]['time'], '23:00')
+
+    def test_first_post_study_day_requires_explicit_retrospective_issue(self):
+        value = ready('2026-10-22')
+        self.assertFalse(daily.valid_forecast(value, '2026-10-22'))
+        value.update(publication_kind='retrospective', issued_at='2026-10-24T04:00:00+00:00')
+        self.assertTrue(daily.valid_forecast(value, '2026-10-22'))
+        self.assertFalse(daily.valid_forecast(ready('2026-10-21'), '2026-10-21'))
+
+    def test_backfill_preserves_every_already_issued_day_without_refitting(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cache = Path(directory)
+            saved = {day: ready(day) for day in ('2026-10-22', '2026-10-23', '2026-10-24', '2026-10-25')}
+            saved['2026-10-22'].update(publication_kind='retrospective', issued_at='2026-10-24T04:00:00+00:00')
+            for day, value in saved.items():
+                daily.atomic_json(cache/daily.VERSION/(day+'.json'), value)
+            with patch.object(daily, 'load_history', side_effect=AssertionError('Must not refit')) as fitted:
+                result = daily.prepare_forecasts([], dict(today_date='2026-10-24'), cache)
+            fitted.assert_not_called()
+            self.assertEqual(result, saved)
+
     def test_local_api_reads_frozen_forecast_without_training_on_live_data(self):
         import server
         with tempfile.TemporaryDirectory() as directory:
@@ -89,9 +146,9 @@ class PublicationTests(unittest.TestCase):
     def test_prepare_today_and_tomorrow_retries_failures_without_reusing_yesterday(self):
         with tempfile.TemporaryDirectory() as directory, patch.dict('os.environ', {}, clear=True), patch.object(daily, 'load_history', return_value=([], [])) as history:
             result = daily.prepare_forecasts([], dict(today_date='2026-10-23'), Path(directory))
-            self.assertEqual(set(result), {'2026-10-23', '2026-10-24'})
+            self.assertEqual(set(result), {'2026-10-22', '2026-10-23', '2026-10-24'})
             self.assertTrue(all(v['status'] == 'unavailable' for v in result.values()))
-            self.assertEqual(history.call_count, 2)
+            self.assertEqual(history.call_count, 3)
             self.assertFalse(list(Path(directory).rglob('*.json')))
 
     def test_restore_previously_published_forecast_if_actions_cache_was_evicted(self):

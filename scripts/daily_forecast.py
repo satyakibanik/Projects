@@ -44,7 +44,7 @@ def atomic_json(path, value):
 def valid_forecast(value, day):
     if not isinstance(value, dict):
         return False
-    if (day <= shift(CATALOG['window']['end'], -1) or value.get('version') != VERSION or
+    if (day <= CATALOG['window']['end'] or value.get('version') != VERSION or
             value.get('date') != day or value.get('status') != 'ready'):
         return False
     if value.get('input_cutoff_date') != shift(day, 1):
@@ -59,6 +59,10 @@ def valid_forecast(value, day):
         issue = dt.datetime.fromisoformat(value.get('issued_at', ''))
         if issue.tzinfo is None or issue.astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat() < value['max_training_publication']:
             return False
+        if day == shift(CATALOG['window']['end'], -1):
+            if (value.get('publication_kind') != 'retrospective' or
+                    issue.astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat() < day):
+                return False
     except (ValueError, TypeError):
         return False
     rows = value.get('hourly', [])
@@ -184,7 +188,7 @@ def fit_forecast(records, weather, target_day, cache=None):
     from forecast_features import Dataset
     from independent_models import BASE_MODELS, add_ensembles, fit_origin
 
-    if target_day <= shift(CATALOG['window']['end'], -1):
+    if target_day <= CATALOG['window']['end']:
         raise ValueError('Ranked publication requires evaluation labels to be available by D-1')
     if not records or any(record.get('label_basis') != TARGET_BASIS for record in records):
         raise ValueError('Forecast labels must be ERP substation demand and ERP generation')
@@ -253,6 +257,7 @@ def fit_forecast(records, weather, target_day, cache=None):
                   training_days=len(training), members=list(BASE_MODELS),
                   models=DEFAULT_MODELS, model_catalog=CATALOG,
                   calibration=[a for a in calibration if a['origin']==target_day],
+                  publication_kind='retrospective' if issue_date > target_day or target_day == shift(CATALOG['window']['end'], -1) else 'daily',
                   issue_timing='before operating day' if issue_date < target_day else 'after operating day began',
                   inputs_sha256=hashlib.sha256(json.dumps(records_used, sort_keys=True).encode()).hexdigest(),
                   weather={k: v for k, v in weather.items() if k != 'hourly'},
@@ -268,10 +273,13 @@ def fit_forecast(records, weather, target_day, cache=None):
 
 
 def prepare_forecasts(listing, current_day, cache):
-    """Cache once per date; prepare tomorrow before its first live reading arrives."""
+    """Preserve issued curves and reconstruct missed post-study days explicitly."""
     day = current_day['today_date']
     result = {}
-    for target in (day, shift(day, -1)):
+    first = max(shift(CATALOG['window']['end'], -1), shift(day, 34))
+    past = [(dt.date.fromisoformat(first) + dt.timedelta(days=n)).isoformat()
+            for n in range(max(0, (dt.date.fromisoformat(day)-dt.date.fromisoformat(first)).days))]
+    for target in (day, shift(day, -1), *past):
         path = cache / VERSION / (target + '.json')
         try:
             if path.exists():
