@@ -42,13 +42,29 @@ test('realtime includes matching PGCB scenarios and scores demand only against g
  assert.equal(plot(c).rows[0].demand_forecast_mw,13500);
  assert.equal(plot(c).rows[0].pgcb_demand_mw,15000);
  const demand=html.match(/data-forecast-target="demand"[^]*?<\/section>/)[0];
- assert.match(demand,/PGCB day MAE <strong>—<\/strong>.*0\/24 matched hours/);
- assert.match(demand,/Matching generation-side demand actuals are not available yet/);
+ assert.match(demand,/Day MAE \(matched hours\)/);
+ assert.match(demand,/PGCB: <strong>—<\/strong> <small>\(0\/24\)<\/small>/);
+ assert.match(demand,/BEGD: <strong>1,000 MW<\/strong> <small>\(1\/24\)<\/small>/);
+ assert.match(demand,/PGCB actuals unavailable/);
  const generation=html.match(/data-forecast-target="generation"[^]*?<\/section>/)[0];
- assert.match(generation,/PGCB day MAE · partial <strong>900 MW<\/strong>.*1\/24 matched hours/);
+ assert.match(generation,/Day MAE \(1\/24 matched hours\)/);
+ assert.match(generation,/PGCB: <strong>900 MW<\/strong>/);
+ assert.match(generation,/BEGD: <strong>0 MW<\/strong>/);
  c.fixture.generation_side_demand_hourly=[{time:'00:00',demand_mw:14800}];
- assert.match(vm.runInContext('realTime()',c),/PGCB day MAE · partial <strong>200 MW<\/strong>.*1\/24 matched hours/);
+ assert.match(vm.runInContext('realTime()',c),/PGCB: <strong>200 MW<\/strong>/);
  assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/Demand · PGCB/);
+});
+test('compact live MAE preserves distinct coverage and keeps model names only in the chart layer',()=>{
+ const {c}=live();
+ c.fixture.pgcb_forecast={date:'2026-10-23',hourly:[{time:'00:00',generation_mw:14900}]};
+ c.fixture.generation_hourly.push({time:'01:00',total_mw:14001});
+ const html=vm.runInContext('realTime()',c);
+ const generation=html.match(/data-forecast-target="generation"[^]*?<\/section>/)[0];
+ assert.match(generation,/Day MAE \(matched hours\)/);
+ assert.match(generation,/PGCB: <strong>900 MW<\/strong> <small>\(1\/24\)<\/small>/);
+ assert.match(generation,/BEGD: <strong>0 MW<\/strong> <small>\(2\/24\)<\/small>/);
+ assert.doesNotMatch(html,/forecast-best-model|#1 · Median|#1 · Trees/);
+ assert.match(generation,/Generation forecast · Median/);
 });
 test('realtime excludes wrong-day PGCB scenarios and names their absence',()=>{
  const {c}=live();

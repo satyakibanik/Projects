@@ -365,7 +365,7 @@ function realTime(){
  const demandRows=rows.map(row=>({time:row.time,demand_mw:row.demand_mw,
   supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const combinedPanel=panel('Demand, supply, & load shedding',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
+ const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
   '<div class="realtime-dispatch-plots">'+chart(demandRows,[
    {key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},
    {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}

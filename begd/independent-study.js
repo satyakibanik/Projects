@@ -45,10 +45,22 @@
   });
   return {date,dates,rows,models,pgcb,forecast,forecastReason:candidate?.reason||history?.forecast_error||'',issued:forecast?.issued_at||(bundle.forward_dates.includes(date)?bundle.issued_at:null)};
  }
- function score(rows,actualKey,forecastKey,label='Day MAE'){
+ function matchedError(rows,actualKey,forecastKey){
   const paired=rows.filter(r=>finite(r[actualKey])&&finite(r[forecastKey]));
   const mae=paired.length?paired.reduce((sum,r)=>sum+Math.abs(r[actualKey]-r[forecastKey]),0)/paired.length:null;
-  return `<p class="study-scores">${label}${paired.length&&paired.length<24?' · partial':''} <strong>${mae===null?'—':fmt(mae,1)+' MW'}</strong><span class="note">${paired.length}/24 matched hours</span></p>`;
+  return {mae,count:paired.length};
+ }
+ function score(rows,actualKey,forecastKey,label='Day MAE'){
+  const {mae,count}=matchedError(rows,actualKey,forecastKey);
+  return `<p class="study-scores">${label}${count&&count<24?' · partial':''} <strong>${mae===null?'—':fmt(mae,1)+' MW'}</strong><span class="note">${count}/24 matched hours</span></p>`;
+ }
+ function compactScores(rows,target,hasPgcb){
+  const begd=matchedError(rows,target+'_mw',target+'_forecast_mw');
+  const pgcb=matchedError(rows,target==='demand'?'demand_generation_side_mw':'generation_mw','pgcb_'+target+'_mw');
+  const shared=begd.count===pgcb.count;
+  const value=(name,result)=>`<span>${name}: <strong>${result.mae===null?'—':fmt(result.mae,1)+' MW'}</strong>${shared?'':` <small>(${result.count}/24)</small>`}</span>`;
+  const note=!hasPgcb?'No matching PGCB scenario.':target==='demand'?'Demand basis: PGCB generation side; BEGD substation side.'+(pgcb.count?'':' PGCB actuals unavailable.'):'';
+  return `<div class="compact-scores"><p class="mae-caption">Day MAE (${shared?begd.count+'/24 matched hours':'matched hours'})</p><p class="mae-values">${value('PGCB',pgcb)}${value('BEGD',begd)}</p>${note?`<p class="note mae-note">${note}</p>`:''}</div>`;
  }
  function modelDescription(target,name){
   const info=catalog.model_info[name]||{},members=info.constituents||[];
@@ -66,9 +78,9 @@
     series.push({key:'pgcb_'+target+'_mw',name:target==='demand'?'Demand · PGCB (generation side)':'Generation · PGCB',color:target==='demand'?'#cc8528':'#6098c5',marker:target==='demand'?'triangle':'cross',family:'published',defaultVisible:true,dashArray:'8 3 2 3'});
    }
    const missing=!rows.some(r=>finite(r[target+'_forecast_mw']));
-   const control=liveOnly?`<p class="forecast-best-model">#1 · ${esc(models[target])}</p>`:`<label>${target==='demand'?'Demand model · substation side':'Generation model · ERP'}<select id="study-${target}" aria-label="Independent ${target} model">${options(names(target),models[target],name=>`#${ranked(target).find(r=>r.model===name).rank} · ${name}`)}</select></label>`;
-   const pgcbScore=`<div class="pgcb-score">${score(rows,target==='demand'?'demand_generation_side_mw':'generation_mw','pgcb_'+target+'_mw','PGCB day MAE')}${!hasPgcb?'<p class="note">No matching PGCB scenario.</p>':target==='demand'?'<p class="note">Generation-side demand basis. BEGD demand MAE uses substation-side actuals.</p>':''}${hasPgcb&&target==='demand'&&!rows.some(r=>finite(r.demand_generation_side_mw))?'<p class="note">Matching generation-side demand actuals are not available yet.</p>':''}</div>`;
-   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${chart(rows,series,{forecastLegend:'BEGD generated forecast',publishedLegend:target==='demand'?'PGCB published scenario · generation side':'PGCB published scenario',key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target})}${liveOnly?'':modelDescription(target,models[target])}</section>`;
+   const control=liveOnly?'':`<label>${target==='demand'?'Demand model · substation side':'Generation model · ERP'}<select id="study-${target}" aria-label="Independent ${target} model">${options(names(target),models[target],name=>`#${ranked(target).find(r=>r.model===name).rank} · ${name}`)}</select></label>`;
+   const pgcbScore=liveOnly?'':`<div class="pgcb-score">${score(rows,target==='demand'?'demand_generation_side_mw':'generation_mw','pgcb_'+target+'_mw','PGCB day MAE')}${!hasPgcb?'<p class="note">No matching PGCB scenario.</p>':target==='demand'?'<p class="note">Generation-side demand basis. BEGD demand MAE uses substation-side actuals.</p>':''}${hasPgcb&&target==='demand'&&!rows.some(r=>finite(r.demand_generation_side_mw))?'<p class="note">Matching generation-side demand actuals are not available yet.</p>':''}</div>`;
+   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${liveOnly?compactScores(rows,target,hasPgcb):score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${chart(rows,series,{forecastLegend:'BEGD generated forecast',publishedLegend:target==='demand'?'PGCB published scenario · generation side':'PGCB published scenario',key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target})}${liveOnly?'':modelDescription(target,models[target])}</section>`;
   }).join('');
  }
  function issueNote({date,forecast,issued}){

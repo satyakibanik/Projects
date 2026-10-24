@@ -6,11 +6,12 @@ const {load,fixture}=require('./helpers/forecast-fixture.cjs');
 test('realtime shows today only while the full comparison leads the Forecast workspace',()=>{
  const {c}=load();vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:99,shed_mw:1}],generation_hourly:[],imports:[]};data={date:'2026-10-21',forecast:{totals:{},plants:[]}}",c);
  const html=vm.runInContext('realTime()',c);
- assert.ok(html.indexOf('Demand, supply, & load shedding')>=0);
- assert.ok(html.indexOf('Demand, supply, & load shedding')<html.indexOf('id="today-forecast-panel"'));
+ assert.ok(html.indexOf('Demand and Supply at the Substation side')>=0);
+ assert.ok(html.indexOf('Demand and Supply at the Substation side')<html.indexOf('id="today-forecast-panel"'));
  assert.doesNotMatch(html,/load shedding\.<\/h2>/);
  assert.doesNotMatch(html,/id="study-(date|demand|generation)"|id="independent-study-panel"/);
- assert.match(html,/All dates &amp; models/);assert.match(html,/#1 · Trees/);assert.match(html,/#1 · Median/);
+ assert.match(html,/All dates &amp; models/);assert.match(html,/Demand forecast · Trees/);assert.match(html,/Generation forecast · Median/);
+ assert.doesNotMatch(html,/forecast-best-model/);
  assert.equal(vm.runInContext('[...chartData.values()].length',c),4);
  const workspace=vm.runInContext('forecast()',c);
  assert.ok(workspace.indexOf('id="independent-study-panel"')<workspace.indexOf('Generation availability forecast'));
