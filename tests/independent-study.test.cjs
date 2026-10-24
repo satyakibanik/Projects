@@ -26,7 +26,7 @@ test('expansion separates demand and generation into subplots with their own mod
   const subplot=html.match(new RegExp('<section class="forecast-subplot" data-forecast-target="'+target+'"[^>]*>([^]*?)</section>'))[1];
   assert.match(subplot,new RegExp('id="study-'+target+'"'));
   assert.doesNotMatch(subplot,new RegExp('id="study-'+(target==='demand'?'generation':'demand')+'"'));
-  assert.match(subplot,/Evaluation MAE/);assert.match(subplot,/model-description/);
+  assert.match(subplot,/Day MAE/);assert.match(subplot,/model-description/);
  }
  assert.match(html,/Generation actual · ERP/);assert.match(html,/Operating date/);
  assert.match(html,/D\+1 assumed/);assert.match(html,/Constituent models \(2\)/);assert.match(html,/SVR weather/);
@@ -89,4 +89,38 @@ test('the production HTML includes the reviewed archive, panel code and model co
    assert.equal(Object.keys(row[target+'_models']).length,3);assert.equal('supply_mw' in row,false);
   }
  }
+});
+
+test('MAE is computed from matching actual and selected-model hours and changes with day and model',()=>{
+ const {c,controls,open}=load();open();
+ const demand=()=>vm.runInContext('window.BEGDIndependentStudy.render()',c).match(/data-forecast-target="demand"[^]*?<p class="study-scores">([^]*?)<\/p>/)[1];
+ assert.match(demand(),/partial.*<strong>5(?:\.0)? MW<\/strong>.*1\/24 matched hours/);
+ controls.get('study-demand').events.change({target:{value:'Ridge'}});
+ assert.match(demand(),/<strong>2(?:\.0)? MW<\/strong>/);
+ controls.get('study-date').events.change({target:{value:'2026-10-21'}});
+ assert.match(demand(),/Day MAE <strong>2(?:\.0)? MW<\/strong>.*24\/24 matched hours/);
+ // A later day can have different errors even for the same model.
+ vm.runInContext("window.BEGD_INDEPENDENT_STUDY.days['2026-10-23'][0].demand_mw=90",c);
+ controls.get('study-date').events.change({target:{value:'2026-10-23'}});
+ assert.match(demand(),/<strong>12(?:\.0)? MW<\/strong>/);
+});
+test('MAE excludes absent/nonfinite readings, counts measured zero and has no ranking fallback',()=>{
+ const bundle=fixture();bundle.days['2026-10-23'][0].demand_mw=0;
+ bundle.days['2026-10-23'][1].demand_mw=NaN;
+ const {c,open}=load(bundle);open();
+ let html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ assert.match(html,/Day MAE · partial <strong>105(?:\.0)? MW<\/strong>.*1\/24 matched hours/);
+ bundle.days['2026-10-23'][0].demand_mw=null;
+ html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ assert.match(html,/Day MAE <strong>—<\/strong>.*0\/24 matched hours/);
+ assert.doesNotMatch(html,/Evaluation MAE/);
+});
+test('forecast failures name the operating date and escape the diagnostic',()=>{
+ const {c,controls,open}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-24',independent_forecast:{status:'unavailable',reason:'Missing <weather>'},forecast_history:{'2026-10-22':{forecast:null,forecast_error:'Unavailable <inputs>'}}}",c);
+ open();let html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ assert.match(html,/BEGD forecast unavailable for 24 Oct 2026 · Missing &lt;weather&gt;/);
+ controls.get('study-date').events.change({target:{value:'2026-10-22'}});
+ html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ assert.match(html,/22 Oct 2026 · Unavailable &lt;inputs&gt;/);
 });

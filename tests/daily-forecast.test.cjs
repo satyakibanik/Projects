@@ -22,7 +22,7 @@ test('expanded live forecast has all 24 horizons while future demand and generat
 test('wrong-day, partial, nonfinite and generation-side legacy forecasts cannot masquerade as ranked ERP forecasts',()=>{
  for(const mutate of [v=>v.date='2026-10-22',v=>v.hourly.pop(),v=>v.hourly[0]=null,v=>v.hourly[0].demand_models.Trees=NaN,v=>v.target_basis.demand='P4 generation side',v=>v.version='erp-independent-seven-v2']){
   const {c,open}=live();mutate(c.fixture.independent_forecast);open();const html=vm.runInContext('realTime()',c);
-  assert.ok(plot(c).rows.every(r=>r.demand_forecast_mw===null));assert.match(html,/not available for this operating date/);
+  assert.ok(plot(c).rows.every(r=>r.demand_forecast_mw===null));assert.match(html,/BEGD forecast unavailable for/);
  }
 });
 test('PGCB curves match the forecast operating date and ignore the workbook selected in other tabs',()=>{

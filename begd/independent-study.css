@@ -21,7 +21,8 @@
 .forecast-subplot+.forecast-subplot{border-top:1px solid var(--line);padding-top:24px}
 .forecast-subplot-controls{display:flex;align-items:flex-end;justify-content:space-between;gap:14px 24px;flex-wrap:wrap;margin:16px 0}
 .forecast-subplot-controls label{flex:1;max-width:460px;min-width:min(100%,250px)}
-.forecast-subplot-controls .study-scores{padding-bottom:10px}
+.forecast-subplot-controls .study-scores{display:grid;grid-template-columns:auto auto;gap:4px 12px;padding-bottom:10px}
+.forecast-subplot-controls .study-scores .note{grid-column:1/-1;text-align:right;margin:0}
 .forecast-subplot .model-description{margin-top:18px}
 .model-description .note{margin:0 0 8px}
 .model-members summary{font-size:11px;cursor:pointer;color:var(--muted)}

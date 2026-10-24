@@ -48,23 +48,36 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir):
             if valid_forecast(value,path.stem):history[path.stem]=value
         except (OSError,ValueError,TypeError):
             pass
-    actuals={}
-    for kind in ('demand','generation'):
-        path=cache_dir/'erp-history'/kind/'manifest.json'
-        try:actuals[kind]=json.loads(path.read_text())['days']
-        except (OSError,ValueError,KeyError,TypeError):actuals[kind]={}
     scenarios={}
     for report in sorted(reports_by_id.values(),key=lambda r:r.get('published_date','')):
         forecast=report.get('forecast',{})
         day=forecast.get('scenario_date')
         if day:scenarios[day]=dict(date=day,hourly=forecast.get('demand_hourly',[]),
             published_date=report.get('published_date'),source_url=report.get('source_url'))
-    fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date')
+    fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date','publication_kind')
     ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
-    dates=sorted(set(ready_history)|set(scenarios))[-35:]
+    dates=sorted(set(history)|set(scenarios)|{today})[-35:]
+    # Actuals are display data, not model inputs. Refresh yesterday even when
+    # every forecast is cached, or model preparation failed before ERP loading.
+    from erp_history import load_range
+    actuals, actual_errors = {}, {}
+    start = max(min(dates), (dt.date.fromisoformat(today)-dt.timedelta(days=34)).isoformat())
+    end = (dt.date.fromisoformat(today)-dt.timedelta(days=1)).isoformat()
+    for kind in ('demand','generation'):
+        try:
+            manifest = load_range(kind, start, end, cache_dir) if start <= end else {}
+            actuals[kind] = manifest.get('days', {})
+            actual_errors[kind] = manifest.get('failures', {})
+        except Exception as error:
+            actual_errors[kind] = {'refresh': f'{type(error).__name__}: {error}'}
+            path = cache_dir/'erp-history'/kind/'manifest.json'
+            try: actuals[kind] = json.loads(path.read_text())['days']
+            except (OSError, ValueError, KeyError, TypeError): actuals[kind] = {}
+    current_day['forecast_actual_errors'] = actual_errors
     current_day['forecast_history']={day:dict(forecast={k:ready_history[day].get(k) for k in fields} if day in ready_history else None,
         demand_hourly=actuals['demand'].get(day,[]),
         generation_hourly=[dict(time=r['time'],total_mw=r.get('generation_mw')) for r in actuals['generation'].get(day,[])],
+        forecast_error=history.get(day,{}).get('reason'),
         pgcb_forecast=scenarios.get(day)) for day in dates}
     return forecasts
 
