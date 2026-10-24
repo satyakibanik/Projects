@@ -40,6 +40,10 @@ class PublicationTests(unittest.TestCase):
         self.erp = patch('erp_history.load_range', side_effect=cached)
         self.erp.start()
         self.addCleanup(self.erp.stop)
+        from pgcb_forecast import collect_comparisons
+        self.pgcb = patch('pgcb_forecast.collect_comparisons', side_effect=lambda reports,today,refresh: collect_comparisons(reports,today,False))
+        self.pgcb.start()
+        self.addCleanup(self.pgcb.stop)
 
     def test_forecast_requires_complete_finite_correctly_dated_output(self):
         value = ready()

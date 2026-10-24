@@ -346,39 +346,8 @@ def parse_report(report_bytes, source_file):
         forecast_date = datetime.datetime.strptime(str(raw_forecast_date), "%d-%m-%Y").date().isoformat()
     forecast_plants = []
     system_forecast = {}
-    scenario_row = next(
-        (row for row in range(1, forecast_sheet.max_row + 1)
-         if isinstance(forecast_sheet.cell(row, 5).value, str)
-         and forecast_sheet.cell(row, 5).value.strip().startswith("Forecast Scenario")),
-        None,
-    )
-    forecast_demand_hourly = []
-    scenario_date = None
-    if scenario_row is not None:
-        match = re.search(r'(\d{2}-\d{2}-\d{4})', str(forecast_sheet.cell(scenario_row, 5).value))
-        if match:
-            try:
-                scenario_date = datetime.datetime.strptime(match[1], '%d-%m-%Y').date().isoformat()
-            except ValueError:
-                pass
-        header_row = next(
-            (row for row in range(scenario_row + 1, min(scenario_row + 4, forecast_sheet.max_row + 1))
-             if forecast_sheet.cell(row, 5).value == "Hour"
-             and forecast_sheet.cell(row, 10).value == "Demand"),
-            None,
-        )
-        if header_row is not None:
-            for row in range(header_row + 1, forecast_sheet.max_row + 1):
-                raw_time = forecast_sheet.cell(row, 5).value
-                if raw_time is None:
-                    break
-                time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-                forecast_demand_hourly.append(dict(
-                    time=time,
-                    generation_mw=number(forecast_sheet.cell(row, 6).value),
-                    shed_mw=number(forecast_sheet.cell(row, 8).value),
-                    demand_mw=number(forecast_sheet.cell(row, 10).value),
-                ))
+    from pgcb_forecast import scenario_from_sheet
+    scenario_date, forecast_demand_hourly = scenario_from_sheet(forecast_sheet)
     for row in range(11, forecast_sheet.max_row + 1):
         name = forecast_sheet.cell(row, 2).value
         if forecast_sheet.cell(row, 1).value == "System Total" or name == "System Total":

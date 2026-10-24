@@ -64,9 +64,9 @@ test('forecast text sorts naturally and every column has an accessible sort cont
 test('forecast subtitle distinguishes forecast target date from actuals and does not invent a missing date',()=>{
  const c=app();
  const forecast=vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15',published_date:'2026-10-16',forecast:{date:'2026-10-16'}})`,c);
- assert.match(forecast,/Forecast for 16 October 2026/);assert.match(forecast,/Actuals in this workbook cover 15 October 2026/);
+ assert.match(forecast,/Workbook availability forecast for 16 October 2026/);assert.match(forecast,/Actuals in this workbook cover 15 October 2026/);
  assert.doesNotMatch(forecast,/Operating date 15/);
- assert.match(vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15'})`,c),/Forecast for unavailable/);
+ assert.match(vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15'})`,c),/Workbook availability forecast for unavailable/);
  assert.match(vm.runInContext(`reportSubtitle('overview',{date:'2026-10-15'})`,c),/Operating date 15 October 2026/);
 });
 test('largest circuit flow uses signed individual observations, ignores gaps and does not sum circuits',()=>{

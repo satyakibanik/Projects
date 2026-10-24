@@ -191,6 +191,12 @@ class ServerTests(unittest.TestCase):
 
 
 class BuildTests(unittest.TestCase):
+    def setUp(self):
+        from pgcb_forecast import collect_comparisons
+        self.pgcb = patch('pgcb_forecast.collect_comparisons', side_effect=lambda reports,today,refresh: collect_comparisons(reports,today,False))
+        self.pgcb.start()
+        self.addCleanup(self.pgcb.stop)
+
     def test_archive_empty(self):
         with patch.object(server, 'fetch_listing_page', return_value=([], 0)):
             with self.assertRaises(RuntimeError):
