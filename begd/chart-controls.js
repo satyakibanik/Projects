@@ -21,7 +21,7 @@ function setupCharts(view) {
       const row = model.rows[index];
       const visible = peers().flatMap(peer=>chartData.get(peer.dataset.chart).series.filter(s=>peer.querySelector(`[data-toggle-series="${s.key}"]`).checked));
       const ordered = model.enCurve ? visible.slice().reverse() : visible;
-      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span><i style="background:${s.color}"></i>${esc(s.name)}</span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(model.unit||'MW')}</b></div>`).join('');
+      tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span class="tooltip-series">${legendSwatch(s,Math.max(0,model.series.indexOf(s)))}<span>${esc(s.name)}</span></span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(model.unit||'MW')}</b></div>`).join('');
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / 800;
@@ -29,8 +29,9 @@ function setupCharts(view) {
       const plotBounds = plot.getBoundingClientRect(), wrapperBounds = wrapper.getBoundingClientRect();
       const plotOffset = (plotBounds.left - wrapperBounds.left) / wrapperBounds.width;
       const plotWidth = plotBounds.width / wrapperBounds.width;
-      tooltip.style.left = `${Math.max(2, Math.min(98, (plotOffset + fraction * plotWidth) * 100))}%`;
-      tooltip.style.transform = fraction > .65 ? 'translateX(-100%)' : 'translateX(0)';
+      const tooltipWidth=tooltip.getBoundingClientRect().width,anchor=(plotOffset+fraction*plotWidth)*wrapperBounds.width;
+      tooltip.style.left = `${Math.max(0,Math.min(wrapperBounds.width-tooltipWidth,anchor-(fraction>.65?tooltipWidth:0)))}px`;
+      tooltip.style.transform = 'none';
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
       cursor.removeAttribute('hidden');

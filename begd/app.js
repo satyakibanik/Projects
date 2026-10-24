@@ -365,7 +365,7 @@ function realTime(){
  const demandRows=rows.map(row=>({time:row.time,demand_mw:row.demand_mw,
   supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw}));
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const combinedPanel=panel('Demand, supply, & load shedding.',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
+ const combinedPanel=panel('Demand, supply, & load shedding',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
   '<div class="realtime-dispatch-plots">'+chart(demandRows,[
    {key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},
    {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}
@@ -498,7 +498,10 @@ function updateForecast(){
 }
 function reportSubtitle(view,report){
  const dateLabel=d=>d?new Date(d+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
- if(view==='realtime')return 'Latest ERP snapshot · Bangladesh time';
+ if(view==='realtime'){
+  const snapshotDate=currentDayData?.today_date||currentDayData?.date;
+  return `<span class="operating-date-highlight">${snapshotDate?'Snapshot date '+esc(dateLabel(snapshotDate)):'Snapshot date unavailable'}</span><span class="report-date-context">Latest ERP snapshot · All times Bangladesh time</span>`;
+ }
  if(view==='forecast')return `<span class="operating-date-highlight">BEGD forecasts and PGCB scenarios</span><span class="report-date-context">Workbook availability forecast for ${esc(dateLabel(report.forecast?.date))} · Report published ${esc(dateLabel(report.published_date||report.date))} · Actuals in this workbook cover ${esc(dateLabel(report.date))} · All times Bangladesh time</span>`;
  return `<span class="operating-date-highlight">Operating date ${esc(dateLabel(report.date))}</span><span class="report-date-context">Report published ${esc(dateLabel(report.published_date||report.date))} · All times Bangladesh time</span>`;
 }

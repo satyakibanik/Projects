@@ -69,6 +69,34 @@ test('forecast subtitle distinguishes forecast target date from actuals and does
  assert.match(vm.runInContext(`reportSubtitle('forecast',{date:'2026-10-15'})`,c),/Workbook availability forecast for unavailable/);
  assert.match(vm.runInContext(`reportSubtitle('overview',{date:'2026-10-15'})`,c),/Operating date 15 October 2026/);
 });
+test('real-time subtitle uses the snapshot date instead of the selected workbook and handles unavailable data',()=>{
+ const c=app();
+ vm.runInContext("currentDayData={today_date:'2026-10-24'}",c);
+ const html=vm.runInContext("reportSubtitle('realtime',{date:'2026-10-23'})",c);
+ assert.match(html,/operating-date-highlight.*Snapshot date 24 October 2026/);
+ assert.doesNotMatch(html,/23 October/);
+ vm.runInContext('currentDayData=null',c);
+ assert.match(vm.runInContext("reportSubtitle('realtime',{date:'2026-10-23'})",c),/Snapshot date unavailable/);
+});
+test('chart hover shows the same line colors, dash patterns and markers as the plot',()=>{
+ const tooltip={style:{},getBoundingClientRect:()=>({width:400})},cursor={setAttribute(){},removeAttribute(){}};
+ const hit=new Element(),svg=new Element();svg.getBoundingClientRect=()=>({left:0,width:800});
+ const wrapper={dataset:{chart:'plot-1'},getBoundingClientRect:()=>({left:0,width:800}),addEventListener(){},
+  querySelectorAll:s=>s==='[data-point]'?[hit]:[],
+  querySelector:s=>s==='.chart-tooltip'?tooltip:s==='.chart-cursor'?cursor:s==='svg'?svg:s.startsWith('[data-toggle-series=')?{checked:true}:null};
+ hit.dataset.point='0';
+ const document={addEventListener(){},querySelector:()=>new Element(),querySelectorAll:s=>s==='.interactive-chart'?[wrapper]:[]};
+ const c=app(document);
+ vm.runInContext("chart([{time:'00:00',actual:12,forecast:13}],[{key:'actual',name:'Actual <ERP>',color:'#b46c13',marker:'circle'},{key:'forecast',name:'Forecast',color:'#c77e21',marker:'diamond',dashArray:'3 4'}])",c);
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/chart-controls.js'),'utf8'),c);
+ vm.runInContext("setupCharts('realtime')",c);hit.events.focus();
+ assert.equal(tooltip.hidden,false);
+ assert.match(tooltip.innerHTML,/Actual &lt;ERP&gt;/);
+ assert.match(tooltip.innerHTML,/stroke="#b46c13"[^>]*stroke-dasharray="none"/);
+ assert.match(tooltip.innerHTML,/stroke="#c77e21"[^>]*stroke-dasharray="3 4"/);
+ assert.match(tooltip.innerHTML,/data-marker="diamond"/);
+ assert.match(tooltip.innerHTML,/13 MW/);
+});
 test('largest circuit flow uses signed individual observations, ignores gaps and does not sum circuits',()=>{
  const c=app();
  const peak=JSON.parse(vm.runInContext(`JSON.stringify(largestCircuitFlow([{time:'01:00',ishwardi_ghorashal:800,sirajganj_sreepur:900},{time:'02:00',gopalganj_aminbazar:-1338},{time:'03:00',ishwardi_ghorashal:null}]))`,c));
