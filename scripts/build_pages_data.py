@@ -22,7 +22,7 @@ from import_report import parse_report
 from trends import build_trends, extract_trend_workbook
 
 
-def attach_forecasts(records, reports_by_id, current_day, cache_dir):
+def attach_forecasts(records, reports_by_id, current_day, cache_dir, refresh_pgcb=False):
     """Keep realtime forecasts independent of the report selected in the browser."""
     from daily_forecast import prepare_forecasts
     today = current_day.get('today_date')
@@ -30,12 +30,6 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir):
         current_day['pgcb_forecast'] = None
         current_day['independent_forecast'] = dict(status='unavailable', reason='Missing operating date')
         return {}
-    matches = [r for r in reports_by_id.values()
-               if r.get('forecast', {}).get('scenario_date') == today]
-    pgcb = max(matches, key=lambda r: (r['published_date'], int(r['report_id'])), default=None)
-    current_day['pgcb_forecast'] = (dict(date=today, hourly=pgcb['forecast']['demand_hourly'],
-                                         report_name=pgcb['report_name'], source_url=pgcb['source_url'],
-                                         published_date=pgcb['published_date']) if pgcb else None)
     forecasts = prepare_forecasts(records, current_day, cache_dir)
     current_day['independent_forecast'] = forecasts[today]
     # Expose previously issued curves with dated ERP actuals without changing
@@ -48,15 +42,12 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir):
             if valid_forecast(value,path.stem):history[path.stem]=value
         except (OSError,ValueError,TypeError):
             pass
-    scenarios={}
-    for report in sorted(reports_by_id.values(),key=lambda r:r.get('published_date','')):
-        forecast=report.get('forecast',{})
-        day=forecast.get('scenario_date')
-        if day:scenarios[day]=dict(date=day,hourly=forecast.get('demand_hourly',[]),
-            published_date=report.get('published_date'),source_url=report.get('source_url'))
+    from pgcb_forecast import collect_comparisons
+    scenarios, generation_demand, generation_demand_sources = collect_comparisons(reports_by_id, today, refresh_pgcb)
+    current_day['pgcb_forecast'] = scenarios.get(today)
     fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date','publication_kind')
     ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
-    dates=sorted(set(history)|set(scenarios)|{today})[-35:]
+    dates=sorted(set(history)|set(scenarios)|set(generation_demand)|{today})[-35:]
     # Actuals are display data, not model inputs. Refresh yesterday even when
     # every forecast is cached, or model preparation failed before ERP loading.
     from erp_history import load_range
@@ -73,10 +64,24 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir):
             path = cache_dir/'erp-history'/kind/'manifest.json'
             try: actuals[kind] = json.loads(path.read_text())['days']
             except (OSError, ValueError, KeyError, TypeError): actuals[kind] = {}
+    # Today's generation-side demand can be unavailable even when substation
+    # demand is live. Never substitute one measurement basis for the other.
+    if refresh_pgcb and today in scenarios:
+        try:
+            manifest = load_range('generation_demand', today, today, cache_dir)
+            generation_demand[today] = manifest.get('days', {}).get(today, [])
+            generation_demand_sources[today] = dict(basis='ERP generation side', source_url=manifest.get('source'))
+            actual_errors['generation_demand'] = manifest.get('failures', {})
+        except Exception as error:
+            actual_errors['generation_demand'] = {today: str(error)}
+    current_day['generation_side_demand_hourly'] = generation_demand.get(today, [])
+    current_day['generation_side_demand_source'] = generation_demand_sources.get(today)
     current_day['forecast_actual_errors'] = actual_errors
     current_day['forecast_history']={day:dict(forecast={k:ready_history[day].get(k) for k in fields} if day in ready_history else None,
         demand_hourly=actuals['demand'].get(day,[]),
         generation_hourly=[dict(time=r['time'],total_mw=r.get('generation_mw')) for r in actuals['generation'].get(day,[])],
+        generation_side_demand_hourly=generation_demand.get(day, []),
+        generation_side_demand_source=generation_demand_sources.get(day),
         forecast_error=history.get(day,{}).get('reason'),
         pgcb_forecast=scenarios.get(day)) for day in dates}
     return forecasts
@@ -215,7 +220,7 @@ def write_data_bundle(output_dir):
                        "source_dates": {}, "source_urls": [],
                        "error": "ERP readings were unavailable during this build."}
 
-    forecasts = attach_forecasts(records, reports_by_id, current_day, ROOT / '.cache' / 'daily-forecasts')
+    forecasts = attach_forecasts(records, reports_by_id, current_day, ROOT / '.cache' / 'daily-forecasts', refresh_pgcb=True)
     built_at = dt.datetime.now(dt.timezone.utc).isoformat()
     bundle = {
         "generated_at": built_at,

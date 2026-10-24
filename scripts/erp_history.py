@@ -16,7 +16,8 @@ from urllib.parse import urlencode
 from daily_forecast import HOURS, atomic_json, shift, utc_now
 
 URLS = dict(demand='https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed',
-            generation='https://erp.powergrid.gov.bd/w/generations/view_generations')
+            generation='https://erp.powergrid.gov.bd/w/generations/view_generations',
+            generation_demand='https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?d_gen=1')
 AVAILABILITY = 'ERP historical issue/revision timestamps are unavailable; availability on D+1 is assumed for retrospective evaluation.'
 
 
@@ -28,11 +29,13 @@ def parse_table(body, kind, expected_date=None):
     headers = ' '.join(' '.join(row) for row in parser.rows if 'Demand' in ' '.join(row) or 'Generation' in ' '.join(row))
     if kind == 'demand' and ('Substation Side' not in headers or 'Supply' not in headers):
         raise ValueError('Expected explicitly identified substation-side demand/supply table')
+    if kind == 'generation_demand' and ('Generation Side' not in headers or 'Demand' not in headers):
+        raise ValueError('Expected explicitly identified generation-side demand table')
     if kind == 'generation' and 'Generation' not in headers:
         raise ValueError('Expected national generation table')
     records = {}
     for row in parser.rows:
-        if len(row) < (6 if kind == 'demand' else 13):
+        if len(row) < (13 if kind == 'generation' else 6):
             continue
         try:
             day = dt.datetime.strptime(row[0], '%d-%m-%Y').date().isoformat()
@@ -46,6 +49,8 @@ def parse_table(body, kind, expected_date=None):
         time = clock[1].zfill(5)
         record = dict(date=day, time=time)
         fields = [('demand_mw', 2), ('supply_mw', 3), ('shed_mw', 4)] if kind == 'demand' else [('generation_mw', 2)]
+        if kind == 'generation_demand':
+            fields = [('demand_mw', 2), ('generation_mw', 3), ('shed_mw', 4)]
         for name, index in fields:
             value = parse_number(row[index])
             record[name] = value if value is not None and value >= 0 else None
@@ -68,7 +73,7 @@ def download(url):
 
 def complete(rows, kind):
     exact = sorted((r for r in rows if r['time'] in HOURS), key=lambda r: r['time'])
-    key = 'demand_mw' if kind == 'demand' else 'generation_mw'
+    key = 'demand_mw' if kind in ('demand', 'generation_demand') else 'generation_mw'
     return [r['time'] for r in exact] == HOURS and all(r.get(key) is not None for r in exact)
 
 
@@ -83,7 +88,7 @@ def load_range(kind, start, end, cache):
         observed, captures = {}, []
         page, pages = 1, 1
         while page <= pages:
-            url = URLS[kind] + '?' + urlencode(dict(params, page=page))
+            url = URLS[kind] + ('&' if '?' in URLS[kind] else '?') + urlencode(dict(params, page=page))
             body = download(url)
             rows, pages = parse_table(body, kind, expected_date=day)
             digest = hashlib.sha256(body).hexdigest()

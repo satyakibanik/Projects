@@ -25,19 +25,20 @@ test('wrong-day, partial, nonfinite and generation-side legacy forecasts cannot 
   assert.ok(plot(c).rows.every(r=>r.demand_forecast_mw===null));assert.match(html,/BEGD forecast unavailable for/);
  }
 });
-test('PGCB curves match the forecast operating date and ignore the workbook selected in other tabs',()=>{
- const {c,open}=live();open();vm.runInContext("data={forecast:{date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:99999}]}}",c);
- assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="pgcb_/);
- c.fixture.pgcb_forecast={date:'2026-10-22',hourly:[{time:'00:00',demand_mw:99999}]};
- assert.doesNotMatch(vm.runInContext('realTime()',c),/data-toggle-series="pgcb_/);
+test('realtime contains only today BEGD forecasts even when PGCB scenarios are available',()=>{
+ const {c,open}=live();open();
  c.fixture.pgcb_forecast={date:'2026-10-23',hourly:[{time:'00:00',demand_mw:15000,generation_mw:14900}]};
- assert.match(vm.runInContext('realTime()',c),/Demand · PGCB/);assert.equal(plot(c).rows[0].pgcb_demand_mw,15000);
+ const html=vm.runInContext('realTime()',c);
+ assert.doesNotMatch(html,/data-toggle-series="pgcb_|id="study-date"|id="study-demand"/);
+ assert.match(html,/Today's BEGD forecasts/);
+ assert.equal(plot(c).rows[0].demand_forecast_mw,13500);
+ assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/Demand · PGCB/);
 });
-test('live refresh preserves the selected ranked model and legend visibility',()=>{
+test('live refresh preserves rank-one predictions and legend visibility',()=>{
  const {c,controls,open}=live();open();controls.get('study-demand').events.change({target:{value:'Ridge'}});
- vm.runInContext("chartVisibility.set('independent-study:2026-10-23:generation|generation_forecast_mw',false)",c);
+ vm.runInContext("chartVisibility.set('today-forecast:2026-10-23:generation|generation_forecast_mw',false)",c);
  vm.runInContext('realTime()',c);const before=plot(c).rows[0].demand_forecast_mw;
  c.fixture.demand_hourly.push({time:'01:00',demand_mw:14400,supply_mw:14390,shed_mw:10});vm.runInContext('realTime()',c);
- assert.equal(plot(c).rows[0].demand_forecast_mw,before);assert.equal(plot(c).rows[1].demand_mw,14400);
+ assert.equal(before,13500);assert.equal(plot(c).rows[0].demand_forecast_mw,before);assert.equal(plot(c).rows[1].demand_mw,14400);
  assert.equal(vm.runInContext('[...chartData.values()].filter(p=>p.series.some(s=>s.key==="generation_forecast_mw")).at(-1).series.find(s=>s.key==="generation_forecast_mw").defaultVisible',c),false);
 });

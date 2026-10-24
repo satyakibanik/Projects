@@ -249,7 +249,7 @@ def fit_forecast(records, weather, target_day, cache=None):
     issue_date = dt.datetime.fromisoformat(issued).astimezone(dt.timezone(dt.timedelta(hours=6))).date().isoformat()
     from erp_history import URLS, AVAILABILITY
     result = dict(version=VERSION, status='ready', date=target_day, issued_at=issued, fit_started_at=fit_started,
-                  target_basis=TARGET_BASIS, target_sources=URLS, availability_assumption=AVAILABILITY,
+                  target_basis=TARGET_BASIS, target_sources={kind:URLS[kind] for kind in ('demand','generation')}, availability_assumption=AVAILABILITY,
                   timezone='Asia/Dhaka', input_cutoff_date=shift(target_day, 1),
                   max_actual_input_date=shift(target_day, 2),
                   max_training_label_date=max(training),

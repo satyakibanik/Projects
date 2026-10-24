@@ -3,13 +3,16 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
 const {load,fixture}=require('./helpers/forecast-fixture.cjs');
-test('forecast panel is second, initially collapsed and does not construct a hidden chart',()=>{
- const {c}=load();vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:99,shed_mw:1}],generation_hourly:[],imports:[]}",c);
+test('realtime shows today only while the full comparison leads the Forecast workspace',()=>{
+ const {c}=load();vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:99,shed_mw:1}],generation_hourly:[],imports:[]};data={date:'2026-10-21',forecast:{totals:{},plants:[]}}",c);
  const html=vm.runInContext('realTime()',c);
- assert.ok(html.indexOf('Demand, supply, &amp; load shedding.')<html.indexOf('id="independent-study-panel"'));
- assert.match(html,/<details class="panel independent-study-panel"[^>]*><summary/);
- assert.doesNotMatch(html,/id="study-demand"/);
- assert.equal(vm.runInContext('[...chartData.values()].length',c),2);
+ assert.ok(html.indexOf('Demand, supply, &amp; load shedding.')<html.indexOf('id="today-forecast-panel"'));
+ assert.doesNotMatch(html,/id="study-(date|demand|generation)"|id="independent-study-panel"/);
+ assert.match(html,/All dates &amp; models/);assert.match(html,/#1 · Trees/);assert.match(html,/#1 · Median/);
+ assert.equal(vm.runInContext('[...chartData.values()].length',c),4);
+ const workspace=vm.runInContext('forecast()',c);
+ assert.ok(workspace.indexOf('id="independent-study-panel"')<workspace.indexOf('Generation availability forecast'));
+ assert.match(workspace,/id="study-date"/);assert.match(workspace,/id="study-demand"/);assert.match(workspace,/id="study-generation"/);
 });
 test('expansion separates demand and generation into subplots with their own model controls',()=>{
  const {c,open}=load();open();const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
@@ -61,7 +64,7 @@ test('PGCB curves require the explicitly matching operating day and preserve the
  controls.get('study-date').events.change({target:{value:'2026-10-21'}});
  const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
  assert.match(html,/data-toggle-family="published" checked/);assert.match(html,/Demand · PGCB \(generation side\)/);
- assert.match(html,/not scored against ERP substation demand/);assert.match(html,/source workbook/);
+ assert.match(html,/never substation demand/);assert.match(html,/source workbook/);
  const mismatch=fixture();mismatch.pgcb_forecasts['2026-10-21'].date='2026-10-20';mismatch.default_date='2026-10-21';
  const other=load(mismatch);other.open();assert.doesNotMatch(vm.runInContext('window.BEGDIndependentStudy.render()',other.c),/data-toggle-series="pgcb_/);
 });
@@ -123,4 +126,41 @@ test('forecast failures name the operating date and escape the diagnostic',()=>{
  controls.get('study-date').events.change({target:{value:'2026-10-22'}});
  html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
  assert.match(html,/22 Oct 2026 · Unavailable &lt;inputs&gt;/);
+});
+
+test('PGCB MAE uses matching generation-side demand and generation actuals separately',()=>{
+ const {c,open}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100}],generation_hourly:[{time:'00:00',total_mw:110}],generation_side_demand_hourly:[{time:'00:00',demand_mw:140}],pgcb_forecast:{date:'2026-10-23',hourly:[{time:'00:00',demand_mw:145,generation_mw:113}]}}",c);
+ open();const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ const plot=target=>html.match(new RegExp('data-forecast-target="'+target+'"[^]*?</section>'))[0];
+ assert.match(plot('demand'),/PGCB day MAE · partial <strong>5 MW<\/strong>.*1\/24 matched hours/);
+ assert.match(plot('generation'),/PGCB day MAE · partial <strong>3 MW<\/strong>.*1\/24 matched hours/);
+ assert.match(plot('demand'),/Demand actual · generation side \(PGCB scoring\)/);
+ assert.match(html,/demand scores have different measurement bases/);
+});
+test('PGCB demand MAE is unavailable without matching-basis actuals and never borrows substation demand',()=>{
+ const {c}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-24',demand_hourly:[{time:'00:00',demand_mw:145}],generation_hourly:[{time:'00:00',total_mw:110}],pgcb_forecast:{date:'2026-10-24',hourly:[{time:'00:00',demand_mw:145,generation_mw:113}]}}",c);
+ const html=vm.runInContext('window.BEGDIndependentStudy.render()',c);
+ const demand=html.match(/data-forecast-target="demand"[^]*?<\/section>/)[0];
+ assert.match(demand,/PGCB day MAE <strong>—<\/strong>.*0\/24 matched hours/);
+ assert.match(demand,/Matching generation-side demand actuals are not available yet/);
+});
+test('today view remains rank one and follows midnight independently of full-view date and model choices',()=>{
+ const {c,controls}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[],generation_hourly:[]}",c);
+ controls.get('study-date').events.change({target:{value:'2026-10-21'}});
+ controls.get('study-demand').events.change({target:{value:'Ridge'}});
+ let html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
+ assert.match(html,/Operating date · 23 Oct 2026/);assert.match(html,/Demand forecast · Trees/);assert.doesNotMatch(html,/Demand forecast · Ridge/);
+ vm.runInContext("currentDayData={today_date:'2026-10-24',demand_hourly:[],generation_hourly:[]}",c);
+ html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
+ assert.match(html,/Operating date · 24 Oct 2026/);assert.match(html,/BEGD forecast unavailable for 24 Oct 2026/);
+ assert.doesNotMatch(html,/id="study-date"|pgcb_demand_mw/);
+ assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/Operating date · 21 Oct 2026/);
+});
+test('matching scenario in a newly selected report is available before the static snapshot catches up',()=>{
+ const {c}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-24',demand_hourly:[],generation_hourly:[]};data={date:'2026-10-23',published_date:'2026-10-24',forecast:{scenario_date:'2026-10-24',demand_hourly:[{time:'00:00',demand_mw:150,generation_mw:149}]}}",c);
+ assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/PGCB scenario for 24 Oct 2026/);
 });

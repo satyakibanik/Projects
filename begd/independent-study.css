@@ -31,3 +31,11 @@
 
 .realtime-grid h2,.realtime-grid h3{font:500 32px/1.15 var(--display);letter-spacing:.1px}
 @media(max-width:600px){.realtime-grid h2,.realtime-grid h3{font-size:30px}}
+
+.today-forecast-panel>.panel-head{padding:24px;gap:16px;flex-wrap:wrap}
+.forecast-best-model{flex:1;margin:0;font-size:12px;color:var(--muted)}
+.pgcb-score{display:flex;justify-content:flex-end;align-items:center;gap:8px 20px;flex-wrap:wrap;margin:0 0 16px}
+.pgcb-score>.note{max-width:390px;margin:0;font-size:11px}
+.pgcb-score .study-scores{display:grid;grid-template-columns:auto auto;gap:4px 12px}
+.pgcb-score .study-scores .note{grid-column:1/-1;text-align:right;margin:0}
+.forecast-report-context{margin:24px 0 12px}
