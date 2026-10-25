@@ -5,7 +5,7 @@
 Long-term trends includes searchable plant and substation tables with vertical
 and horizontal scrolling, sticky column headings, and independently selectable
 30/90/365-calendar-day windows ending on the latest national operating day.
-Choose an entity name or a metric value to display its daily chart. Metrics without any valid readings in the selected window are disabled.
+Choose an entity name or a metric value to display its daily chart. After selecting a row, Up/Down arrows move through the filtered table while preserving the selected metric and skipping rows without readings for that metric. Only the table scrolls to reveal the focused row. Metrics without any valid readings in the selected window are disabled.
 
 Plant metrics are installed/present capacity (MW), observed peak generation
 (MW), capacity factor (%), Plant Utilization Factor (PUF, %), and utilisation ratio (%). A collapsed

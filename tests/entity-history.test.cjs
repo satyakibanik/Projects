@@ -48,3 +48,33 @@ test('station voltage uses its own nominal class with no guesses for unknown cla
  assert.equal(h.perUnit(122,'132 kV'),122/132);assert.equal(h.perUnit(230,'230 kV'),1);assert.equal(h.perUnit(380,'400 kV'),0.95);
  assert.equal(h.perUnit(132,''),null);assert.equal(h.perUnit(null,'132 kV'),null);assert.equal(h.perUnit(110,'110 kV'),null);
 });
+test('Up/Down navigation retains the selected metric and skips rows without that metric',()=>{
+ const h=api(),end='2026-10-24',puf=h.metrics.plants.find(m=>m.id==='puf_pct');
+ const rows=[{id:'a',available_through:{puf_pct:end}},{id:'b',available_through:{peak_generation_mw:end}},{id:'c',available_through:{puf_pct:end}}];
+ assert.equal(h.stepEntity(rows,'a',1,puf,end,30).id,'c');
+ assert.equal(h.stepEntity(rows,'c',-1,puf,end,30).id,'a');
+ assert.equal(h.stepEntity(rows,'a',-1,puf,end,30),null);
+ assert.equal(h.stepEntity(rows,'c',1,puf,end,30),null);
+ assert.equal(puf.id,'puf_pct');
+});
+test('keyboard traversal respects filtered ordering, absent selections and active date windows',()=>{
+ const h=api(),end='2026-10-24',puf=h.metrics.plants.find(m=>m.id==='puf_pct');
+ const rows=[{id:'c',available_through:{puf_pct:'2026-09-01'}},{id:'a',available_through:{puf_pct:end}}];
+ assert.equal(h.stepEntity(rows,'hidden',1,puf,end,30).id,'a');
+ assert.equal(h.stepEntity(rows,'hidden',1,puf,end,90).id,'c');
+ assert.equal(h.stepEntity(rows,'hidden',-1,puf,end,30).id,'a');
+ assert.equal(h.stepEntity(rows,'a',-1,puf,end,30),null);
+ assert.equal(h.stepEntity(rows,'a',-1,puf,end,90).id,'c');
+ assert.equal(h.stepEntity([],null,1,puf,end,30),null);
+ assert.equal(h.stepEntity(rows,'a',0,puf,end,30),null);
+ assert.equal(h.stepEntity(rows,'a',1,null,end,30),null);
+});
+test('voltage navigation skips load-only and unknown-class rows',()=>{
+ const h=api(),end='2026-10-24',metric=h.metrics.substations.find(m=>m.id==='voltage_range');
+ const rows=[{id:'a',voltage_class:'132 kV',available_through:{min_kv:end,max_kv:end}},
+  {id:'load',voltage_class:'',available_through:{load_mw:end}},
+  {id:'unknown',voltage_class:'Unknown',available_through:{min_kv:end}},
+  {id:'b',voltage_class:'230 kV',available_through:{min_kv:end,max_kv:end}}];
+ assert.equal(h.stepEntity(rows,'a',1,metric,end,30).id,'b');
+ assert.equal(h.stepEntity(rows,'b',-1,metric,end,30).id,'a');
+});

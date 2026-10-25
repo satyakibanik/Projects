@@ -40,6 +40,15 @@
    :Number.isFinite(latest(meta,end,days)?.[field]));
  }
  function availableMetrics(kind,meta,end,days){return metrics[kind].filter(metric=>metricAvailable(meta,metric,end,days))}
+ function stepEntity(rows,currentId,direction,metric,end,days){
+  if(!metric||![-1,1].includes(direction))return null;
+  let position=rows.findIndex(row=>row.id===currentId);
+  if(position<0)position=direction===1?-1:rows.length;
+  for(position+=direction;position>=0&&position<rows.length;position+=direction){
+   if(metricAvailable(rows[position],metric,end,days))return rows[position];
+  }
+  return null;
+ }
  function filtered(kind){const needle=state[kind].search.toLowerCase();return index[kind].filter(row=>(row.name+' '+(row.voltage_class||'')).toLowerCase().includes(needle))}
  function rowHTML(kind,meta){
   const choice=state[kind],row=latest(meta,index.end_date,choice.days);
@@ -69,7 +78,7 @@
  }
  function shell(kind){
   const label=kind==='plants'?'Plant':'Substation',choice=state[kind];
-  return `<section class="panel full entity-history" id="${kind}-history" data-entity-history="${kind}" aria-labelledby="${kind}-history-title"><div class="panel-head"><div><h2 id="${kind}-history-title">${label} history</h2><p>Choose a ${label.toLowerCase()} and a metric to explore daily history.</p></div><div class="trends-unit-control" role="group" aria-label="${label} history window">${[30,90,365].map(days=>`<button type="button" data-history-days="${days}" aria-pressed="${choice.days===days}">${days}d</button>`).join('')}</div></div><p class="note">Windows end on ${esc(index.end_date)}. Table values are each entity’s latest available record within the selected window; the record date is shown. Missing days remain gaps.</p><label class="history-search">Find ${kind==='plants'?'plant':'substation'}<input type="search" data-history-search aria-label="Search ${label.toLowerCase()} history" placeholder="Search by name${kind==='substations'?' or voltage class':''}" value="${esc(choice.search)}"></label><p class="note" data-history-count role="status"></p><div class="history-table-scroll" tabindex="0" role="region" aria-label="Scrollable ${label.toLowerCase()} history table"><table><caption class="visually-hidden">${label} history selector. Click a name or metric value to view a trend. ${kind==='plants'?'Capacity values are installed / present MW.':'Voltage values are in per unit; either voltage opens the combined minimum–maximum band.'}</caption><thead><tr><th scope="col">${label}${kind==='substations'?' / voltage class':''}</th><th scope="col">Record date</th>${tableMetrics(kind).map(metric=>`<th scope="col">${metric.label}<small>${metric.id==='capacity'?'Installed / present MW':metric.unit}</small></th>`).join('')}</tr></thead><tbody data-history-rows>${tableHTML(kind)}</tbody></table></div><div class="history-metric-control" role="group" aria-label="${label} history metric">${metrics[kind].map(metric=>`<button type="button" data-history-metric-choice="${metric.id}" aria-pressed="${choice.metric===metric.id}">${metric.label}</button>`).join('')}</div><div class="history-chart" data-history-chart aria-live="polite"></div>${kind==='plants'?plantMetricGuide():''}</section>`;
+  return `<section class="panel full entity-history" id="${kind}-history" data-entity-history="${kind}" aria-labelledby="${kind}-history-title"><div class="panel-head"><div><h2 id="${kind}-history-title">${label} history</h2><p>Choose a ${label.toLowerCase()} and a metric to explore daily history.</p></div><div class="trends-unit-control" role="group" aria-label="${label} history window">${[30,90,365].map(days=>`<button type="button" data-history-days="${days}" aria-pressed="${choice.days===days}">${days}d</button>`).join('')}</div></div><p class="note">Windows end on ${esc(index.end_date)}. Table values are each entity’s latest available record within the selected window; the record date is shown. Missing days remain gaps.</p><label class="history-search">Find ${kind==='plants'?'plant':'substation'}<input type="search" data-history-search aria-label="Search ${label.toLowerCase()} history" placeholder="Search by name${kind==='substations'?' or voltage class':''}" value="${esc(choice.search)}"></label><p class="note" data-history-count role="status"></p><div class="history-table-scroll" tabindex="0" role="region" aria-label="Scrollable ${label.toLowerCase()} history table" aria-describedby="${kind}-history-keys"><table><caption class="visually-hidden">${label} history selector. Click a name or metric value to view a trend. ${kind==='plants'?'Capacity values are installed / present MW.':'Voltage values are in per unit; either voltage opens the combined minimum–maximum band.'}</caption><thead><tr><th scope="col">${label}${kind==='substations'?' / voltage class':''}</th><th scope="col">Record date</th>${tableMetrics(kind).map(metric=>`<th scope="col">${metric.label}<small>${metric.id==='capacity'?'Installed / present MW':metric.unit}</small></th>`).join('')}</tr></thead><tbody data-history-rows>${tableHTML(kind)}</tbody></table></div><p class="note history-keyboard-hint" id="${kind}-history-keys">Select a row, then use ↑ / ↓ to change ${label.toLowerCase()} while keeping the selected metric. Rows without readings for that metric are skipped.</p><div class="history-metric-control" role="group" aria-label="${label} history metric">${metrics[kind].map(metric=>`<button type="button" data-history-metric-choice="${metric.id}" aria-pressed="${choice.metric===metric.id}">${metric.label}</button>`).join('')}</div><div class="history-chart" data-history-chart aria-live="polite"></div>${kind==='plants'?plantMetricGuide():''}</section>`;
  }
  function bindRows(section,kind){
   section.querySelectorAll('[data-history-select]').forEach(button=>button.addEventListener('click',()=>{
@@ -78,6 +87,30 @@
    if(button.dataset.historyMetric)state[kind].metric=button.dataset.historyMetric;
    selection(section,kind);drawChart(section,kind);
   }));
+ }
+ function setupRowNavigation(section,kind){
+  const scroller=section.querySelector('.history-table-scroll');
+  scroller.addEventListener('click',event=>{
+   if(event.target.closest('[data-history-select]'))return;
+   const name=event.target.closest('tbody tr')?.querySelector('.history-entity-name');
+   if(name&&!name.disabled){name.focus({preventScroll:true});name.click()}
+  });
+  scroller.addEventListener('keydown',event=>{
+   if(!['ArrowUp','ArrowDown'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey||event.shiftKey||event.isComposing)return;
+   event.preventDefault();
+   const choice=state[kind],metric=metrics[kind].find(item=>item.id===choice.metric);
+   const next=stepEntity(filtered(kind),choice.id,event.key==='ArrowDown'?1:-1,metric,index.end_date,choice.days);
+   if(!next)return;
+   choice.id=next.id;
+   selection(section,kind);drawChart(section,kind);
+   const name=scroller.querySelector(`.history-entity-name[data-history-select="${next.id}"]`);
+   name.focus({preventScroll:true});
+   // Reveal rows inside their own table without moving the surrounding page.
+   const bounds=scroller.getBoundingClientRect(),row=name.closest('tr').getBoundingClientRect();
+   const top=bounds.top+scroller.querySelector('thead').getBoundingClientRect().height+1,bottom=bounds.bottom-2;
+   if(row.top<top)scroller.scrollTop+=row.top-top;
+   else if(row.bottom>bottom)scroller.scrollTop+=row.bottom-bottom;
+  });
  }
  function selection(section,kind){
   const choice=state[kind];
@@ -148,7 +181,7 @@
    host.innerHTML=shell('plants')+shell('substations');
    for(const kind of ['plants','substations']){
     const section=host.querySelector(`[data-entity-history="${kind}"]`);
-    table(section,kind);
+    table(section,kind);setupRowNavigation(section,kind);
     section.querySelector('[data-history-search]').addEventListener('input',event=>{state[kind].search=event.target.value;table(section,kind)});
     section.querySelectorAll('[data-history-days]').forEach(button=>button.addEventListener('click',()=>{state[kind].days=Number(button.dataset.historyDays);table(section,kind);drawChart(section,kind)}));
     section.querySelectorAll('[data-history-metric-choice]').forEach(button=>button.addEventListener('click',()=>{if(button.disabled)return;state[kind].metric=button.dataset.historyMetricChoice;selection(section,kind);drawChart(section,kind)}));
@@ -160,5 +193,5 @@
    host.querySelector('[data-history-index-retry]').addEventListener('click',()=>mount(host));
   }
  }
- root.BEGDEntityHistory={mount,calendar,latest,metrics,nominal,perUnit,metricAvailable,availableMetrics,tableMetrics};
+ root.BEGDEntityHistory={mount,calendar,latest,metrics,nominal,perUnit,metricAvailable,availableMetrics,tableMetrics,stepEntity};
 })(window);
