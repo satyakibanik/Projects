@@ -29,6 +29,18 @@ class Element{
  constructor(dataset={}){this.dataset=dataset;this.events={};this.attrs={};this.innerHTML='Default map detail';this.isConnected=true;const classes=new Set();this.classList={toggle(n,on){on?classes.add(n):classes.delete(n)},remove(...names){names.forEach(n=>classes.delete(n))},contains(n){return classes.has(n)}}}
  addEventListener(n,fn){this.events[n]=fn}setAttribute(n,v){this.attrs[n]=v}
 }
+test('evening peak time follows matching observed demand rather than a fixed time',()=>{
+ const c=app();
+ const note=report=>vm.runInContext(`eveningPeakNote(${JSON.stringify(report)})`,c);
+ const report={summary:{peak_demand_mw:15696.9,peak_time:'19:30'},hourly:[{time:'19:00',demand_mw:15696.9},{time:'19:30',demand_mw:15372.22}]};
+ assert.equal(note(report),'Generation side · 19:00 BST (observed)');
+ report.hourly.push({time:'20:00',demand_mw:15696.9});
+ assert.equal(note(report),'Generation side · 19:00, 20:00 BST (observed)');
+ report.hourly=[];assert.equal(note(report),'Generation side · time not available');
+ report.hourly=[{time:'12:00',demand_mw:15696.9}];assert.equal(note(report),'Generation side · time not available');
+ report.hourly=[{time:'19:30',demand_mw:16000}];assert.equal(note(report),'Generation side · time not available');
+ assert.equal(note({summary:{}}),'Generation side');
+});
 test('region hover and keyboard exit restore all colors; zoom resets to fitted bounds',async()=>{
  const frame=new Element(),svg=new Element(),group={getBBox:()=>({x:900,y:0,width:4600,height:6000})},detail=new Element(),keys=['dhaka','cumilla'].map(name=>new Element({mapSelect:name[0].toUpperCase()+name.slice(1)})),regions=['dhaka','cumilla'].map(region=>new Element({region})),zoomIn=new Element(),zoomOut=new Element(),reset=new Element();
  frame.querySelector=s=>s==='svg'?svg:null;svg.querySelector=()=>group;frame.querySelectorAll=()=>regions;

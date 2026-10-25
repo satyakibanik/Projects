@@ -1,5 +1,55 @@
 # BEGD static deployment
 
+## Plant and substation histories
+
+Long-term trends includes searchable plant and substation tables with vertical
+and horizontal scrolling, sticky column headings, and independently selectable
+30/90/365-calendar-day windows ending on the latest national operating day.
+Choose an entity name or a metric value to display its daily chart. Metrics without any valid readings in the selected window are disabled.
+
+Plant metrics are installed/present capacity (MW), observed peak generation
+(MW), capacity factor (%), Plant Utilization Factor (PUF, %), and utilisation ratio (%). A collapsed
+“About these plant metrics” section below the chart explains each measure and
+its formula using the Power plants tab's definitions. Ratios use the
+reported installed capacity; present capacity is never substituted. Capacity
+factor uses reported daily MWh / (installed MW × 24). PUF uses estimated running
+hours from positive on-the-hour GenLog samples, requires all 24 samples, and is
+blank when running hours are zero. Utilisation ratio is peak MW / installed MW.
+Each ratio is multiplied by 100. P2-only plants retain available reported values;
+cross-border import routes are excluded from the plant catalog.
+
+Station histories show maximum served load (MW) and a combined daily minimum–maximum voltage band
+in per unit (reported kV ÷ nominal class kV), with the original kV in brackets
+on hover or keyboard focus. Unknown nominal classes remain blank. Voltage classes are separate records. P3 maximum served load is a
+station-level value repeated across the matching class rows, not a separate
+load to sum across voltage classes. Load-only and voltage-only records remain
+available. Invalid or reversed voltage extrema are omitted.
+
+Missing days are chart gaps, never zeros or interpolated values. Table values
+show the entity's latest record within its selected window with an explicit
+record date. Coverage is shown per chart series. Names join by normalized full
+name, without fuzzy plant/unit or station aliases. National-only recovery
+reports cannot supply entity histories. Daily workbook selection follows the
+archive's next-day-publication preference, then newest report ID.
+
+The build writes `entity-history/index.json` plus one small JSON file per
+plant or station/class. The viewer fetches only the selected entity's history.
+For local verification using published archive JSON, without training forecasts
+or publishing:
+
+```sh
+python scripts/preview_entity_history.py
+python -m http.server 8788 --bind 127.0.0.1 --directory .cache/entity-history-preview
+```
+
+Open `http://127.0.0.1:8788/begd/#trends`. Rebuild from the cached snapshots with
+`python scripts/preview_entity_history.py --offline` after editing local source.
+The preview reads published snapshots into a local cache; no deployment is performed.
+
+The overview's evening-peak timestamp is derived from matching observed evening
+P4 demand, only when the observed maximum agrees with the published summary.
+Tied times are retained; unavailable or inconsistent timestamps are not invented.
+
 The dashboard is published by `.github/workflows/pages.yml`. Builds are scheduled at minutes 7, 22, 37 and 52 each hour, fetch current Power Grid reports and ERP readings, then publish a static Pages artifact. GitHub can delay scheduled jobs; the schedule is polling, not an ERP event subscription.
 
 ## Independent daily forecasts
