@@ -1,5 +1,11 @@
 /* Local country geometry and reviewed locations; no external map tiles or location service. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.BEGDPlantMap=api})(typeof window==='undefined'?globalThis:window,()=>{
+ const wheelZoomFactor=(delta,mode=0,height=800,pinch=false)=>Math.exp(Math.max(-240,Math.min(240,delta*(mode===1?16:mode===2?height:1)))*(pinch?.005:.0018));
+ const zoomView=(view,factor,anchor,home)=>{
+  const w=Math.min(home.w,Math.max(home.w/32,view.w*factor)),h=w*home.h/home.w;
+  const x=anchor.x-(anchor.x-view.x)*w/view.w,y=anchor.y-(anchor.y-view.y)*h/view.h;
+  return {x:Math.max(home.x,Math.min(home.x+home.w-w,x)),y:Math.max(home.y,Math.min(home.y+home.h-h,y)),w,h};
+ };
  const key=name=>String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
  const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const project=([lon,lat])=>[(lon-88)*Math.cos(24*Math.PI/180)*150,(27-lat)*150];
@@ -51,7 +57,7 @@
   const geometry=boundary.geometry,rings=polygons(geometry).flat(),points=rings.flat().map(project);
   const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),padding=18;
   const home={x:Math.min(...xs)-padding,y:Math.min(...ys)-padding,w:Math.max(...xs)-Math.min(...xs)+padding*2,h:Math.max(...ys)-Math.min(...ys)+padding*2};
-  let view={...home},markers=[],groups=[],drag=null,moved=false;
+  let view={...home},markers=[],groups=[],drag=null,moved=false,zoomTarget=null,zoomFrame=0,lastZoomTime=0;
   const svgNS='http://www.w3.org/2000/svg',doc=frame.ownerDocument;
   const make=(name,attrs={})=>{const el=doc.createElementNS(svgNS,name);for(const [k,v] of Object.entries(attrs))el.setAttribute(k,v);return el};
   const svg=make('svg',{class:'plant-location-map',role:'group','aria-label':'Power plant locations inside Bangladesh',preserveAspectRatio:'xMidYMid meet'});
@@ -72,7 +78,7 @@
   const repaint=()=>{
    svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
    const screenScale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h),radius=5.5/screenScale;
-   groups=groupNearby(markers,12/screenScale);layer.replaceChildren();
+   groups=groupNearby(markers,44/screenScale);layer.replaceChildren();
    groups.forEach((group,index)=>{
     const multiple=group.items.length>1,color=multiple?'#19374b':fuelColors[fuel(getValue(group.items[0].plant,'fuel'))];
     const label=multiple?`${group.items.length} nearby generating units: ${group.items.map(i=>i.plant.name).join(', ')}`:group.items[0].plant.name;
@@ -81,29 +87,45 @@
     const title=make('title');title.textContent=label;marker.append(title);
     if(multiple){const text=make('text',{'text-anchor':'middle','dominant-baseline':'central','font-size':radius*1.55,fill:'#fff'});text.textContent=group.items.length;marker.append(text)}
     marker.addEventListener('pointerenter',()=>{if(!drag)show(group,index)});marker.addEventListener('focus',()=>show(group,index));
-    marker.addEventListener('click',event=>{event.stopPropagation();if(!moved)show(group,index)});
+    marker.addEventListener('pointerdown',event=>event.stopPropagation());
+    marker.addEventListener('click',event=>{event.stopPropagation();show(group,index)});
     marker.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();show(group,index)}if(event.key==='Escape'){idle();marker.classList.remove('is-active')}});
     layer.append(marker);
    });
   };
   const limit=()=>{view.x=Math.max(home.x,Math.min(home.x+home.w-view.w,view.x));view.y=Math.max(home.y,Math.min(home.y+home.h-view.h,view.y))};
+  const stopZoom=()=>{if(zoomFrame)cancelAnimationFrame(zoomFrame);zoomFrame=0;zoomTarget=null;lastZoomTime=0};
+  const animateZoom=time=>{
+   if(!frame.isConnected){stopZoom();return;}
+   const alpha=1-Math.exp(-Math.min(64,lastZoomTime?time-lastZoomTime:16)/48);lastZoomTime=time;
+   for(const k of ['x','y','w','h'])view[k]+=(zoomTarget[k]-view[k])*alpha;
+   svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
+   const scale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h);
+   for(const symbol of layer.querySelectorAll('.plant-slide-symbol'))symbol.setAttribute('transform',`scale(${1/scale})`);
+   for(const halo of svg.querySelectorAll('.plant-map-heat>circle'))if(halo.dataset.screenRadius)halo.setAttribute('r',Number(halo.dataset.screenRadius)/scale);
+   if(Math.max(...['x','y','w','h'].map(k=>Math.abs(view[k]-zoomTarget[k])))<home.w*.00005){view={...zoomTarget};stopZoom();repaint();return;}
+   zoomFrame=requestAnimationFrame(animateZoom);
+  };
   const zoom=(factor,anchor={x:view.x+view.w/2,y:view.y+view.h/2})=>{
-   const w=Math.min(home.w,Math.max(home.w/32,view.w*factor)),h=w*home.h/home.w;
-   view={x:anchor.x-(anchor.x-view.x)*w/view.w,y:anchor.y-(anchor.y-view.y)*h/view.h,w,h};limit();repaint();idle();
+   const from=zoomTarget||view;
+   const targetAnchor={x:from.x+(anchor.x-view.x)*from.w/view.w,y:from.y+(anchor.y-view.y)*from.h/view.h};
+   zoomTarget=zoomView(from,factor,targetAnchor,home);
+   if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){view={...zoomTarget};stopZoom();repaint();return;}
+   if(!zoomFrame)zoomFrame=requestAnimationFrame(animateZoom);
   };
   const panel=frame.closest('.plant-map-panel');
   panel.querySelectorAll('[data-plant-map-zoom]').forEach(button=>button.addEventListener('click',()=>zoom(button.dataset.plantMapZoom==='in'?.65:1/.65)));
-  panel.querySelector('[data-plant-map-reset]').addEventListener('click',()=>{view={...home};repaint();idle()});
-  svg.addEventListener('wheel',event=>{event.preventDefault();const p=new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());zoom(event.deltaY<0?.8:1.25,p)},{passive:false});
-  svg.addEventListener('pointerdown',event=>{if(event.button!==0)return;drag={x:event.clientX,y:event.clientY,view:{...view}};moved=false});
+  panel.querySelector('[data-plant-map-reset]').addEventListener('click',()=>{stopZoom();view={...home};repaint();idle()});
+  svg.addEventListener('wheel',event=>{event.preventDefault();const p=new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());zoom(wheelZoomFactor(event.deltaY,event.deltaMode,frame.clientHeight,event.ctrlKey),p)},{passive:false});
+  svg.addEventListener('pointerdown',event=>{if(event.button!==0)return;stopZoom();repaint();drag={x:event.clientX,y:event.clientY,view:{...view}};moved=false});
   svg.addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.hypot(dx,dy)<4&&!moved)return;moved=true;svg.setPointerCapture(event.pointerId);const matrix=svg.getScreenCTM();view.x=drag.view.x-dx/matrix.a;view.y=drag.view.y-dy/matrix.d;limit();svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`)});
   ['pointerup','pointercancel'].forEach(type=>svg.addEventListener(type,()=>{if(moved){repaint();idle()}drag=null}));
   svg.addEventListener('pointerleave',()=>layer.querySelectorAll('.is-active').forEach(el=>el.classList.remove('is-active')));
   const resize=new ResizeObserver(()=>repaint());resize.observe(frame);
   // A detached map has no live listeners or observers to retain on tab/date changes.
-  const detach=new MutationObserver(()=>{if(!frame.isConnected){resize.disconnect();detach.disconnect()}});detach.observe(doc.getElementById('content'),{childList:true});
-  return {update(rows){
-   if(!frame.isConnected)return;
+  const detach=new MutationObserver(()=>{if(!frame.isConnected){stopZoom();resize.disconnect();detach.disconnect()}});detach.observe(doc.getElementById('content'),{childList:true});
+  return {getGroups(){return groups},update(rows){
+   if(!frame.isConnected)return;stopZoom();
    const resolved=resolvePlants(rows,catalog,geometry);markers=resolved.markers;
    summary.textContent=`${markers.length} of ${markers.length+resolved.unmapped.length+resolved.outside.length} plant entries mapped · selected report · nearby units are grouped`;
    if(resolved.unmapped.length||resolved.outside.length)summary.textContent+=` · not mapped: ${[...resolved.unmapped,...resolved.outside].map(p=>p.name).join(', ')}`;
@@ -111,5 +133,5 @@
    repaint();idle();
   }};
  }
- return {geometryPath,osmURL,insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
+ return {wheelZoomFactor,zoomView,geometryPath,osmURL,insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
 });

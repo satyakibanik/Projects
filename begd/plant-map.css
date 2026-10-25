@@ -6,7 +6,7 @@
 .plant-map-country{fill:#dce9f1;stroke:#91acbf;stroke-width:1;vector-effect:non-scaling-stroke}
 .plant-map-marker{cursor:pointer;outline:none}
 .plant-map-marker text{font-family:var(--mono);font-weight:600;pointer-events:none}
-.plant-map-marker.is-active circle,.plant-map-marker:focus-visible circle{stroke:#101f2c;stroke-width:3.5;filter:drop-shadow(0 0 3px #fff)}
+.plant-map-marker.is-active>circle,.plant-map-marker:focus-visible>circle{stroke:#101f2c;stroke-width:3.5;filter:drop-shadow(0 0 3px #fff)}
 .plant-map-sidebar{background:#f3f7fa;border:1px solid var(--line);border-radius:9px;padding:20px;min-width:0;max-height:620px;overflow:auto}
 .plant-map-sidebar>h3{margin:10px 0;font-size:25px}
 .plant-map-sidebar>p{font-size:13px;line-height:1.7}

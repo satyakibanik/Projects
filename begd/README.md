@@ -235,3 +235,12 @@ Real time always displays generation/demand above a separate reported-load-shedd
 To check every chart's PNG title and footer backgrounds in both themes, run `BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/figure-theme.cjs` with the same browser setup and published data described above.
 
 Fuel mix PNGs preserve pie slices, full ring strokes and theme-colored labels using self-contained SVG presentation styles. Check actual fuel-colored PNG pixels for bar, pie and ring in both themes with `BEGD_TEST_URL=http://127.0.0.1:8765/begd/ node tests/e2e/fuel-exports.cjs`.
+
+
+### Experimental plant map slides
+
+The plant view has seven map slides: fuel type, daily energy (MWh), daily peak generation (MW), operating region, producer, present capacity (MW), and online/offline. Legends filter actual units; clicking again or elsewhere restores the map. Generation icons above the map show counts, support hover previews and pinned selection, and distinguish matching units from all units in a nearby group. Shared dual-fuel units count in each applicable fuel type.
+
+Zero numeric readings are gray, positive values run yellow → orange → red, and missing readings are purple. Energy/peak markers use combined values for grouped units; summed unit peaks may occur at different times. Present-capacity ring segments remain per unit to avoid adding shared capacities twice. Sidebar peak/capacity swatches use their respective slide scales. Scroll-wheel/touchpad zoom uses cursor anchoring and easing, respects reduced motion, and preserves marker screen size while animating. The unit table scrolls within a bounded height with sticky headers and filters.
+
+Icon authors and source links are in [plant-icons/README.md](plant-icons/README.md) and the visible map credits. New map regressions run with `node --test tests/plant-map-slides.test.cjs`; they also run with the existing JavaScript suite.
