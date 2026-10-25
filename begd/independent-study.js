@@ -1,4 +1,4 @@
-/* Frozen daily forecasts and separately issued ERP updates. Rendering never fits a model. */
+/* Dated, frozen ERP forecasts. Rendering never fits or calibrates a model. */
 (function(){
  const bundle=window.BEGD_INDEPENDENT_STUDY;
  if(!bundle)return;
@@ -43,18 +43,7 @@
     pgcb_demand_mw:pgcb?.date===date?actual(p?.demand_mw,original.pgcb_demand_mw):null,
     pgcb_generation_mw:pgcb?.date===date?actual(p?.generation_mw,original.pgcb_generation_mw):null};
   });
-  const candidateUpdate=sameDay?live.forecast_update:history?.forecast_update;
-  const update=candidateUpdate?.version==='erp-bias-update-v1'&&candidateUpdate.date===date?candidateUpdate:null;
-  const latest=update?.latest&&update.latest.date===date?update.latest:null;
-  for(const target of targets){
-   if(models[target]!==best[target]||!forecast)continue;
-   const revised=new Map((latest?.targets?.[target]?.hourly||[]).map(r=>[r.time,r]));
-   for(const row of rows){
-    const point=revised.get(row.time),hour=Date.parse(date+'T'+row.time+':00+06:00');
-    row[target+'_updated_mw']=finite(point?.forecast_mw)&&point.original_mw===row[target+'_forecast_mw']&&hour>Date.parse(latest.issued_at)?point.forecast_mw:null;
-   }
-  }
-  return {date,dates,rows,models,pgcb,forecast,update,forecastReason:candidate?.reason||history?.forecast_error||'',issued:forecast?.issued_at||(bundle.forward_dates.includes(date)?bundle.issued_at:null)};
+  return {date,dates,rows,models,pgcb,forecast,forecastReason:candidate?.reason||history?.forecast_error||'',issued:forecast?.issued_at||(bundle.forward_dates.includes(date)?bundle.issued_at:null)};
  }
  function matchedError(rows,actualKey,forecastKey){
   const paired=rows.filter(r=>finite(r[actualKey])&&finite(r[forecastKey]));
@@ -77,24 +66,12 @@
   const info=catalog.model_info[name]||{},members=info.constituents||[];
   return `<div class="model-description"><p class="note"><strong>${target==='demand'?'Demand':'Generation'} · ${esc(name)}.</strong> ${esc(info.description||'')}</p>${members.length?`<details class="model-members"><summary>Constituent models (${members.length})</summary><p class="note">${members.map(esc).join(' · ')}</p></details>`:''}</div>`;
  }
- function updateSummary(ctx,target){
-  if(ctx.models[target]!==best[target])return '';
-  const result=ctx.update?.scores?.[target],latest=ctx.update?.latest,inputs=latest?.targets?.[target];
-  const count=Number.isInteger(result?.count)&&result.count>=0&&result.count<=24?result.count:0;
-  const scored=count&&finite(result.updated_mae_mw)&&finite(result.original_mae_mw);
-  const values=scored?`<p class="study-scores">Saved update MAE <strong>${fmt(result.updated_mae_mw,1)} MW</strong><span>Original on the same ${count} hours <strong>${fmt(result.original_mae_mw,1)} MW</strong></span></p>`:'<p class="note">Saved update MAE: pending later ERP readings.</p>';
-  const issued=inputs?`Updated ${esc(new Date(latest.issued_at).toLocaleTimeString('en-GB',{timeZone:'Asia/Dhaka',hour:'2-digit',minute:'2-digit'}))} BST using readings through ${esc(inputs.input_through)}. `:'';
-  const limitations=target==='generation'?'This generation update is a statistical correction; it does not model plant availability, dispatch schedules, import schedules or ramp constraints.':'Hourly ERP readings can arrive late; their timing and resolution differ from control-room telemetry.';
-  const method=`<details class="model-members update-method"><summary>Method, operator precedent &amp; limitations</summary><p class="note">BEGD includes an experimental intraday bias-adjustment layer informed by recent ERP observations. It follows the operational principle of refreshing short-term forecasts as observations arrive. Its parameters and accuracy are evaluated independently.</p><p class="note">The correction uses 80% of the median error from up to three consecutive readings, fades with a six-hour half-life and is capped at 15% of the original forecast. These are experimental settings.</p><p class="note">Operational examples: <a href="https://www.iso-ne.com/static-assets/documents/rules_proceds/operating/sysop/cr_ops/crop_25004.pdf#page=4" target="_blank" rel="noopener">ISO New England forecast adjustment procedure</a>; <a href="https://bpmcm.caiso.com/BPM%20Document%20Library/Market%20Operations/BPM_for_Market%20Operations_V101_Redline.pdf#page=379" target="_blank" rel="noopener">CAISO real-time load forecasting, §7.8.1.3</a>; <a href="https://www.ercot.com/files/docs/2018/05/22/Hurricane_Harvey_Event_Analysis_Report.pdf#page=8" target="_blank" rel="noopener">ERCOT use of recent actual load, §6.3</a>. These examples support the updating principle; they do not validate BEGD's formula or establish PGCB/NLDC endorsement.</p><p class="note">${limitations} The initial four-hour replay is diagnostic. Reliability requires prospective evaluation across many operating days and forecast horizons.</p></details>`;
-  return `<div class="forecast-update-summary"><p class="note"><strong>Experimental ERP forecast update.</strong> ${issued}${inputs?'The additional curve covers future hours only.':'A future curve requires at least two consecutive ERP readings, with the latest no more than three hours old.'}</p>${values}<p class="note">Update errors use saved predictions issued before each scored hour. The original day forecast and its MAE stay unchanged.</p>${method}</div>`;
- }
  function subplots(ctx,liveOnly){
   const {date,rows,models,forecastReason}=ctx;
   return targets.map(target=>{
    const label=target==='demand'?'Demand · substation side':'Generation · ERP';
    const series=[{key:target+'_mw',name:target==='demand'?'Demand actual · ERP substation side':'Generation actual · ERP',color:target==='demand'?'#b46c13':'#3678ad',marker:target==='demand'?'circle':'square'},
     {key:target+'_forecast_mw',name:`BEGD - ${target==='demand'?'Demand (Substation side)':'Generation'} - Model: ${models[target]}`,color:target==='demand'?'#c77e21':'#488ec5',marker:target==='demand'?'diamond':'triangle-down',family:'forecast',defaultVisible:true,dashArray:target==='demand'?'3 4':'8 4'}];
-   if(rows.some(r=>finite(r[target+'_updated_mw'])))series.push({key:target+'_updated_mw',name:'BEGD - '+(target==='demand'?'Demand':'Generation')+' · ERP update (future hours)',color:target==='demand'?'#b85c3f':'#955bb0',marker:'plus',family:'forecast',defaultVisible:true,dashArray:'2 3'});
    const hasPgcb=rows.some(r=>finite(r['pgcb_'+target+'_mw']));
    if(hasPgcb){
     if(target==='demand'&&rows.some(r=>finite(r.demand_generation_side_mw)))series.push({key:'demand_generation_side_mw',name:'Demand actual · generation side (PGCB scoring)',color:'#8a6b41',marker:'plus'});
@@ -103,7 +80,7 @@
    const missing=!rows.some(r=>finite(r[target+'_forecast_mw']));
    const control=liveOnly?'':`<label>${target==='demand'?'Demand model · substation side':'Generation model · ERP'}<select id="study-${target}" aria-label="Independent ${target} model">${options(names(target),models[target],name=>`#${ranked(target).find(r=>r.model===name).rank} · ${name}`)}</select></label>`;
    const pgcbScore=liveOnly?'':`<div class="pgcb-score">${score(rows,target==='demand'?'demand_generation_side_mw':'generation_mw','pgcb_'+target+'_mw','PGCB day MAE')}${!hasPgcb?'<p class="note">No matching PGCB scenario.</p>':target==='demand'?'<p class="note">Generation-side demand basis. BEGD demand MAE uses substation-side actuals.</p>':''}${hasPgcb&&target==='demand'&&!rows.some(r=>finite(r.demand_generation_side_mw))?'<p class="note">Matching generation-side demand actuals are not available yet.</p>':''}</div>`;
-   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${liveOnly?compactScores(rows,target,hasPgcb):score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${chart(rows,series,{forecastLegend:{combine:true,title:'Forecasts'},key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target})}${ctx.update?updateSummary(ctx,target):''}${liveOnly?'':modelDescription(target,models[target])}</section>`;
+   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${liveOnly?compactScores(rows,target,hasPgcb):score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${chart(rows,series,{forecastLegend:{combine:true,title:'Forecasts'},key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target})}${liveOnly?'':modelDescription(target,models[target])}</section>`;
   }).join('');
  }
  function issueNote({date,forecast,issued}){

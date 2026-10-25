@@ -84,11 +84,6 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir, refresh_pgc
         generation_side_demand_source=generation_demand_sources.get(day),
         forecast_error=history.get(day,{}).get('reason'),
         pgcb_forecast=scenarios.get(day)) for day in dates}
-    from forecast_updates import attach_updates, archived_update
-    attach_updates(current_day, cache_dir)
-    for day, historical in current_day['forecast_history'].items():
-        historical['forecast_update'] = (current_day.get('forecast_update') if day == today
-                                        else archived_update(day, historical, cache_dir))
     return forecasts
 
 
@@ -250,12 +245,6 @@ def write_data_bundle(output_dir):
                 shutil.copy2(saved, forecast_dir / saved.name)
         except (OSError, ValueError, TypeError):
             pass
-    # Publish the actual issue journal too, so saved corrections can be audited.
-    from forecast_updates import VERSION as UPDATE_VERSION
-    update_dir = output_dir / 'forecast-updates'
-    update_dir.mkdir(exist_ok=True)
-    for saved in (ROOT / '.cache' / 'daily-forecasts' / UPDATE_VERSION).glob('*.json'):
-        shutil.copy2(saved, update_dir / saved.name)
     (output_dir / "current-day.json").write_text(
         json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
