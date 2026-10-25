@@ -93,7 +93,6 @@ jobs:
       - name: Build static site, ERP snapshot and frozen daily forecasts
         env:
           BEGD_PUBLISHED_FORECAST_BASE_URL: https://satyakibanik.github.io/Projects/begd/daily-forecasts
-          BEGD_PUBLISHED_UPDATE_BASE_URL: https://satyakibanik.github.io/Projects/begd/forecast-updates
         run: python scripts/build_pages_data.py
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
