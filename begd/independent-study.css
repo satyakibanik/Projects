@@ -45,4 +45,8 @@
 .pgcb-score .study-scores{display:grid;grid-template-columns:auto auto;gap:4px 12px}
 .pgcb-score .study-scores .note{grid-column:1/-1;text-align:right;margin:0}
 .forecast-report-context{margin:24px 0 12px}
+.forecast-update-summary{margin-top:16px;padding:12px 16px;border-left:3px solid var(--blue);background:var(--surface)}
+.forecast-update-summary .note{margin:0 0 8px}
+.forecast-update-summary .note:last-child{margin-bottom:0}
+.forecast-update-summary .study-scores{margin:8px 0;line-height:1.7}
 .independent-study-panel .forecast-layer>.legend{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}

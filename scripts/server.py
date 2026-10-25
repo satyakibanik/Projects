@@ -231,6 +231,8 @@ def get_current_day():
                 result['independent_forecast'] = saved
         except (OSError, ValueError, TypeError):
             pass
+    from forecast_updates import attach_updates
+    attach_updates(result, ROOT / '.cache' / 'daily-forecasts')
     with cache_lock:
         current_day_cache = result
         current_day_cache_time = time.time()
