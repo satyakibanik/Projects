@@ -66,6 +66,7 @@ class WorkbookTests(unittest.TestCase):
         self.assertEqual(report['date'], '2026-10-14')
         self.assertEqual(report['forecast']['date'], '2026-10-15')
         self.assertEqual(report['summary']['energy_mwh'], 2400)
+        self.assertIsNone(report['summary']['peak_time'])  # modern layout has no fixed peak timestamp
         self.assertEqual(report['plants'][0]['region'], 'Dhaka')
         plant = report['plant_units'][0]
         self.assertEqual(plant['installed_capacity_mw'], 200)
@@ -205,7 +206,9 @@ class BuildTests(unittest.TestCase):
     def test_bundle_escapes_script_and_selects_operating_day(self):
         records = [dict(id='2', name='</script>&', published_date='2026-10-15'), dict(id='1', name='Older', published_date='2026-10-16')]
         def parsed(item):
-            return dict(report_id=item['id'], published_date=item['published_date'], date='2026-10-14', name=item['name'])
+            return dict(report_id=item['id'], published_date=item['published_date'], date='2026-10-14', name=item['name'],
+                        plants=[dict(name='Test plant', installed_capacity_mw=100, present_capacity_mw=90, peak_mw=75)],
+                        voltages=[dict(name='Test station', voltage_class='132 kV', min_kv=120, max_kv=135)])
         with tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', return_value=records), patch.object(build, 'parse_listing_item', side_effect=parsed), patch.object(server, 'get_highest_generation_day', side_effect=LookupError), patch.object(server, 'get_current_day', return_value={'today_date': '2026-10-15'}):
             output = Path(directory)
             build.write_data_bundle(output)
@@ -219,6 +222,13 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(trends['end_date'], '2026-10-14')
             self.assertEqual(len(trends['days']), 1)
             self.assertEqual(trends['days'][0]['report_id'], '2')
+            history = json.loads((output / 'entity-history' / 'index.json').read_text())
+            self.assertEqual(history['end_date'], trends['end_date'])
+            self.assertEqual(history['sources']['2026-10-14']['report_id'], '2')
+            self.assertEqual(history['plants'][0]['latest']['utilization_ratio_pct'], 75)
+            station = history['substations'][0]
+            self.assertEqual(station['voltage_class'], '132 kV')
+            self.assertTrue((output / 'entity-history' / 'substations' / (station['id']+'.json')).is_file())
             index = (output / 'index.html').read_text()
             self.assertLess(index.index('live-data.js'), index.index('static-api.js'))
             self.assertLess(index.index('static-api.js'), index.index('src="app.js'))

@@ -2,6 +2,23 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 function load(){const window={addEventListener(){}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,Date,Map,Set});return window.BEGDTrends}
+test('minimum–maximum bands split at missing or reversed extrema and retain isolated days',()=>{
+ const api=load(),rows=[{date:'2026-01-01',lo:.9,hi:1},{date:'2026-01-02',lo:.91,hi:1.01},{date:'2026-01-03',lo:.92},{date:'2026-01-04',lo:.93,hi:1.03},{date:'2026-01-05',lo:1.1,hi:1}];
+ const segments=api.rangeBandSegments(rows,r=>r.lo,r=>r.hi);
+ assert.equal(segments.length,2);assert.equal(segments[0].length,2);assert.equal(segments[1][0].index,3);
+ const series=[{name:'Minimum voltage',color:'#123456',value:r=>r.lo},{name:'Maximum voltage',color:'#abcdef',value:r=>r.hi}];
+ const html=api.plot(rows,series,'Voltage range','p.u.',false,{band:{low:r=>r.lo,high:r=>r.hi,color:'#123456'},reference:{value:1,label:'Nominal · 1 p.u.'},fitExtent:true});
+ assert.equal((html.match(/class="trends-range-band"/g)||[]).length,2);
+ assert.match(html,/Nominal · 1 p.u./);assert.doesNotMatch(html,/NaN|undefined/);
+});
+test('per-unit voltage tooltips and accessible marks retain original kV in brackets',()=>{
+ const api=load(),rows=[{date:'2026-10-24',min_kv:122}],series=[{name:'Minimum voltage',color:'#123456',value:row=>row.min_kv/132,formatValue:(value,row)=>`${value.toFixed(3)} p.u. [${row.min_kv} kV]`}];
+ const html=api.plot(rows,series,'Station minimum','p.u.',false,{fitExtent:true,nonNegative:true,tickDecimals:3});
+ assert.match(html,/Minimum voltage: 0\.924 p\.u\. \[122 kV\]/);
+ assert.match(api.tooltipRows({rows,series,unit:'p.u.'},0),/0\.924 p\.u\. \[122 kV\]/);
+ rows[0].min_kv=null;series[0].value=()=>null;
+ assert.match(api.tooltipRows({rows,series,unit:'p.u.'},0),/Not reported/);
+});
 test('each range is an inclusive calendar window and retains missing dates across leap day',()=>{
  const api=load();for(const count of [30,60,90,365]){const rows=api.windowDays({end_date:'2024-03-01',days:[{date:'2024-02-29',generation_mwh:0}]},count);assert.equal(rows.length,count);assert.equal(rows.at(-1).date,'2024-03-01');assert.equal(rows.at(-2).generation_mwh,0);assert.equal(rows.at(-3).generation_mwh,undefined)}
  assert.equal(api.windowDays({end_date:null,days:[]},30).length,0);

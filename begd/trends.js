@@ -75,6 +75,16 @@
     const firsts=rows.map((row,i)=>row.date.endsWith('-01')?i:null).filter(i=>i!==null);
     return firsts.map((index,i)=>({index,label:new Date(rows[index].date+'T12:00:00Z').toLocaleDateString('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}),sparse:i%3===0||i===firsts.length-1}));
   }
+  function rangeBandSegments(rows,low,high){
+    const segments=[];let segment=[];
+    const finish=()=>{if(segment.length)segments.push(segment);segment=[]};
+    rows.forEach((row,index)=>{
+      const minimum=low(row),maximum=high(row);
+      if(!finite(minimum)||!finite(maximum)||minimum>maximum){finish();return}
+      segment.push({index,minimum,maximum});
+    });
+    finish();return segments;
+  }
   function plot(rows, allSeries, title, unit, stacked=false, options={}) {
     const key=options.key||chartIds[title]||stableId(title);
     knownLayers.set(key,new Set([...(knownLayers.get(key)||[]),...allSeries.map(s=>stableId(s.name))]));
@@ -86,9 +96,10 @@
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
+    if(values.length&&finite(options.reference?.value))values.push(options.reference.value);
     const extentMin=values.length?Math.min(...values):0,extentMax=values.length?Math.max(...values):1;
     const extentPadding=Math.max((extentMax-extentMin)*0.08,Math.abs(extentMax)*0.01,0.01);
-    const min=options.fitExtent&&values.length?extentMin-extentPadding:options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
+    const min=options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
     const max=options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08;
     const x=i=>L+i/Math.max(1,rows.length-1)*(W-L-R), y=v=>H-B-(v-min)/(max-min)*(H-T-B);
     const secondaryMin=secondaryValues.length?Math.floor(Math.min(...secondaryValues)-2):0;
@@ -107,7 +118,8 @@
     const tickCount=options.compact?2:4;
     for(let i=0;i<=tickCount;i++) {
       const value=min+(max-min)*i/tickCount;
-      body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10)}</text>`;
+      const tick=options.tickDecimals!=null?value.toLocaleString('en-US',{minimumFractionDigits:options.tickDecimals,maximumFractionDigits:options.tickDecimals}):unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10);
+      body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${tick}</text>`;
     }
     const ticks=options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
@@ -130,11 +142,20 @@
         });
       });
     } else {
+      if(options.band){
+        const band=options.band;
+        rangeBandSegments(rows,band.low,band.high).forEach(segment=>{
+          const upper=segment.map(point=>`${x(point.index)},${y(point.maximum)}`);
+          const lower=segment.slice().reverse().map(point=>`${x(point.index)},${y(point.minimum)}`);
+          body+=`<path class="trends-range-band" d="M${upper.join(' L')} L${lower.join(' L')} Z" fill="${band.color}" fill-opacity="0.16" stroke="none" aria-label="Reported daily minimum–maximum voltage band"/>`;
+        });
+      }
+      if(!empty&&finite(options.reference?.value))body+=`<line class="trends-reference" x1="${L}" x2="${W-R}" y1="${y(options.reference.value)}" y2="${y(options.reference.value)}" stroke="currentColor" stroke-opacity="0.55" stroke-dasharray="4 4"/><text x="${W-R-4}" y="${y(options.reference.value)-6}" text-anchor="end">${escape(options.reference.label)}</text>`;
       series.forEach(s=>{
         let path='',connected=false;
         rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${seriesY(v,s)} `;connected=true});
         body+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
-        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${format(v)} ${s.unit||unit}"/>`});
+        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
       });
     }
     const id='trend-chart-'+(++chartSerial);
@@ -199,7 +220,7 @@
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
     html+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
     html+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
-    return html;
+    return html+'<div id="entity-histories"></div>';
   }
   function tooltipRows(record,index) {
     const row=record.rows[index];
@@ -215,7 +236,7 @@
       const value=values[i];
       const text=record.stacked
         ?complete?`${format(value/sum*100)}% · ${format(value)} GWh`:'Not reported (incomplete mix)'
-        :finite(value)?`${format(value)} ${s.unit||record.unit}`:'Not reported';
+        :finite(value)?s.formatValue?s.formatValue(value,row):`${format(value)} ${s.unit||record.unit}`:'Not reported';
       html+=`<div><i style="background:${s.color}"></i><span>${escape(s.name)}</span><b>${escape(text)}</b></div>`;
     });
     if(row.observations!=null)html+=`<small>${format(row.observations)} retained source observation${row.observations===1?'':'s'}${row.excluded?' · '+row.excluded+' excluded for display':''}</small>`;
@@ -289,6 +310,7 @@
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
+    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'));
     host.querySelectorAll('[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
       const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
       const hidden=hiddenLayers.get(key)||new Set();
@@ -327,7 +349,8 @@
     }
     await pending;
   }
-  root.BEGDTrends={getViewState,setViewState,mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
+  function releaseCharts(host){host.querySelectorAll('[data-trend-chart]').forEach(wrap=>hoverCharts.delete(wrap.dataset.trendChart));}
+  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

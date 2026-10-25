@@ -419,7 +419,7 @@ def parse_report(report_bytes, source_file):
         summary=dict(
             peak_demand_mw=(number(summary_sheet["D10"].value) if legacy_layout else summary_sheet["E11"].value),
             peak_generation_mw=(number(summary_sheet["D9"].value) if legacy_layout else summary_sheet["E13"].value),
-            peak_time=(str(summary_sheet["F9"].value)[:5] if legacy_layout else "19:30"),
+            peak_time=(str(summary_sheet["F9"].value)[:5] if legacy_layout else None),
             energy_mwh=(number(summary_sheet["D12"].value) * 1000 if legacy_layout else summary_sheet["K8"].value * 1000),
             unserved_mwh=(None if legacy_layout else summary_sheet["K9"].value * 1000),
             temperature_c=(None if legacy_layout else summary_sheet["K11"].value),

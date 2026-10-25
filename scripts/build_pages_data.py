@@ -20,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 import server
 from import_report import parse_report
 from trends import build_trends, extract_trend_workbook
+from entity_history import write_entity_history
 
 
 def attach_forecasts(records, reports_by_id, current_day, cache_dir, refresh_pgcb=False):
@@ -248,8 +249,10 @@ def write_data_bundle(output_dir):
     (output_dir / "current-day.json").write_text(
         json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
+    trends = build_trends(trend_reports, built_at)
+    write_entity_history(trend_reports, output_dir / 'entity-history', built_at, trends['end_date'])
     (output_dir / "trends-data.json").write_text(
-        json.dumps(build_trends(trend_reports, built_at), ensure_ascii=False,
+        json.dumps(trends, ensure_ascii=False,
                    separators=(",", ":")), encoding="utf-8")
     archive_dir = output_dir / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
