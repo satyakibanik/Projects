@@ -33,8 +33,10 @@
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
     const captureScale=info.dashboard?2:4,outputScale=2;
+    // Capture the theme once so chart, title and footer use the same palette.
+    const theme=getComputedStyle(document.body),background=theme.backgroundColor,ink=theme.color;
     let contentBounds;
-    const shot=await root.html2canvas(capture,{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:captureScale,logging:false,
+    const shot=await root.html2canvas(capture,{backgroundColor:background,scale:captureScale,logging:false,
       // Expand clipped chart/table containers only in the detached export document.
       onclone:(doc,clone)=>{
         const style=doc.createElement('style');
@@ -47,6 +49,18 @@
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
           const extra=Math.max(0,ink.y+ink.height-view.y-view.height);
           if(extra){const height=view.height+extra+4;svg.style.height=(bounds.height*height/view.height)+'px';svg.style.maxHeight='none';svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.width} ${height}`);}
+        });
+        // Keep circular fuel SVGs self-contained. Copying every computed CSS
+        // property into their serialized image can suppress the SVG artwork.
+        clone.querySelectorAll('svg.fuel-mix-chart').forEach(svg=>{
+          const bounds=svg.getBoundingClientRect();
+          const properties=['fill','stroke','stroke-width','stroke-dasharray','stroke-dashoffset','stroke-linecap','stroke-linejoin','fill-opacity','stroke-opacity','opacity','font-family','font-size','font-weight','letter-spacing','text-anchor','dominant-baseline'];
+          const nodes=[svg,...svg.querySelectorAll('*')];
+          const styles=nodes.map(node=>{const computed=doc.defaultView.getComputedStyle(node);return properties.map(property=>property+':'+computed.getPropertyValue(property)).join(';');});
+          nodes.forEach((node,index)=>node.setAttribute('style',styles[index]));
+          svg.setAttribute('width',bounds.width);svg.setAttribute('height',bounds.height);
+          // The 25px ring stroke extends beyond the original 144px viewport.
+          if(svg.matches('.fuel-mix-ring'))svg.setAttribute('viewBox','-4 -4 152 152');
         });
         // Measure after removing controls/help so their former height is not exported.
         const bounds=clone.getBoundingClientRect();
@@ -62,7 +76,7 @@
     canvas.width=width*outputScale;const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
     const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=lines(ctx,info.context,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
     const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
-    const figureHeight=captureHeight*width/shot.width;canvas.height=Math.ceil((top+figureHeight+bottom)*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 32px sans-serif';
+    const figureHeight=captureHeight*width/shot.width;canvas.height=Math.ceil((top+figureHeight+bottom)*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle=background;ctx.fillRect(0,0,width,canvas.height/outputScale);ctx.fillStyle=ink;ctx.font='bold 32px sans-serif';
     let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
     ctx.drawImage(shot,0,0,shot.width,captureHeight,0,top,width,figureHeight);y=top+figureHeight+8;ctx.font='20px sans-serif';for(const line of notes){y+=28;ctx.fillText(line,pad,y);}
     ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height/outputScale-48);
