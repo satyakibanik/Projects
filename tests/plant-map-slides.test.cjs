@@ -66,4 +66,7 @@ test('slide extension loads after the base map and before dashboard initializati
  const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8');
  assert(html.indexOf('<script src="plant-map.js')<html.indexOf('<script src="plant-map-slides.js'));
  assert(html.indexOf('<script src="plant-map-slides.js')<html.indexOf('<script src="app.js'));
+ assert(!source.includes('EXPERIMENTAL GEOPLOT'));
+ const theme=fs.readFileSync(path.join(root,'begd/theme.css'),'utf8');
+ assert(theme.includes('[data-theme=dark] .plant-map-marker>text{fill:#102332}'));
 });
