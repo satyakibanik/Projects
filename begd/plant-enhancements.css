@@ -1,0 +1,90 @@
+/* Compact GenLog unit table, without limiting row count or filters. */
+.plant-table-wrap{
+  max-height:clamp(290px,48vh,490px);
+  overflow:auto;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
+  border:1px solid var(--line);
+}
+.plant-table-wrap .plant-table thead{
+  position:sticky;
+  top:0;
+  z-index:3;
+  background:var(--bg);
+  box-shadow:0 1px 0 var(--line);
+}
+.plant-table-wrap .plant-table thead th{
+  background:var(--bg);
+}
+.plant-table-wrap:focus-within{outline:1px solid var(--green);outline-offset:2px}
+@media(max-width:700px){
+  .plant-table-wrap{max-height:360px}
+}
+
+/* Six slides share one interactive geographic viewport. */
+.has-plant-slides .plant-map-key{display:none}
+.plant-slides{margin:0 0 18px;border:1px solid var(--line);background:color-mix(in srgb,var(--green) 4%,var(--bg))}
+.plant-slide-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);gap:10px}
+.plant-slide-kicker{font:10px var(--mono);letter-spacing:.1em;color:var(--muted)}
+.plant-slide-arrows{display:flex;align-items:center;gap:12px}
+.plant-slide-arrows button{font-size:18px;padding:3px 10px;min-width:32px}
+.plant-slide-count{font:11px var(--mono);color:var(--muted)}
+.plant-slide-tabs{display:grid;grid-template-columns:repeat(6,minmax(0,1fr))}
+.plant-slide-tabs button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:8px;white-space:normal;border:0;border-right:1px solid var(--line);border-bottom:3px solid transparent;padding:12px 10px;font:12px/1.35 'IBM Plex Sans',sans-serif;color:var(--muted);background:transparent;min-height:77px}
+.plant-slide-tabs button:last-child{border-right:0}
+.plant-slide-tabs button span{font:10px var(--mono);opacity:.7}
+.plant-slide-tabs button[aria-selected="true"]{color:var(--green);border-bottom-color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent);font-weight:600}
+.plant-slides button:focus-visible{outline:2px solid var(--green);outline-offset:-3px}
+.plant-slide-info{margin:0 0 18px;min-height:154px}
+.plant-slide-heading{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:12px}
+.plant-slide-heading h3{font-size:25px;margin:0}
+.plant-slide-heading h3>span{font:11px var(--mono);color:var(--muted);margin-left:5px}
+.plant-slide-heading p{font-size:12px;color:var(--muted);margin:0}
+.plant-gradient-key,.plant-category-key{display:flex;align-items:center;gap:12px 18px;flex-wrap:wrap;font:11px var(--mono);color:var(--ink)}
+.plant-gradient-key>span,.plant-category-key>span{display:inline-flex;align-items:center;gap:6px}
+.plant-gradient-key i,.plant-category-key i{width:12px;height:12px;border-radius:50%;display:inline-block;flex-shrink:0}
+.plant-gradient{position:relative;flex:1;min-width:90px;max-width:240px;height:10px;border-radius:8px;background:linear-gradient(90deg,#2374e8,#ffe04b,#ed3c35);margin:0 0 18px}
+.plant-gradient>span{position:absolute;top:15px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:9px;color:var(--muted)}
+.plant-slide-note{font:10px/1.7 var(--mono);color:var(--muted);margin:12px 0 0}
+.plant-map-heat{pointer-events:none}
+.plant-slide-symbol{filter:drop-shadow(0 1px 1px #0005)}
+.plant-map-marker:focus-visible .plant-slide-symbol,.plant-map-marker.is-active .plant-slide-symbol{filter:drop-shadow(0 0 3px #167bc7)}
+.plant-map-marker .plant-slide-symbol circle{vector-effect:none}
+.plant-slide-readout{font:12px/1.6 var(--mono);font-weight:600;color:var(--green);padding:9px 0;border-bottom:1px solid var(--line)}
+.plant-icon-key{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;margin:18px 0 10px;font:11px var(--mono);color:var(--muted)}
+.plant-icon-key>span{display:inline-flex;align-items:center;gap:7px}
+.plant-icon-key img{width:23px;height:23px;object-fit:contain;background:#fff;border-radius:4px;padding:3px;box-sizing:content-box}
+.plant-icon-key strong{font-size:10px;text-transform:uppercase;letter-spacing:.07em}
+.plant-icon-key small{flex-basis:100%;font:10px/1.6 var(--mono)}
+.plant-icon-credits{font:10px/1.7 var(--mono);color:var(--muted);margin:12px 0}
+.plant-icon-credits summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.plant-icon-credits>div{display:flex;flex-wrap:wrap;gap:5px 18px;margin-top:8px}
+.plant-icon-credits a{color:var(--green)}
+@media(max-width:900px){.plant-slide-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}.plant-slide-tabs button:nth-child(-n+3){border-bottom-width:3px;border-bottom-style:solid}.plant-slide-tabs button{min-height:65px}.plant-slide-tabs button:nth-child(3){border-right:0}}
+@media(max-width:700px){.plant-slide-heading{display:block}.plant-slide-heading p{margin-top:6px}.plant-slide-info{min-height:190px}.plant-gradient{max-width:none;min-width:100px}.plant-gradient-key{gap:12px;font-size:10px}.plant-slide-tabs button{font-size:11px}.plant-category-key{font-size:10px;gap:9px 12px}}
+/* More space for the geography and readable generation icons. */
+.has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,2.6fr) minmax(240px,1fr);gap:20px}
+.has-plant-slides .plant-map-frame{height:800px}
+.has-plant-slides .plant-map-sidebar{max-height:800px;padding:16px}
+.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(7,minmax(0,1fr))}
+.plant-gradient{background:linear-gradient(90deg,#ffe04b,#fa8f28,#ed3c35)}
+.plant-positive-label{font-size:10px}
+.plant-icon-key>button{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid transparent;background:transparent;color:var(--ink);font:11px var(--mono);border-radius:5px;cursor:pointer}
+.plant-icon-key>button:hover,.plant-icon-key>button:focus-visible,.plant-icon-key>button.is-highlighted{border-color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent);outline:none}
+.plant-icon-key>button i{width:9px;height:9px;display:inline-block;border-radius:50%}
+.plant-icon-key img{width:30px;height:30px}
+.plant-map-marker.is-fuel-muted{opacity:.16}
+.plant-map-marker.is-fuel-match .plant-slide-symbol{filter:drop-shadow(0 0 5px #187acb)}
+.has-fuel-highlight .plant-map-heat{opacity:.15}
+@media(max-width:1100px){.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,2fr) minmax(220px,1fr)}.has-plant-slides .plant-map-frame{height:740px}.has-plant-slides .plant-map-sidebar{max-height:740px}}
+@media(max-width:800px){.has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,1fr)}.has-plant-slides .plant-map-sidebar{max-height:360px}.has-plant-slides .plant-map-frame{height:700px}.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.plant-icon-key{margin:0 0 18px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.plant-map-card dd.plant-metric-value{border-left:4px solid var(--metric-color);padding:4px 7px;background:color-mix(in srgb,var(--metric-color) 15%,transparent);border-radius:3px;color:var(--ink)}
+.plant-slide-readout.has-metric-color{border-left:4px solid var(--metric-color);padding:8px;background:color-mix(in srgb,var(--metric-color) 15%,transparent);color:var(--ink)}
+/* Compact legends; map-only category selection. */
+.has-plant-slides #plant-map-summary{display:none}
+.has-plant-slides .plant-slide-info{min-height:0;margin-bottom:16px}
+.plant-category-key>button,.plant-gradient-key>button{display:inline-flex;align-items:center;gap:6px;font:inherit;color:var(--ink);background:transparent;border:1px solid transparent;border-radius:4px;padding:5px 7px;cursor:pointer}
+.plant-category-key>button:hover,.plant-gradient-key>button:hover,.plant-category-key>button[aria-pressed="true"],.plant-gradient-key>button[aria-pressed="true"]{border-color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent)}
+.plant-category-key>button:focus-visible,.plant-gradient-key>button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
+.plant-legend-filter-status{font:11px/1.6 var(--mono);color:var(--green);margin:10px 0 0}
