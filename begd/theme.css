@@ -46,7 +46,7 @@ header{position:relative;padding-top:56px;flex-wrap:wrap;gap:16px}
 [data-theme=dark] .plant-map-key i.district-boundary-key{border-top-color:#7391a5}
 [data-theme=dark] .plant-map-key i.division-boundary-key{border-top-color:#c5d9e6}
 [data-theme=dark] .plant-map-marker circle[fill="#19374b"]{fill:#91bfd9;stroke:#102332}
-[data-theme=dark] .plant-map-marker text{fill:#102332}
+[data-theme=dark] .plant-map-marker>text{fill:#102332}
 [data-theme=dark] .plant-map-marker:is(.is-active,:focus-visible) circle{stroke:#fff;filter:drop-shadow(0 0 3px #000)}
 [data-theme=dark] .plant-map-key i[style*="#19374b"]{background:#91bfd9!important}
 [data-theme=dark] .planning-region{stroke:#c1d5e4}
