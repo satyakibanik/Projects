@@ -24,7 +24,7 @@ function setupCharts(view,wrappers=null) {
     const model = chartData.get(wrapper.dataset.chart);
     const tooltip = wrapper.querySelector('.chart-tooltip');
     const cursor = wrapper.querySelector('.chart-cursor');
-    let selected = null;
+    let selected = null, touch = null;
     const highlightSeries = key => {
       const target = key && wrapper.querySelector(`.chart [data-series="${key}"]`);
       if (target?.style.display === 'none') key = null;
@@ -43,7 +43,7 @@ function setupCharts(view,wrappers=null) {
       tooltip.innerHTML = `<strong>${esc(row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span class="tooltip-series">${legendSwatch(s,Math.max(0,model.series.indexOf(s)))}<span>${esc(s.name)}</span></span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(model.unit||'MW')}</b></div>`).join('');
       if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
       tooltip.hidden = false;
-      const fraction = model.x(row) / 800;
+      const fraction = model.x(row) / (model.width||800);
       const plot = wrapper.querySelector('svg');
       const plotBounds = plot.getBoundingClientRect(), wrapperBounds = wrapper.getBoundingClientRect();
       const plotOffset = (plotBounds.left - wrapperBounds.left) / wrapperBounds.width;
@@ -51,12 +51,13 @@ function setupCharts(view,wrappers=null) {
       const tooltipWidth=tooltip.getBoundingClientRect().width,anchor=(plotOffset+fraction*plotWidth)*wrapperBounds.width;
       tooltip.style.left = `${Math.max(0,Math.min(wrapperBounds.width-tooltipWidth,anchor-(fraction>.65?tooltipWidth:0)))}px`;
       tooltip.style.transform = 'none';
+      if(touch?.pinned)window.BEGDChartTouch.position(tooltip,touch.event);else{tooltip.classList.remove('is-touch-tooltip');tooltip.style.top='8px';}
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
       cursor.removeAttribute('hidden');
-      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronizedCharts.get(peer)?.show(index,true));
+      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>{const linkedChart=synchronizedCharts.get(peer);linkedChart?.show(index,true);if(touch?.pinned)peer.querySelector('.chart-tooltip').hidden=true});
     }
-    function hide(linked=false) { tooltip.hidden = true; cursor.setAttribute('hidden', ''); selected = null;
+    function hide(linked=false) { if(touch?.pinned)return;tooltip.hidden = true; cursor.setAttribute('hidden', ''); selected = null;
       if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronizedCharts.get(peer)?.hide(true));
     }
     synchronizedCharts.set(wrapper,{show,hide});
@@ -90,7 +91,15 @@ function setupCharts(view,wrappers=null) {
         }
       });
     });
-    wrapper.querySelector('svg').addEventListener('pointerleave', () => hide());
+    const svg=wrapper.querySelector('svg');
+    touch=window.BEGDChartTouch?.bind(svg,{tip:tooltip,hide:()=>hide(),select:event=>{
+      const matrix=svg.getScreenCTM();if(!matrix||!model.rows.length)return;
+      const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
+      const local=point.matrixTransform(matrix.inverse());
+      const index=model.rows.reduce((nearest,row,i)=>Math.abs(model.x(row)-local.x)<Math.abs(model.x(model.rows[nearest])-local.x)?i:nearest,0);
+      show(index);
+    }});
+    svg.addEventListener('pointerleave', () => hide());
     bindChartControl(wrapper,'focusout', event => { if (!wrapper.contains(event.relatedTarget)) hide(); });
     wrapper.querySelectorAll('[data-toggle-family]').forEach(master => {
       const members=[...wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`)];
@@ -136,3 +145,10 @@ function setupRegionalSnapshotTooltips() {
     wrapper.querySelector('.regional-snapshot-chart-scroll').addEventListener('scroll', hide);
   });
 }
+
+// Rebuild geometry only when crossing the phone breakpoint, not when browser toolbars resize height.
+let phoneChartLayout=window.innerWidth<600;
+window.addEventListener('resize',()=>{
+  const phone=window.innerWidth<600;
+  if(phone!==phoneChartLayout){phoneChartLayout=phone;if(location.hash!=='#trends'&&typeof render==='function')render()}
+});
