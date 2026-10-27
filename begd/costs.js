@@ -5,12 +5,12 @@
  const finite=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
  const amount=value=>value.toLocaleString('en-BD',{maximumFractionDigits:2});
  const dateLabel=date=>new Date(date+'T12:00:00Z').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
- let bundle=null,pending=null;
+ let bundle=null,pending=null,loadFailed=false;
  function valid(row){return /^\d{4}-\d{2}-\d{2}$/.test(row?.date)&&row.currency==='BDT'&&finite(row.total_bdt)&&row.costs_bdt&&Object.values(row.costs_bdt).every(finite)&&Object.keys(row.costs_bdt).length>=3&&Math.abs(Object.values(row.costs_bdt).reduce((a,b)=>a+b,0)-row.total_bdt)<=Math.max(8,Object.keys(row.costs_bdt).length);}
- function setData(value){bundle={...value,days:(value?.days||[]).filter(valid)};}
+ function setData(value){loadFailed=false;bundle={...value,days:(value?.days||[]).filter(valid)};}
  async function load(){
   if(bundle)return bundle;
-  if(!pending)pending=fetch('costs-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('BPDB costs unavailable');return response.json()}).then(value=>{if(!Array.isArray(value.days))throw Error('Invalid BPDB costs');setData(value);return bundle}).catch(()=>null).finally(()=>{pending=null});
+  if(!pending)pending=fetch('costs-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('BPDB costs unavailable');return response.json()}).then(value=>{if(!Array.isArray(value.days))throw Error('Invalid BPDB costs');setData(value);return bundle}).catch(()=>{loadFailed=true;return null}).finally(()=>{pending=null});
   return pending;
  }
  function forDate(date){return bundle?.days.find(row=>row.date===date)||null;}
@@ -51,7 +51,26 @@
   const credits='<details class="bpdb-icon-credits"><summary>Fuel icon credits · Flaticon</summary><p>Same icons as Power plants: Coal · Magnific; Gas · Andy Horvath; HFO · alekseyvanin; HSD · Iconjam; Hydro · Iconfromus; Solar · Mutualism; Wind · Magnific. <a href="https://www.flaticon.com/" target="_blank" rel="noopener">Flaticon</a>.</p></details>';
   return `<section class="panel full bpdb-cost-panel"><div class="panel-head"><div><h2>Fuel cost by generation type</h2><p>Reported daily cost · ${esc(dateLabel(date))} · Bangladeshi taka (BDT)</p></div><span class="tag">BPDB · PAGE 1</span></div><div class="bpdb-cost-summary"><span>Total reported cost <strong>BDT ${amount(row.total_bdt)}</strong></span>${perKwh}</div><div class="bpdb-cost-layout"><div class="bpdb-pie-wrap"><svg class="bpdb-cost-pie" viewBox="0 0 240 240" role="group" aria-label="Reported cost share by generation type in BDT">${slices}</svg><div class="bpdb-pie-tooltip" id="bpdb-pie-tooltip" role="tooltip" hidden></div></div><div class="table-wrap">${table}</div></div><p class="note">Cost / kWh (BDT) = each category’s cost ÷ its matching energy in the same BPDB PDF. Energy totals are rounded to 0.01 MKWh; these category rates are calculated. Zero or missing energy is shown as —. Hover, tap, or focus a pie slice for the same breakdown.</p><p class="note">Source: ${source} · “${esc(row.source_label)}” · printed operating date ${esc(date)}${row.archive_date?' · archive date '+esc(row.archive_date):''}. These are the source’s reported costs; this chart does not establish full operating expenditure or profit. Categories remain as published.</p>${credits}</section>`;
  }
- function bindDay(host,date){
+ function costDateFor(reportDate,preferred){
+  const dates=(bundle?.days||[]).filter(row=>row.total_bdt>0).map(row=>row.date).sort();
+  if(dates.includes(preferred))return preferred;
+  if(dates.includes(reportDate))return reportDate;
+  return dates.filter(date=>date<=reportDate).at(-1)||dates.at(-1)||null;
+ }
+ function dayPanel(reportDate,preferred){
+  const date=costDateFor(reportDate,preferred);
+  if(!date)return `<section class="panel full bpdb-cost-panel"><div class="panel-head"><div><h2>Fuel cost by generation type</h2><p>Energy curve operating date · ${esc(dateLabel(reportDate))}</p></div><span class="tag">BPDB · PAGE 1</span></div><p class="note" role="status">${!bundle&&!loadFailed?'Loading BPDB cost reports…':'No validated BPDB cost breakdown is available for this date. BPDB reports may arrive later than Power Grid reports.'} <a href="https://misc.bpdb.gov.bd/daily-generation-archive" target="_blank" rel="noopener">BPDB daily archive</a></p></section>`;
+  const notice=date===reportDate?'Costs match the energy curve operating date.':`${forDate(reportDate)?'':`Costs for the energy curve date (${dateLabel(reportDate)}) are unavailable. `}Showing a separate BPDB cost report for ${dateLabel(date)}; the energy curve above remains on ${dateLabel(reportDate)}.`;
+  const dates=[...new Set(bundle.days.filter(row=>row.total_bdt>0).map(row=>row.date))].sort().reverse();
+  return `<div class="bpdb-cost-date-controls"><p class="note" role="status">${esc(notice)}</p><label>Cost report operating date <select data-cost-date-picker aria-label="Cost report operating date">${dates.map(day=>`<option value="${day}" ${day===date?'selected':''}>${esc(dateLabel(day))}</option>`).join('')}</select></label></div>`+piePanel(date);
+ }
+ function bindDay(host,reportDate){
+  const date=costDateFor(reportDate,host.querySelector('[data-cost-date-picker]')?.value);
+  const picker=host.querySelector('[data-cost-date-picker]');
+  if(picker)picker.addEventListener('change',()=>{
+   host.innerHTML=dayPanel(reportDate,picker.value);bindDay(host,reportDate);
+   host.querySelector('[data-cost-date-picker]')?.focus({preventScroll:true});
+  });
   if(!host.dataset.costSortBound){
    host.dataset.costSortBound='true';
    host.addEventListener('click',event=>{
@@ -59,7 +78,8 @@
     const key=button.dataset.costSort;
     if(!['name','cost','share','rate'].includes(key))return;
     tableSort={key,direction:tableSort.key===key?(tableSort.direction==='asc'?'desc':'asc'):(key==='name'?'asc':'desc')};
-    host.innerHTML=piePanel(date);bindDay(host,date);
+    const selectedDate=host.querySelector('[data-cost-date-picker]')?.value;
+    host.innerHTML=dayPanel(reportDate,selectedDate);bindDay(host,reportDate);
     host.querySelector(`[data-cost-sort="${key}"]`)?.focus({preventScroll:true});
    });
   }
@@ -81,7 +101,7 @@
  async function mountDay(date){
   await load();
   const host=document.getElementById('bpdb-day-cost');
-  if(host?.dataset.costDate===date){host.innerHTML=piePanel(date);bindDay(host,date);}
+  if(host?.dataset.costDate===date){host.innerHTML=dayPanel(date);bindDay(host,date);}
  }
- root.BEGDCosts={load,setData,valid,forDate,series,trendPanel,piePanel,mountDay,costRate,breakdown,sortBreakdown,bindDay};
+ root.BEGDCosts={load,setData,valid,forDate,series,trendPanel,piePanel,dayPanel,costDateFor,mountDay,costRate,breakdown,sortBreakdown,bindDay};
 })(window);

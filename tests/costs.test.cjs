@@ -54,3 +54,23 @@ test('linear trend uses calendar distance and excludes missing days; only one la
  assert.doesNotMatch(api.plot(rows,[series],'Cost','BDT',false,{fitTrend:false}),/data-cost-trendline-path/);
  assert.equal(api.linearTrend(rows.slice(0,1),series),null);
 });
+test('Energy Curve keeps dated costs discoverable when the selected report is newer than BPDB',()=>{
+ const api=load();api.setData({days:[row]});const html=api.dayPanel('2026-10-26');
+ assert.match(html,/Costs for the energy curve date \(26 Oct 2026\) are unavailable/);
+ assert.match(html,/separate BPDB cost report for 25 Oct 2026/);assert.match(html,/energy curve above remains on 26 Oct 2026/);
+ assert.match(html,/data-cost-date-picker/);assert.match(html,/value="2026-10-25" selected/);assert.match(html,/Fuel cost by generation type/);assert.match(html,/50,000,000/);
+ assert.equal(api.forDate('2026-10-26'),null);assert.equal(api.piePanel('2026-10-26'),'');
+});
+test('cost-date selector prefers a matching report and allows explicit older or newer dates',()=>{
+ const api=load();api.setData({days:[row,{...row,date:'2026-10-24'}]});
+ assert.equal(api.costDateFor('2026-10-24'),'2026-10-24');assert.equal(api.costDateFor('2026-10-26'),'2026-10-25');
+ assert.equal(api.costDateFor('2026-10-24','2026-10-25'),'2026-10-25');assert.equal(api.costDateFor('2026-10-26','bad'),'2026-10-25');
+ assert.match(api.dayPanel('2026-10-25'),/Costs match the energy curve operating date/);
+ assert.doesNotMatch(api.dayPanel('2026-10-25','2026-10-24'),/are unavailable/);
+ assert.match(api.dayPanel('2026-10-26','2026-10-24'),/value="2026-10-24" selected/);
+});
+test('an outage or empty cost dataset produces a visible explanation rather than a missing section',async()=>{
+ const api=load({fetch:async()=>({ok:false})});await api.load();
+ assert.match(api.dayPanel('2026-10-26'),/No validated BPDB cost breakdown/);
+ api.setData({days:[]});assert.match(api.dayPanel('2026-10-26'),/Fuel cost by generation type/);
+});

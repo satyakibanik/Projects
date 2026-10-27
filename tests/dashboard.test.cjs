@@ -99,7 +99,7 @@ test('chart hover shows the same line colors, dash patterns and markers as the p
  hit.dataset.point='0';
  const document={addEventListener(){},querySelector:()=>new Element(),querySelectorAll:s=>s==='.interactive-chart'?[wrapper]:[]};
  const c=app(document);
- vm.runInContext("chart([{time:'00:00',actual:12,forecast:13}],[{key:'actual',name:'Actual <ERP>',color:'#b46c13',marker:'circle'},{key:'forecast',name:'Forecast',color:'#c77e21',marker:'diamond',dashArray:'3 4'}])",c);
+ vm.runInContext("chart([{time:'00:00',actual:12,forecast:13,water:102.1}],[{key:'actual',name:'Actual <ERP>',color:'#b46c13',marker:'circle'},{key:'forecast',name:'Forecast',color:'#c77e21',marker:'diamond',dashArray:'3 4'},{key:'water',name:'Water level',color:'#087e8b',axis:'right',unit:'ft MSL'}])",c);
  vm.runInContext(fs.readFileSync(path.join(root,'begd/chart-controls.js'),'utf8'),c);
  vm.runInContext("setupCharts('realtime')",c);hit.events.focus();
  assert.equal(tooltip.hidden,false);
@@ -107,7 +107,7 @@ test('chart hover shows the same line colors, dash patterns and markers as the p
  assert.match(tooltip.innerHTML,/stroke="#b46c13"[^>]*stroke-dasharray="none"/);
  assert.match(tooltip.innerHTML,/stroke="#c77e21"[^>]*stroke-dasharray="3 4"/);
  assert.match(tooltip.innerHTML,/data-marker="diamond"/);
- assert.match(tooltip.innerHTML,/13 MW/);
+ assert.match(tooltip.innerHTML,/13 MW/);assert.match(tooltip.innerHTML,/102.1 ft MSL/);
 });
 test('largest circuit flow uses signed individual observations, ignores gaps and does not sum circuits',()=>{
  const c=app();
@@ -125,4 +125,21 @@ test('real-time dispatch always contains separate aligned generation and sheddin
  assert.equal(models.length,2);assert.equal(models[0].series.some(s=>s.key==='shed_mw'),false);assert.equal(models[1].series[0].key,'shed_mw');assert.equal(models[1].rows[0].shed_mw,0);assert.equal(models[0].x(models[0].rows[0]),models[1].x(models[1].rows[0]));
  vm.runInContext('currentDayData.demand_hourly=[];currentDayData.generation_hourly=[]',c);
  const empty=vm.runInContext('realTime()',c);assert.equal((empty.match(/data-sync-group="realtime-dispatch"/g)||[]).length,2);assert.match(empty,/No reported load shedding readings/);
+});
+test('only Karnaphuli Hydro gets matching hourly lake readings, with missing, zero and legacy values distinguished',()=>{
+ const c=app();c.sample={water_level:{source_range:'GenLog!FG13:FG37',hourly:[{time:'00:00',level_ft_msl:102.13},{time:'01:00',level_ft_msl:0},{time:'02:00',level_ft_msl:null},{time:'03:00',level_ft_msl:NaN},{time:'04:00',level_ft_msl:-1}]}};
+ assert.equal(vm.runInContext("plantWaterOverlay('Karnaphuli Power Ltd.',sample)",c),null);
+ const overlay=vm.runInContext("plantWaterOverlay('Karnaphuli Hydro PP Unit-1,2,3,4, 5',sample)",c);
+ assert.equal(overlay.byTime.get('00:00'),102.13);assert.equal(overlay.byTime.get('01:00'),0);assert.equal(overlay.byTime.has('02:00'),false);assert.equal(overlay.byTime.size,2);
+ c.sample={plant_units:[{name:'Water Level',hourly:[{time:'00:00',mw:101}]}]};
+ assert.equal(vm.runInContext("plantWaterOverlay('Karnaphuli Hydro PP',sample).byTime.get('00:00')",c),101);
+});
+test('water overlay uses a separate axis, does not rescale MW, and retains gaps and per-series units',()=>{
+ const c=app();const rows="[{time:'00:00',mw:20,water:102.1},{time:'01:00',mw:30,water:null},{time:'02:00',mw:40,water:102.05}]";
+ const power="{key:'mw',name:'Output',color:'#123'}",water="{key:'water',name:'Kaptai Lake water level',color:'#087e8b',axis:'right',unit:'ft MSL'}";
+ const base=vm.runInContext(`chart(${rows},[${power}])`,c),overlay=vm.runInContext(`chart(${rows},[${power},${water}])`,c);
+ const ticks=html=>[...html.matchAll(/data-tick-label="\d"[^>]*>([^<]*)/g)].map(m=>m[1]);
+ assert.deepEqual(ticks(overlay),ticks(base));assert.match(overlay,/right axis \(ft MSL\)/);assert.match(overlay,/102.1 ft MSL/);assert.match(overlay,/Output: 20 MW/);
+ const group=overlay.split('data-series="water"')[1].split('</g>')[0];assert.equal((group.match(/<polyline/g)||[]).length,2);
+ const hidden=vm.runInContext(`chart(${rows},[${power},{...${water},defaultVisible:false}])`,c);assert.doesNotMatch(hidden,/class="chart-secondary-axis"/);
 });
