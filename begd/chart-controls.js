@@ -80,8 +80,8 @@ function setupCharts(view,wrappers=null) {
     });
     wrapper.querySelectorAll('[data-point]').forEach(hit => {
       const index = Number(hit.dataset.point);
-      hit.addEventListener('pointerenter', () => show(index));
-      hit.addEventListener('click', () => show(index));
+      hit.addEventListener('pointerenter', event => {if(event.pointerType==='touch'||event.pointerType==='pen'||window.matchMedia?.('(hover: none)').matches)return;show(index)});
+      hit.addEventListener('click', event => {if(event.pointerType!=='touch'&&event.pointerType!=='pen')show(index)});
       hit.addEventListener('focus', () => show(index));
       hit.addEventListener('keydown', event => {
         if (event.key === 'Escape') hide();

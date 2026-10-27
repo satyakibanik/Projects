@@ -201,6 +201,9 @@ test('comparison tooltips show only the inspected date, without empty rows for t
  const c=app(document);
  vm.runInContext("currentDayData={today_date:'2026-01-01'};realtimeYesterday=true;realtimePlot([{time:'00:00',demand:100}],[{key:'demand',name:'Demand',color:'#123456'}],[{time:'00:00',demand:90}])",c);
  vm.runInContext(fs.readFileSync(path.join(root,'begd/chart-controls.js'),'utf8'),c);vm.runInContext("setupCharts('realtime')",c);
+ c.window.matchMedia=()=>({matches:true});tooltip.hidden=true;
+ hits[0].events.pointerenter({pointerType:'mouse'});assert.equal(tooltip.hidden,true);
+ hits[0].events.pointerenter({pointerType:'touch'});hits[0].events.click({pointerType:'touch'});assert.equal(tooltip.hidden,true);
  hits[0].events.focus();assert.match(tooltip.innerHTML,/31 Dec 2025/);assert.match(tooltip.innerHTML,/90 MW/);assert.doesNotMatch(tooltip.innerHTML,/100 MW|— MW/);
  hits[1].events.focus();assert.match(tooltip.innerHTML,/1 Jan 2026/);assert.match(tooltip.innerHTML,/100 MW/);assert.doesNotMatch(tooltip.innerHTML,/yesterday|90 MW|— MW/);
 });
