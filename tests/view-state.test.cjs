@@ -140,3 +140,41 @@ test('header arrows use available operating dates and skip archive gaps',()=>{
  run("data.date='2026-10-17'");assert.equal(run('reportDayNavigationTarget(-1)'),'2026-10-15');assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-19');
  delete context.window.BEGD_STATIC_DATA;assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-18');
 });
+test('Latest report returns from a pinned older date to the newest publication and updates the view',async()=>{
+ const {context,run,nodes}=headerApp(),calls=[];
+ const reports=[{id:'5175',published_date:'2026-10-25'},{id:'5177',published_date:'2026-10-27'}];
+ context.fetch=async url=>{calls.push(url);return new Response(JSON.stringify(url==='/api/reports'?{reports}:{report_id:'5177',date:'2026-10-26',published_date:'2026-10-27'}));};
+ assert.equal(await run('selectLatestReport()'),true);
+ assert.equal(run('data.date'),'2026-10-26');assert.equal(nodes.get('#report-date').value,'2026-10-26');
+ assert.deepEqual(calls,['/api/reports','/api/report?id=5177','/api/report?date=2026-10-26']);
+ assert.equal(nodes.get('#latest-report').disabled,false);
+ assert.match(nodes.get('#date-status').textContent,/operating 2026-10-26 · published 2026-10-27/);
+});
+test('Latest report failure preserves the selected report and releases controls',async()=>{
+ const {context,run,nodes}=headerApp();context.fetch=async()=>new Response('{}',{status:503});
+ assert.equal(await run('selectLatestReport()'),false);assert.equal(run('data.date'),'2026-10-19');
+ assert.equal(nodes.get('#latest-report').disabled,false);assert.match(nodes.get('#date-status').textContent,/Still showing operating date 2026-10-19/);
+});
+function sharingApp(hash){
+ const {context,run,nodes}=headerApp(),location=new URL('https://example.test/begd/?v=2&date=2026-10-24'+hash),events={};
+ context.location=location;context.history={replaceState(state,_,url){location.href=url;},pushState(state,_,url){location.href=url;}};
+ context.window.BEGDTrends={getViewState:()=>({}),setViewState(){}};
+ context.window.addEventListener=(name,fn)=>{events[name]=fn;};
+ context.window.BEGDViewCodec=codec();
+ run("data={report_id:'5177',date:'2026-10-26',published_date:'2026-10-27'};render=()=>{};renderCustomComparisons=()=>{};");
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/share-view.js'),'utf8'),context);
+ return {context,run,nodes,location,events};
+}
+test('legacy realtime link drops the hidden archive date and does not load the older report',async()=>{
+ const {context,run,location}=sharingApp('#realtime');let calls=0;context.fetch=async()=>{calls++;throw Error('Unexpected archive request');};
+ await context.window.BEGDView.start();assert.equal(calls,0);assert.equal(run('data.date'),'2026-10-26');
+ assert.equal(location.searchParams.has('date'),false);assert.equal(location.hash,'#realtime');
+ assert.equal(context.window.BEGDView.capture().date,undefined);
+ location.hash='#overview';context.window.BEGDView.commit({replace:true});
+ assert.equal(location.searchParams.get('date'),'2026-10-26');
+});
+test('explicit overview archive links still restore their exact operating date',async()=>{
+ const {context,run,location}=sharingApp('#overview');
+ context.fetch=async()=>new Response(JSON.stringify({report_id:'5175',date:'2026-10-24',published_date:'2026-10-25'}));
+ await context.window.BEGDView.start();assert.equal(run('data.date'),'2026-10-24');assert.equal(location.searchParams.get('date'),'2026-10-24');
+});

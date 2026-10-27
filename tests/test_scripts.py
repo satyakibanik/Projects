@@ -81,6 +81,25 @@ class WorkbookTests(unittest.TestCase):
         with self.assertRaisesRegex(AssertionError, 'Plant energy'):
             parse(book)
 
+    def test_zero_regional_totals_derive_only_from_reconciled_fuel_columns(self):
+        book = workbook()
+        book['P1']['M17'] = 0
+        report = parse(book)
+        self.assertEqual(report['regions'][0]['energy_mwh'], 2400)
+        self.assertEqual(report['regions'][0]['reported_energy_mwh'], 0)
+        self.assertIn('Calculated', report['regions'][0]['energy_source'])
+        self.assertIn('regional total cells are zero', report['quality_notes'][0])
+        self.assertAlmostEqual(sum(row['energy_mwh'] for row in report['regions']), report['summary']['energy_mwh'])
+
+    def test_regional_fallback_does_not_hide_missing_cells_or_inconsistent_fuels(self):
+        for cell, value in [('E17', 2.3), ('E17', None), ('M17', 2.3)]:
+            with self.subTest(cell=cell, value=value):
+                book = workbook()
+                book['P1']['M17'] = 0
+                book['P1'][cell] = value
+                with self.assertRaisesRegex(AssertionError, 'Regional energy'):
+                    parse(book)
+
     def test_string_operating_date(self):
         book = workbook()
         book['P1']['D6'] = '14-10-2026'

@@ -629,7 +629,7 @@ function enCurve(){
  return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart+energyCurveHourlyTable(rows,generationSeries,totals,enCurveTableMode),'MW · BST')+'<div id="bpdb-day-cost" data-cost-date="'+esc(data.date)+'">'+(window.BEGDCosts?.piePanel(data.date)||'')+'</div>'+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
 }
 document.addEventListener('click',event=>{const toggle=event.target.closest?.('[data-en-curve-table-mode]');if(!toggle)return;const mode=toggle.dataset.enCurveTableMode==='mw'?'mw':'energy';if(mode===enCurveTableMode)return;enCurveTableMode=mode;render()});
-function render(){if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date);if(valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.length?'<p class="note" role="note">'+data.quality_notes.map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date);if(valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
  const control=event.target.closest?.('[data-regional-snapshot-style]');if(!control)return;
  regionalSnapshotStyle=control.value;
@@ -694,6 +694,7 @@ function updateReportDayNavigation(){
  $('#previous-report').disabled=busy||!reportDayNavigationTarget(-1);
  $('#next-report').disabled=busy||!reportDayNavigationTarget(1);
  $('#load-report').disabled=busy;
+ $('#latest-report').disabled=busy;
 }
 function setReportPickerBusy(busy){
  $('#report-date-controls').setAttribute('aria-busy',String(busy));updateReportDayNavigation();
@@ -720,6 +721,27 @@ async function selectOperatingDate(date){
   return false;
  }finally{if(token===operatingDateRequest)setReportPickerBusy(false);}
 }
+async function selectLatestReport(){
+ const token=++operatingDateRequest;
+ request++;setReportPickerBusy(true);$('#date-status').textContent='Loading latest published report…';
+ try{
+  const response=await fetch('/api/reports',{cache:'no-store'});
+  if(!response.ok)throw Error('Power Grid report dates could not be loaded');
+  const archive=await response.json();
+  const latest=(archive.reports||[]).slice().sort((a,b)=>b.published_date.localeCompare(a.published_date)||Number(b.id)-Number(a.id))[0];
+  if(!latest)throw Error('No archived reports are available.');
+  const responseReport=await fetch('/api/report?id='+encodeURIComponent(latest.id),{cache:'no-store'});
+  if(!responseReport.ok)throw Error('The latest report could not be loaded.');
+  const report=await responseReport.json();
+  if(token!==operatingDateRequest)return false;
+  // Reuse exact-date loading so comparisons, the picker and URL stay in sync.
+  return await selectOperatingDate(report.date);
+ }catch(error){
+  if(token===operatingDateRequest)$('#date-status').textContent=error.message+(data?' Still showing operating date '+data.date+'.':'');
+  return false;
+ }finally{if(token===operatingDateRequest)setReportPickerBusy(false);}
+}
+$('#latest-report').addEventListener('click',selectLatestReport);
 function navigateReportDay(offset){const date=reportDayNavigationTarget(offset);if(date)selectOperatingDate(date);}
 $('#load-report').addEventListener('click',()=>selectOperatingDate($('#report-date').value));
 $('#report-date').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#load-report').disabled){event.preventDefault();selectOperatingDate(event.target.value)}});
@@ -737,6 +759,7 @@ async function refreshDateList(){
    await load(String(latest.id));
   }
   if(!window.BEGDView?.started){setReportPickerBusy(false);await window.BEGDView?.start();}
+  if(data&&archive.complete&&!archive.error)$('#date-status').textContent=selectedReportStatus();
   if(archive.error)$('#date-status').textContent=archive.error;
   else if(!reports.length)$('#date-status').textContent='No archived reports are available.';
   else if(!archive.complete)$('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
