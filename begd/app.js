@@ -114,7 +114,7 @@ function chart(rows,series,options={}){
  const waterPadding=Math.max((waterMax-waterMin)*.1,.02),rightMin=Math.max(0,waterMin-waterPadding),rightMax=waterMax+waterPadding;
  const rightY=value=>H-B-(value-rightMin)/(rightMax-rightMin)*(H-T-B);
  const x=r=>L+(options.xKey?r[options.xKey]:parseInt(r.time)*60+parseInt(r.time.slice(3)))/(options.xMax||1380)*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
- const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,width:W,unit,scope,syncGroup:options.syncGroup,redraw:()=>chart(rows,series,options),enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,width:W,unit,scope,syncGroup:options.syncGroup,comparisonTimeline:options.comparisonTimeline,redraw:()=>chart(rows,series,options),enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  if(secondary.length){
   body+=`<text x="${L-8}" y="${T-10}" text-anchor="end">${esc(unit)}</text>`;
   body+=`<g class="chart-secondary-axis" aria-label="${esc(secondary[0].name)} · right axis (${esc(secondary[0].unit)})"><text x="${W-R+9}" y="${T-10}">${esc(secondary[0].unit)}</text>`;
@@ -141,7 +141,7 @@ function chart(rows,series,options={}){
    const segments=[[]];
    for(const row of rows){
     if(Number.isFinite(row[item.key]))segments.at(-1).push(`${x(row)},${seriesY(row[item.key])}`);
-    else if(item.axis==='right'&&segments.at(-1).length)segments.push([]);
+    else if((item.axis==='right'||options.preserveGaps)&&segments.at(-1).length)segments.push([]);
    }
    if(!item.pointsOnly||item.connectPoints)for(const points of segments.filter(segment=>segment.length))body+=`<polyline fill="none" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(item)}" ${item.dot?'stroke-linecap="round"':''} points="${points.join(' ')}"/>`;
    for(const [rowIndex,row] of rows.entries()){
@@ -432,69 +432,84 @@ function imports(){
  });
  return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
 }
+function realtimeYesterdayDate(){
+ const day=currentDayData?.today_date||currentDayData?.date;
+ if(!day)return null;
+ const date=new Date(day+'T00:00:00Z');date.setUTCDate(date.getUTCDate()-1);
+ return date.toISOString().slice(0,10);
+}
+function realtimePlot(rows,series,previousRows=[],options={}){
+ if(!realtimeYesterday)return chart(rows,series,{...options,preserveGaps:true});
+ const yesterday=realtimeYesterdayDate(),today=currentDayData?.today_date||currentDayData?.date;
+ if(!yesterday)return chart(rows,series,options);
+ const minutes=time=>parseInt(time)*60+parseInt(time.slice(3));
+ const keys=[...new Set([...rows,...previousRows].flatMap(row=>Object.keys(row)))].filter(key=>!['time','date','label','minute'].includes(key));
+ const blank=Object.fromEntries(keys.map(key=>[key,null])),previousBlank=Object.fromEntries(keys.map(key=>['yesterday_'+key,null]));
+ const datedRows=[
+  ...previousRows.map(row=>({...blank,...previousBlank,...Object.fromEntries(keys.map(key=>['yesterday_'+key,row[key]??null])),time:row.time,label:shortDate(yesterday)+' · '+row.time,minute:minutes(row.time)})),
+  ...rows.map(row=>({...blank,...row,...previousBlank,label:shortDate(today)+' · '+row.time,minute:1440+minutes(row.time)}))
+ ].sort((a,b)=>a.minute-b.minute);
+ const previousSeries=series.filter(item=>previousRows.some(row=>Number.isFinite(row[item.key]))).map(item=>({...item,key:'yesterday_'+item.key,name:item.name+' · yesterday ('+shortDate(yesterday)+')',dashArray:'6 4'}));
+ const timeline={xKey:'minute',xMax:2820,xTicks:[{minute:0,label:shortDate(yesterday)},{minute:720,label:'12:00'},{minute:1440,label:shortDate(today)},{minute:2160,label:'12:00'},{minute:2820,label:'23:00'}]};
+ return chart(datedRows,[...series,...previousSeries],{...options,...timeline,preserveGaps:true,comparisonTimeline:true})+(!previousSeries.length?'<p class="note realtime-history-unavailable">Yesterday’s readings unavailable for this plot.</p>':'');
+}
+function realtimeImportRows(routes,names){
+ const times=[...new Set(routes.flatMap(route=>(route.hourly||[]).map(row=>row.time)))].sort();
+ return times.map(time=>{
+  const values=names.map(name=>routes.find(route=>route.name===name)?.hourly?.find(row=>row.time===time)?.mw??null);
+  const present=values.filter(Number.isFinite);
+  const complete=['Bheramara HVDC','Tripura','Adani','Nepal'].every(name=>{const index=names.indexOf(name);return index>=0&&Number.isFinite(values[index]);});
+  return {time,total_import_mw:complete?present.reduce((sum,value)=>sum+value,0):null,...Object.fromEntries(values.map((value,index)=>['import_'+index,value]))};
+ });
+}
+function realtimeShares(generation,routes,importRows){
+ const byTime=new Map(importRows.map(row=>[row.time,row]));
+ const expectedRoutes=['Bheramara HVDC','Tripura','Adani','Nepal'];
+ const valid=value=>Number.isFinite(value)&&value>=0;
+ return generation.map(row=>{
+  const total=valid(row.total_mw)&&row.total_mw>0?row.total_mw:null;
+  const completeImports=expectedRoutes.every(name=>routes.find(route=>route.name===name)?.hourly?.some(point=>point.time===row.time&&valid(point.mw)));
+  const imported=byTime.get(row.time)?.total_import_mw,renewable=[row.hydro_mw,row.solar_mw,row.wind_mw];
+  return {time:row.time,import_dependence_pct:total&&completeImports&&valid(imported)?imported/total*100:null,renewable_share_pct:total&&renewable.every(valid)?renewable.reduce((sum,value)=>sum+value,0)/total*100:null};
+ });
+}
 function realTime(){
  const independentStudyPanel=window.BEGDIndependentStudy?.renderToday()||'';
  if(!currentDayData)return independentStudyPanel+`<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
- const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
+ const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=currentDayData.demand_hourly||[],generation=currentDayData.generation_hourly||[],routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
- const yesterdayDate=new Date((currentDayData.today_date||currentDayData.date)+'T00:00:00Z');
- yesterdayDate.setUTCDate(yesterdayDate.getUTCDate()-1);
- const yesterday=yesterdayDate.toISOString().slice(0,10);
- const yesterdayRows=currentDayData.forecast_history?.[yesterday]?.demand_hourly||[];
- const compare=realtimeYesterday&&yesterdayRows.length>0;
- const minutes=time=>parseInt(time)*60+parseInt(time.slice(3));
- const demandRows=compare?[
-  ...yesterdayRows.map(row=>({time:row.time,label:shortDate(yesterday)+' · '+row.time,minute:minutes(row.time),demand_mw:null,supply_mw:null,shed_mw:null,
-   yesterday_demand_mw:row.demand_mw??null,yesterday_supply_mw:row.supply_mw??null,yesterday_shed_mw:row.shed_mw??null})),
-  ...rows.map(row=>({time:row.time,label:today+' · '+row.time,minute:1440+minutes(row.time),demand_mw:row.demand_mw??null,supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw??null,
-   yesterday_demand_mw:null,yesterday_supply_mw:null,yesterday_shed_mw:null}))
- ].sort((a,b)=>a.minute-b.minute):rows.map(row=>({...row,supply_mw:row.supply_mw??row.generation_mw??null}));
- const timeline=compare?{xKey:'minute',xMax:2820,xTicks:[{minute:0,label:shortDate(yesterday)},{minute:720,label:'12:00'},{minute:1440,label:today},{minute:2160,label:'12:00'},{minute:2820,label:'23:00'}]}:{};
- const previousSeries=(key,name,color,marker)=>compare?[{key:'yesterday_'+key,name:name+' · yesterday ('+shortDate(yesterday)+')',color,marker,dashArray:'6 4'}]:[];
- const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
- const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${yesterdayRows.length?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${yesterdayRows.length?yesterdayRows.length+' ERP readings · shown before today':'ERP readings unavailable'}</span></div>`;
+ const yesterday=realtimeYesterdayDate(),history=currentDayData.forecast_history?.[yesterday]||{},previous=currentDayData.realtime_history?.[yesterday]||{};
+ const yesterdayRows=history.demand_hourly||[],previousGeneration=previous.generation_hourly||history.generation_hourly||[],previousRoutes=previous.imports||[];
+ const hasHistory=yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
+ const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
+ const demandRows=rows.map(row=>({...row,supply_mw:row.supply_mw??row.generation_mw??null}));
+ const demandSeries=[{key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},{key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}];
  const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
-  yesterdayControl+'<div class="realtime-dispatch-plots">'+chart(demandRows,[
-   {key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},
-   {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'},
-   ...previousSeries('demand_mw','Demand','#b46c13','circle'),
-   ...previousSeries('supply_mw','Supply','#71818c','plus')
-  ],{...timeline,syncGroup:'realtime-dispatch',key:'realtime-demand-supply'})+
-  '<h3>Reported load shedding</h3>'+chart(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'},...previousSeries('shed_mw','Load shedding','#b95442')],{...timeline,syncGroup:'realtime-dispatch',height:160,key:'realtime-shedding'})+
+  '<div class="realtime-dispatch-plots">'+realtimePlot(demandRows,demandSeries,yesterdayRows,{syncGroup:'realtime-dispatch',key:'realtime-demand-supply'})+
+  '<h3>Reported load shedding</h3>'+realtimePlot(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],yesterdayRows,{syncGroup:'realtime-dispatch',height:160,key:'realtime-shedding'})+
   '<p class="note">Substation-side load shedding = demand − supply at the same timestamp. Yesterday’s comparison uses the previous calendar day of the snapshot in Bangladesh time.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
- const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
- const availableRoutes=routes.filter(route=>route.hourly?.length),routeColors=['#347baf','#c48722','#b95442','#36a77b'];
- const importTimes=[...new Set(availableRoutes.flatMap(route=>route.hourly.map(row=>row.time)))].sort();
- const importRows=importTimes.map(time=>{
-  const values=availableRoutes.map((route,index)=>route.hourly.find(row=>row.time===time)?.mw??null);
-  const present=values.filter(value=>typeof value==='number'&&Number.isFinite(value));
-  return {time,total_import_mw:present.length?present.reduce((sum,value)=>sum+value,0):null,...Object.fromEntries(values.map((value,index)=>[`import_${index}`,value]))};
- });
- const importSeries=availableRoutes.map((route,index)=>({key:`import_${index}`,name:route.name,color:routeColors[index%routeColors.length],family:'import'}));
- const importCaption=`ERP import and generation pages · ${today} · ${availableRoutes.length} routes`;
- const totalImportsPanel=availableRoutes.length?panel('Total imports',importCaption,chart(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}])):'';
- const importsByRoutePanel=availableRoutes.length?panel('Imports by route',importCaption,chart(importRows,importSeries,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true})):'';
- const importsByTime=new Map(importRows.map(row=>[row.time,row]));
- const expectedRoutes=['Bheramara HVDC','Tripura','Adani','Nepal'];
- const shareRows=generation.map(row=>{
-  const valid=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
-  const total=valid(row.total_mw)&&row.total_mw>0?row.total_mw:null;
-  const completeImports=expectedRoutes.every(name=>routes.find(route=>route.name===name)?.hourly?.some(point=>point.time===row.time&&valid(point.mw)));
-  const imported=importsByTime.get(row.time)?.total_import_mw;
-  const renewable=[row.hydro_mw,row.solar_mw,row.wind_mw];
-  return {time:row.time,import_dependence_pct:total&&completeImports&&valid(imported)?imported/total*100:null,renewable_share_pct:total&&renewable.every(valid)?renewable.reduce((sum,value)=>sum+value,0)/total*100:null};
- });
+ const showGeneration=generation.length||(realtimeYesterday&&previousGeneration.length);
+ const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} current readings`;
+ const fuelTypePanel=showGeneration?panel('Generation by fuel type',generationDate,realtimePlot(generation,fuelTypeSeries,previousGeneration,{familyLegend:{family:'fuel',label:'All fuel types'},key:'realtime:gas_mw'})):'';
+ const routeColors=['#347baf','#c48722','#b95442','#36a77b'];
+ const routeNames=[...new Set([...routes,...(realtimeYesterday?previousRoutes:[])].filter(route=>route.hourly?.length).map(route=>route.name))].sort((a,b)=>{const order=['Bheramara HVDC','Tripura','Adani','Nepal'];return (order.includes(a)?order.indexOf(a):4)-(order.includes(b)?order.indexOf(b):4)||a.localeCompare(b)});
+ const importRows=realtimeImportRows(routes,routeNames),previousImportRows=realtimeImportRows(previousRoutes,routeNames);
+ const importSeries=routeNames.map((name,index)=>({key:'import_'+index,name,color:routeColors[index%routeColors.length],family:'import'}));
+ const importCaption=`ERP import and generation pages · ${today} · ${routeNames.length} routes`;
+ const totalImportsPanel=routeNames.length?panel('Total imports',importCaption,realtimePlot(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}],previousImportRows,{key:'realtime:total_import_mw'})):'';
+ const importsByRoutePanel=routeNames.length?panel('Imports by route',importCaption,realtimePlot(importRows,importSeries,previousImportRows,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true,key:'realtime:import_0'})):'';
+ const shareRows=realtimeShares(generation,routes,importRows),previousShareRows=realtimeShares(previousGeneration,previousRoutes,previousImportRows);
  const shareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'}];
- const sharePanel=generation.length?panel('Import dependence (%) & renewable share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Imported renewables are not classified',chart(shareRows,shareSeries,{unit:'%'}),'%'):'';
+ const sharePanel=showGeneration?panel('Import dependence (%) & renewable share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Imported renewables are not classified',realtimePlot(shareRows,shareSeries,previousShareRows,{unit:'%',key:'realtime:import_dependence_pct'}),'%'):'';
  const updated=currentDayData.updated_at?new Date(currentDayData.updated_at).toLocaleString('en-GB',{timeZone:'Asia/Dhaka'}):'—';
  const refreshNote=currentDayData.delivery==='static'?'Checks for newer published snapshots every three minutes; site builds are scheduled every 15 minutes and may be delayed.':'Checks ERP readings every three minutes.';
  const latestReading=[...rows,...generation,...routes.flatMap(route=>route.hourly||[])].map(row=>row.time).filter(Boolean).sort().at(-1)||'unavailable';
  const oldSnapshot=currentDayData.delivery==='static'&&Date.now()-Date.parse(currentDayData.updated_at)>90*60000;
  const refreshWarning=(currentDayData.snapshot_refresh_failed?' Could not check the latest published snapshot; showing the last available readings.':'')+(oldSnapshot?' This snapshot is over 90 minutes old; a newer publication may be pending.':'');
  const panels=`${combinedPanel}${independentStudyPanel}${sharePanel}${fuelTypePanel}${totalImportsPanel}${importsByRoutePanel}`;
- return `<p class="note" id="current-status" role="status">Snapshot date · ${esc(today)} Bangladesh time · ERP snapshot captured ${esc(updated)} · latest reading ${esc(latestReading)} BST. Only sources with readings dated this date are shown. ${esc(refreshNote)}${esc(refreshWarning)}</p>${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
+ return `<p class="note" id="current-status" role="status">Snapshot date · ${esc(today)} Bangladesh time · ERP snapshot captured ${esc(updated)} · latest reading ${esc(latestReading)} BST. Current readings use this snapshot date; the optional yesterday comparison uses its previous calendar day. ${esc(refreshNote)}${esc(refreshWarning)}</p>${yesterdayControl}${panels?`<div class="grid realtime-grid">${panels}</div>`:'<p class="note">No ERP readings are available for today.</p>'}<p class="note">Sources: ${(currentDayData.source_urls||[]).map((url,i)=>`<a href="${esc(url)}" target="_blank" rel="noopener">${['Demand / supply / load shedding','Generation by source','India imports'][i]||'ERP source'}</a>`).join(' · ')}</p>`
 }
 function substationKey(name){return String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'')}
 function substationRows(report){

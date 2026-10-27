@@ -32,7 +32,7 @@ async function inspect(page,wrap){
     assert(Math.abs(await page.evaluate(()=>scrollY)-originalScroll)<=1,'Tapping values moved the page');
   }
   await page.touchscreen.tap(3,70);
-  assert(!await tip.isVisible(),'Outside tap did not dismiss values');
+  await tip.waitFor({state:'hidden',timeout:1000});
   return {svg,tip,bounds};
 }
 (async()=>{
@@ -54,7 +54,7 @@ async function inspect(page,wrap){
           for(let i=0;i<await charts.count();i++){
             const wrap=charts.nth(i);
             if(await wrap.locator('[data-point]').count()===0&&await wrap.locator('[data-trend-svg]').count()===0)continue;
-            await inspect(page,wrap);count++;
+            try{await inspect(page,wrap)}catch(error){throw new Error(`${width}px ${theme} ${tab} chart ${i}: ${error.message}`,{cause:error})}count++;
           }
           console.log('TOUCH PASS',width,theme,tab,count,'charts');
           if(tab==='trends'){

@@ -165,3 +165,45 @@ test('yesterday extends the timeline with ERP supply and reported shedding, pres
  assert.match(html,/id="realtime-yesterday" checked disabled/);assert.match(html,/ERP readings unavailable/);
  assert.equal(vm.runInContext('[...chartData.values()][0].series.length',c),2);
 });
+test('the shared yesterday control extends fuel, shares, total imports and every route with exact-date readings',()=>{
+ const c=app();
+ vm.runInContext(`var gen={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0};var routes=['Bheramara HVDC','Tripura','Adani','Nepal'].map((name,i)=>({name,hourly:[{time:'00:00',mw:i+1}]}));currentDayData={today_date:'2026-01-01',demand_hourly:[],generation_hourly:[gen],imports:routes,realtime_history:{'2025-12-31':{generation_hourly:[{...gen,gas_mw:25}],imports:routes.slice().reverse()}},forecast_history:{}};realtimeYesterday=true`,c);
+ const html=vm.runInContext('realTime()',c);
+ assert(html.indexOf('id="realtime-yesterday"')<html.indexOf('realtime-grid'));
+ const models=vm.runInContext('[...chartData.values()]',c);
+ const byScope=key=>models.find(m=>m.scope===key);
+ const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].yesterday_gas_mw,25);assert.equal(fuel.rows[0].yesterday_solar_mw,0);
+ const shares=byScope('realtime:import_dependence_pct');assert.equal(shares.rows[0].yesterday_import_dependence_pct,10);assert.equal(shares.rows[0].yesterday_renewable_share_pct,10);assert.equal(shares.unit,'%');
+ const total=byScope('realtime:total_import_mw');assert.equal(total.rows[0].yesterday_total_import_mw,10);
+ const imports=byScope('realtime:import_0');assert.equal(imports.series.filter(s=>s.key.startsWith('yesterday_')).length,4);
+ for(const item of imports.series.filter(s=>!s.key.startsWith('yesterday_')))assert.equal(imports.rows[0]['yesterday_'+item.key],imports.rows[1][item.key],'Route order changed the comparison');
+ for(const model of [fuel,shares,total,imports]){assert.match(model.rows[0].label,/31 Dec 2025/);assert.match(model.rows[1].label,/1 Jan 2026/);assert(model.x(model.rows[0])<model.x(model.rows[1]));}
+ vm.runInContext('currentDayData.realtime_history={};chartData.clear()',c);
+ const missing=vm.runInContext('realTime()',c);assert.match(missing,/Yesterday’s readings unavailable for this plot/);
+ assert(vm.runInContext('[...chartData.values()].every(m=>m.series.every(s=>!s.key.startsWith("yesterday_")))',c));
+});
+test('historical shares require matching routes, positive total generation and complete renewable readings',()=>{
+ const c=app();
+ const evaluate=(generation,routes,rows)=>JSON.parse(vm.runInContext(`JSON.stringify(realtimeShares(${JSON.stringify(generation)},${JSON.stringify(routes)},${JSON.stringify(rows)}))`,c))[0];
+ const gen=[{time:'00:00',total_mw:100,hydro_mw:0,solar_mw:0,wind_mw:0}],imports=[{time:'00:00',total_import_mw:10}];
+ assert.equal(evaluate(gen,[],imports).import_dependence_pct,null);
+ assert.equal(vm.runInContext(`realtimeImportRows([{name:'Nepal',hourly:[{time:'00:00',mw:0}]}],['Nepal'])[0].total_import_mw`,c),null);
+ assert.equal(evaluate(gen,[],imports).renewable_share_pct,0);
+ assert.equal(evaluate([{...gen[0],total_mw:0}],[],imports).renewable_share_pct,null);
+ assert.equal(evaluate([{...gen[0],wind_mw:null}],[],imports).renewable_share_pct,null);
+});
+test('comparison tooltips show only the inspected date, without empty rows for the other day',()=>{
+ const tooltip={style:{},classList:{remove(){}},getBoundingClientRect:()=>({width:300})},cursor={setAttribute(){},removeAttribute(){}};
+ const hits=[new Element(),new Element()];hits.forEach((hit,i)=>hit.dataset.point=String(i));
+ const svg=new Element();svg.getBoundingClientRect=()=>({left:0,width:800});
+ const wrapper={dataset:{chart:'plot-1'},getBoundingClientRect:()=>({left:0,width:800}),addEventListener(){},querySelectorAll:s=>s==='[data-point]'?hits:[],querySelector:s=>s==='.chart-tooltip'?tooltip:s==='.chart-cursor'?cursor:s==='svg'?svg:s.startsWith('[data-toggle-series=')?{checked:true}:null};
+ const document={addEventListener(){},querySelector:()=>new Element(),querySelectorAll:s=>s==='.interactive-chart'?[wrapper]:[]};
+ const c=app(document);
+ vm.runInContext("currentDayData={today_date:'2026-01-01'};realtimeYesterday=true;realtimePlot([{time:'00:00',demand:100}],[{key:'demand',name:'Demand',color:'#123456'}],[{time:'00:00',demand:90}])",c);
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/chart-controls.js'),'utf8'),c);vm.runInContext("setupCharts('realtime')",c);
+ c.window.matchMedia=()=>({matches:true});tooltip.hidden=true;
+ hits[0].events.pointerenter({pointerType:'mouse'});assert.equal(tooltip.hidden,true);
+ hits[0].events.pointerenter({pointerType:'touch'});hits[0].events.click({pointerType:'touch'});assert.equal(tooltip.hidden,true);
+ hits[0].events.focus();assert.match(tooltip.innerHTML,/31 Dec 2025/);assert.match(tooltip.innerHTML,/90 MW/);assert.doesNotMatch(tooltip.innerHTML,/100 MW|— MW/);
+ hits[1].events.focus();assert.match(tooltip.innerHTML,/1 Jan 2026/);assert.match(tooltip.innerHTML,/100 MW/);assert.doesNotMatch(tooltip.innerHTML,/yesterday|90 MW|— MW/);
+});

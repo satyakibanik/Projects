@@ -15,12 +15,12 @@
    Array.isArray(value.hourly)&&value.hourly.length===24&&value.hourly.every((r,h)=>r?.time===String(h).padStart(2,'0')+':00'&&
     targets.every(t=>names(t).every(n=>finite(r[t+'_models']?.[n]))));
  }
- function context(liveOnly=false){
+ function context(liveOnly=false,operatingDate=null){
   const live=typeof currentDayData==='undefined'?null:currentDayData;
   const report=typeof data==='undefined'?null:data;
   const reportScenario=report?.forecast?.scenario_date;
   const dates=[...new Set([...bundle.dates,...Object.keys(live?.forecast_history||{}),...(live?.today_date?[live.today_date]:[]),...(reportScenario?[reportScenario]:[])])].sort();
-  const date=liveOnly?live?.today_date:dates.includes(selectedDate)?selectedDate:live?.today_date||bundle.default_date;
+  const date=operatingDate||(liveOnly?live?.today_date:dates.includes(selectedDate)?selectedDate:live?.today_date||bundle.default_date);
   const models=liveOnly?best:choices,history=live?.forecast_history?.[date],sameDay=Boolean(live&&live.today_date===date);
   const candidate=sameDay?live.independent_forecast:history?.forecast;
   const forecast=validForecast(candidate,date)?candidate:null,base=bundle.days[date]||[];
@@ -66,21 +66,24 @@
   const info=catalog.model_info[name]||{},members=info.constituents||[];
   return `<div class="model-description"><p class="note"><strong>${target==='demand'?'Demand':'Generation'} · ${esc(name)}.</strong> ${esc(info.description||'')}</p>${members.length?`<details class="model-members"><summary>Constituent models (${members.length})</summary><p class="note">${members.map(esc).join(' · ')}</p></details>`:''}</div>`;
  }
- function subplots(ctx,liveOnly){
+ function subplots(ctx,liveOnly,previous=null){
   const {date,rows,models,forecastReason}=ctx;
   return targets.map(target=>{
    const label=target==='demand'?'Demand · substation side':'Generation · ERP';
    const series=[{key:target+'_mw',name:target==='demand'?'Demand actual · ERP substation side':'Generation actual · ERP',color:target==='demand'?'#b46c13':'#3678ad',marker:target==='demand'?'circle':'square'},
     {key:target+'_forecast_mw',name:`BEGD - ${target==='demand'?'Demand (Substation side)':'Generation'} - Model: ${models[target]}`,color:target==='demand'?'#c77e21':'#488ec5',marker:target==='demand'?'diamond':'triangle-down',family:'forecast',defaultVisible:true,dashArray:target==='demand'?'3 4':'8 4'}];
    const hasPgcb=rows.some(r=>finite(r['pgcb_'+target+'_mw']));
-   if(hasPgcb){
-    if(target==='demand'&&rows.some(r=>finite(r.demand_generation_side_mw)))series.push({key:'demand_generation_side_mw',name:'Demand actual · generation side (PGCB scoring)',color:'#8a6b41',marker:'plus'});
+   const plotHasPgcb=hasPgcb||(liveOnly&&previous?.rows.some(r=>finite(r['pgcb_'+target+'_mw'])));
+   if(plotHasPgcb){
+    if(target==='demand'&&(rows.some(r=>finite(r.demand_generation_side_mw))||(liveOnly&&previous?.rows.some(r=>finite(r.demand_generation_side_mw)))))series.push({key:'demand_generation_side_mw',name:'Demand actual · generation side (PGCB scoring)',color:'#8a6b41',marker:'plus'});
     series.push({key:'pgcb_'+target+'_mw',name:target==='demand'?'PGCB - Demand (Generation side)':'PGCB - Generation',color:target==='demand'?'#cc8528':'#6098c5',marker:target==='demand'?'triangle':'cross',family:'published',defaultVisible:true,dashArray:'8 3 2 3'});
    }
    const missing=!rows.some(r=>finite(r[target+'_forecast_mw']));
    const control=liveOnly?'':`<label>${target==='demand'?'Demand model · substation side':'Generation model · ERP'}<select id="study-${target}" aria-label="Independent ${target} model">${options(names(target),models[target],name=>`#${ranked(target).find(r=>r.model===name).rank} · ${name}`)}</select></label>`;
    const pgcbScore=liveOnly?'':`<div class="pgcb-score">${score(rows,target==='demand'?'demand_generation_side_mw':'generation_mw','pgcb_'+target+'_mw','PGCB day MAE')}${!hasPgcb?'<p class="note">No matching PGCB scenario.</p>':target==='demand'?'<p class="note">Generation-side demand basis. BEGD demand MAE uses substation-side actuals.</p>':''}${hasPgcb&&target==='demand'&&!rows.some(r=>finite(r.demand_generation_side_mw))?'<p class="note">Matching generation-side demand actuals are not available yet.</p>':''}</div>`;
-   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${liveOnly?compactScores(rows,target,hasPgcb):score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${chart(rows,series,{forecastLegend:{combine:true,title:'Forecasts'},key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target})}${liveOnly?'':modelDescription(target,models[target])}</section>`;
+   const plotOptions={forecastLegend:{combine:true,title:'Forecasts'},key:(liveOnly?'today-forecast:':'independent-study:')+date+':'+target};
+   const plot=liveOnly?realtimePlot(rows,series,previous?.rows||[],plotOptions):chart(rows,series,plotOptions);
+   return `<section class="forecast-subplot" data-forecast-target="${target}" aria-labelledby="${liveOnly?'today':'forecast'}-${target}-title"><h3 id="${liveOnly?'today':'forecast'}-${target}-title">${label}</h3><div class="forecast-subplot-controls">${control}${liveOnly?compactScores(rows,target,hasPgcb):score(rows,target+'_mw',target+'_forecast_mw')}</div>${pgcbScore}${missing?`<p class="note" role="status">BEGD forecast unavailable for ${esc(shortDate(date))}${forecastReason?' · '+esc(forecastReason):''}.</p>`:''}${plot}${liveOnly?'':modelDescription(target,models[target])}</section>`;
   }).join('');
  }
  function issueNote({date,forecast,issued}){
@@ -88,7 +91,8 @@
  }
  function renderToday(){
   const ctx=context(true);if(!ctx.date)return '';
-  return `<details class="panel independent-study-panel today-forecast-panel" id="today-forecast-panel" aria-labelledby="today-forecast-title"${todayExpanded?' open':''}><summary class="forecast-summary"><h2 id="today-forecast-title">Today's BEGD &amp; PGCB forecasts</h2><span>Operating date · ${esc(shortDate(ctx.date))} · ${todayExpanded?'Collapse':'Expand'}</span></summary><div class="forecast-body"><p class="note">Bangladesh time · top-ranked BEGD model per target · <a href="#forecast">All dates &amp; models →</a></p><div class="forecast-subplots">${subplots(ctx,true)}</div><p class="note">${issueNote(ctx)} Models are ranked by the study evaluation, not today's partial results. PGCB scenarios use the matching operating date; PGCB demand is generation-side demand.</p></div></details>`;
+  const previous=realtimeYesterday?context(true,realtimeYesterdayDate()):null;
+  return `<details class="panel independent-study-panel today-forecast-panel" id="today-forecast-panel" aria-labelledby="today-forecast-title"${todayExpanded?' open':''}><summary class="forecast-summary"><h2 id="today-forecast-title">Today's BEGD &amp; PGCB forecasts</h2><span>Operating date · ${esc(shortDate(ctx.date))} · ${todayExpanded?'Collapse':'Expand'}</span></summary><div class="forecast-body"><p class="note">Bangladesh time · top-ranked BEGD model per target · <a href="#forecast">All dates &amp; models →</a></p><div class="forecast-subplots">${subplots(ctx,true,previous)}</div>${previous?'<p class="note">Yesterday’s matching actuals and issued forecasts appear before today. MAE scores above use today’s matched hours only.</p>':''}<p class="note">${issueNote(ctx)} Models are ranked by the study evaluation, not today's partial results. PGCB scenarios use the matching operating date; PGCB demand is generation-side demand.</p></div></details>`;
  }
  function render(){
   const ctx=context(),{date,dates,pgcb}=ctx,index=dates.indexOf(date),limits=catalog.window;

@@ -258,6 +258,8 @@ The Power plants table also overlays hourly Kaptai Lake readings for Karnaphuli 
 
 ## Realtime yesterday comparison
 
-The first realtime panel has an initially unchecked **Yesterday’s data** option. It adds the previous calendar day before the snapshot day on both the demand/supply and reported load-shedding timelines. Dates and tooltips use Bangladesh time, and yesterday comes from the dated ERP substation history, independently of the selected workbook or availability of a forecast. Missing history disables the option. Reported shedding and measured zeros are retained. The build always includes yesterday’s ERP actuals in the snapshot history.
+A shared, initially unchecked **Yesterday’s data** option above the realtime plots adds the previous calendar day before the snapshot date across demand/supply, reported load shedding, both forecast plots, import dependence and renewable share, fuel mix, total imports and imports by route. Dates and tooltips use Bangladesh time. The selection survives in-session rerenders and snapshot refreshes.
 
-**Today’s BEGD & PGCB forecasts** starts collapsed. Click its summary, or focus it and press Enter/Space, to expand it. The disclosure state and yesterday selection survive in-session rerenders and snapshot refreshes.
+The snapshot includes exact-date ERP fuel and import history in a separate `realtime_history` display bundle. This uses a dedicated detailed-generation cache, preserving the model-training generation schema and frozen forecasts. India routes come from the imports page; Nepal comes from generation. The forecast plots use matching historical actuals and forecast issues; their displayed MAE remains today's score. Missing historical readings stay blank and plots with no matching series explain the gap. Total imports and import dependence require all four routes at the same timestamp.
+
+**Today’s BEGD & PGCB forecasts** starts collapsed. Click its summary, or focus it and press Enter/Space, to expand it. This state is retained when toggling yesterday.
