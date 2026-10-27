@@ -138,3 +138,45 @@ class IndependentTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+class RealtimeHistoryTests(unittest.TestCase):
+    def test_detail_parser_retains_fuel_and_routes_without_changing_model_generation_schema(self):
+        body = b'<tr><th>Generation</th></tr><tr><td>27-10-2026</td><td>00:00</td><td>100</td><td>30</td><td>20</td><td>30</td><td>10</td><td>0</td><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td></tr>'
+        rows, _ = erp.parse_table(body, 'generation_detail', '2026-10-27')
+        self.assertEqual(rows[0]['total_mw'], 100)
+        self.assertEqual(rows[0]['solar_mw'], 0)
+        self.assertEqual(rows[0]['nepal_mw'], 4)
+        model_rows, _ = erp.parse_table(body, 'generation')
+        self.assertEqual(set(model_rows[0]), {'date', 'time', 'generation_mw'})
+        self.assertFalse(erp.complete(rows, 'generation_detail'))
+        full = [dict(rows[0], time=t) for t in daily.HOURS]
+        self.assertTrue(erp.complete(full, 'generation_detail'))
+        full[0]['wind_mw'] = None
+        self.assertFalse(erp.complete(full, 'generation_detail'))
+
+    def test_history_keeps_india_import_page_authoritative_and_nepal_from_generation(self):
+        generation = [dict(date='2025-12-31', time='00:00', total_mw=100, nepal_mw=4, adani_mw=999)]
+        india_body = b'<tr><td>31-12-2025</td><td>00:00</td><td>1</td><td>999</td><td>2</td><td>999</td><td>3</td><td>999</td></tr>'
+        india, _ = erp.parse_table(india_body, 'imports', '2025-12-31')
+        current = dict(today_date='2026-01-01')
+        def load(kind, start, end, cache):
+            self.assertEqual((start, end), ('2025-12-31', '2025-12-31'))
+            return dict(days={'2025-12-31': generation if kind == 'generation_detail' else india})
+        with patch.object(erp, 'load_range', side_effect=load):
+            erp.attach_realtime_history(current, Path('/unused'))
+        history = current['realtime_history']['2025-12-31']
+        self.assertEqual([r['hourly'][0]['mw'] for r in history['imports']], [1, 2, 3, 4])
+        self.assertEqual(history['generation_hourly'], generation)
+
+    def test_source_outage_stays_missing_without_borrowing_another_day_or_generation_india_routes(self):
+        current = dict(today_date='2026-01-01')
+        def load(kind, *args):
+            if kind == 'imports':
+                raise TimeoutError('Offline')
+            return dict(days={'2025-12-31': [dict(date='2025-12-30', time='00:00', total_mw=999)]})
+        with patch.object(erp, 'load_range', side_effect=load):
+            erp.attach_realtime_history(current, Path('/unused'))
+        history = current['realtime_history']['2025-12-31']
+        self.assertEqual(history['generation_hourly'], [])
+        self.assertTrue(all(not route['hourly'] for route in history['imports']))
+        self.assertIn('TimeoutError', history['errors']['imports'])

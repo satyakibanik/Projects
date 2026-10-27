@@ -183,3 +183,18 @@ test('today forecasts start collapsed and preserve native disclosure state acros
  panel.events.toggle({target:{open:false,querySelector(){return null}}});
  assert.doesNotMatch(vm.runInContext('window.BEGDIndependentStudy.renderToday()',c),/aria-labelledby="today-forecast-title" open/);
 });
+test('realtime forecast comparison uses yesterday actuals and matching issued curves while scores stay on today',()=>{
+ const {c}=load();
+ vm.runInContext(`currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100}],generation_hourly:[],imports:[],forecast_history:{'2026-10-22':{demand_hourly:[{time:'00:00',demand_mw:80}],generation_hourly:[{time:'00:00',total_mw:90}],pgcb_forecast:{date:'2026-10-22',hourly:[{time:'00:00',demand_mw:85,generation_mw:95}]}}}}`,c);
+ const before=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c).match(/<div class="compact-scores">([^]*?)<\/div>/g);
+ vm.runInContext('realtimeYesterday=true;chartData.clear()',c);
+ const html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
+ assert.deepEqual(html.match(/<div class="compact-scores">([^]*?)<\/div>/g),before);
+ const models=vm.runInContext('[...chartData.values()]',c);
+ assert.equal(models.length,2);
+ assert.equal(models[0].rows[0].yesterday_demand_mw,80);assert.equal(models[1].rows[0].yesterday_generation_mw,90);
+ assert.equal(models[0].rows[24].demand_mw,100);assert.equal(models[0].rows[24].yesterday_demand_mw,null);
+ assert(models[0].series.some(s=>s.key==='yesterday_pgcb_demand_mw'));assert(models[1].series.some(s=>s.key==='yesterday_pgcb_generation_mw'));
+ assert.match(html,/MAE scores above use today’s matched hours only/);
+ assert.doesNotMatch(html,/<details[^>]*id="today-forecast-panel"[^>]* open/);
+});

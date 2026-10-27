@@ -223,6 +223,8 @@ def write_data_bundle(output_dir):
                        "error": "ERP readings were unavailable during this build."}
 
     forecasts = attach_forecasts(records, reports_by_id, current_day, ROOT / '.cache' / 'daily-forecasts', refresh_pgcb=True)
+    from erp_history import attach_realtime_history
+    attach_realtime_history(current_day, ROOT / '.cache' / 'daily-forecasts')
     built_at = dt.datetime.now(dt.timezone.utc).isoformat()
     bundle = {
         "generated_at": built_at,

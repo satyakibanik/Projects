@@ -212,6 +212,9 @@ class ServerTests(unittest.TestCase):
 
 class BuildTests(unittest.TestCase):
     def setUp(self):
+        history = patch('erp_history.attach_realtime_history')
+        history.start()
+        self.addCleanup(history.stop)
         costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
         costs.start()
         self.addCleanup(costs.stop)

@@ -17,6 +17,8 @@ from daily_forecast import HOURS, atomic_json, shift, utc_now
 
 URLS = dict(demand='https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed',
             generation='https://erp.powergrid.gov.bd/w/generations/view_generations',
+            generation_detail='https://erp.powergrid.gov.bd/w/generations/view_generations',
+            imports='https://erp.powergrid.gov.bd/w/generations/imported_power_india',
             generation_demand='https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?d_gen=1')
 AVAILABILITY = 'ERP historical issue/revision timestamps are unavailable; availability on D+1 is assumed for retrospective evaluation.'
 
@@ -31,11 +33,11 @@ def parse_table(body, kind, expected_date=None):
         raise ValueError('Expected explicitly identified substation-side demand/supply table')
     if kind == 'generation_demand' and ('Generation Side' not in headers or 'Demand' not in headers):
         raise ValueError('Expected explicitly identified generation-side demand table')
-    if kind == 'generation' and 'Generation' not in headers:
+    if kind in ('generation', 'generation_detail') and 'Generation' not in headers:
         raise ValueError('Expected national generation table')
     records = {}
     for row in parser.rows:
-        if len(row) < (13 if kind == 'generation' else 6):
+        if len(row) < (13 if kind in ('generation', 'generation_detail') else 8 if kind == 'imports' else 6):
             continue
         try:
             day = dt.datetime.strptime(row[0], '%d-%m-%Y').date().isoformat()
@@ -51,6 +53,10 @@ def parse_table(body, kind, expected_date=None):
         fields = [('demand_mw', 2), ('supply_mw', 3), ('shed_mw', 4)] if kind == 'demand' else [('generation_mw', 2)]
         if kind == 'generation_demand':
             fields = [('demand_mw', 2), ('generation_mw', 3), ('shed_mw', 4)]
+        if kind == 'generation_detail':
+            fields = [('total_mw', 2), ('gas_mw', 3), ('liquid_mw', 4), ('coal_mw', 5), ('hydro_mw', 6), ('solar_mw', 7), ('wind_mw', 8), ('bheramara_mw', 9), ('tripura_mw', 10), ('adani_mw', 11), ('nepal_mw', 12)]
+        if kind == 'imports':
+            fields = [('bheramara_mw', 2), ('tripura_mw', 4), ('adani_mw', 6)]
         for name, index in fields:
             value = parse_number(row[index])
             record[name] = value if value is not None and value >= 0 else None
@@ -73,8 +79,12 @@ def download(url):
 
 def complete(rows, kind):
     exact = sorted((r for r in rows if r['time'] in HOURS), key=lambda r: r['time'])
-    key = 'demand_mw' if kind in ('demand', 'generation_demand') else 'generation_mw'
-    return [r['time'] for r in exact] == HOURS and all(r.get(key) is not None for r in exact)
+    keys = ['demand_mw'] if kind in ('demand', 'generation_demand') else ['generation_mw']
+    if kind == 'generation_detail':
+        keys = ['total_mw', 'gas_mw', 'liquid_mw', 'coal_mw', 'hydro_mw', 'solar_mw', 'wind_mw', 'bheramara_mw', 'tripura_mw', 'adani_mw', 'nepal_mw']
+    if kind == 'imports':
+        keys = ['bheramara_mw', 'tripura_mw', 'adani_mw']
+    return [r['time'] for r in exact] == HOURS and all(r.get(key) is not None for r in exact for key in keys)
 
 
 def load_range(kind, start, end, cache):
@@ -151,3 +161,27 @@ def load_erp_history(records, start, end, cache):
     generation = load_range('generation', start, end, cache)
     aligned, rejected = align_records(records, demand, generation)
     return aligned, dict(demand=demand, generation=generation, rejected=rejected)
+
+
+def attach_realtime_history(current_day, cache):
+    """Publish yesterday's display-only fuel and route readings separately from model inputs."""
+    today = current_day.get('today_date')
+    if not today:
+        return
+    yesterday = (dt.date.fromisoformat(today)-dt.timedelta(days=1)).isoformat()
+    histories, errors = {}, {}
+    for kind in ('generation_detail', 'imports'):
+        try:
+            manifest = load_range(kind, yesterday, yesterday, cache)
+            histories[kind] = [row for row in manifest.get('days', {}).get(yesterday, []) if row.get('date', yesterday) == yesterday]
+            if manifest.get('failures'):
+                errors[kind] = manifest['failures']
+        except Exception as error:
+            histories[kind] = []
+            errors[kind] = f'{type(error).__name__}: {error}'
+    generation = histories['generation_detail']
+    india = histories['imports']
+    routes = [dict(name=name, date=yesterday, hourly=[dict(time=row['time'], mw=row.get(key)) for row in source])
+              for name, key, source in [('Bheramara HVDC', 'bheramara_mw', india), ('Tripura', 'tripura_mw', india), ('Adani', 'adani_mw', india), ('Nepal', 'nepal_mw', generation)]]
+    current_day['realtime_history'] = {yesterday: dict(date=yesterday, generation_hourly=generation, imports=routes,
+        source_urls=[URLS['generation_detail'], URLS['imports']], errors=errors)}

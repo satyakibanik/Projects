@@ -8,7 +8,9 @@
     const width=viewport?.width||root.innerWidth,height=viewport?.height||root.innerHeight;
     const bounds=tip.getBoundingClientRect();
     tip.style.left=Math.max(left+8,Math.min(event.clientX-bounds.width/2,left+width-bounds.width-8))+'px';
-    tip.style.top=Math.max(top+8,Math.min(event.clientY-bounds.height-20,top+height-bounds.height-8))+'px';
+    const above=event.clientY-bounds.height-20,below=event.clientY+20;
+    const preferred=above>=top+8?above:below+bounds.height<=top+height-8?below:above;
+    tip.style.top=Math.max(top+8,Math.min(preferred,top+height-bounds.height-8))+'px';
     tip.style.transform='none';
   }
   function bind(svg,{tip,select,hide}){

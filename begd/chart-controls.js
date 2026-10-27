@@ -39,9 +39,10 @@ function setupCharts(view,wrappers=null) {
       selected = index;
       const row = model.rows[index];
       const visible = peers().flatMap(peer=>chartData.get(peer.dataset.chart).series.filter(s=>peer.querySelector(`[data-toggle-series="${s.key}"]`).checked));
-      const ordered = model.enCurve ? visible.slice().reverse() : visible;
+      const dated=model.comparisonTimeline?visible.filter(s=>s.key.startsWith('yesterday_')===(row.minute<1440)):visible;
+      const ordered = model.enCurve ? dated.slice().reverse() : dated;
       tooltip.innerHTML = `<strong>${esc(row.label||row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span class="tooltip-series">${legendSwatch(s,Math.max(0,model.series.indexOf(s)))}<span>${esc(s.name)}</span></span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(s.unit||model.unit||'MW')}</b></div>`).join('');
-      if (!visible.length) tooltip.innerHTML += '<div>No series selected</div>';
+      if (!ordered.length) tooltip.innerHTML += visible.length?'<div>No readings available for this date.</div>':'<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / (model.width||800);
       const plot = wrapper.querySelector('svg');
