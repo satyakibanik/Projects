@@ -48,7 +48,8 @@ def attach_forecasts(records, reports_by_id, current_day, cache_dir, refresh_pgc
     current_day['pgcb_forecast'] = scenarios.get(today)
     fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date','publication_kind')
     ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
-    dates=sorted(set(history)|set(scenarios)|set(generation_demand)|{today})[-35:]
+    yesterday = (dt.date.fromisoformat(today)-dt.timedelta(days=1)).isoformat()
+    dates=sorted(set(history)|set(scenarios)|set(generation_demand)|{today, yesterday})[-35:]
     # Actuals are display data, not model inputs. Refresh yesterday even when
     # every forecast is cached, or model preparation failed before ERP loading.
     from erp_history import load_range

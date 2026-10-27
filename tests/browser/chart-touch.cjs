@@ -49,6 +49,7 @@ async function inspect(page,wrap){
         for(const tab of ['realtime','trends','overview','en-curve','imports','operations','forecast']){
           await page.evaluate(t=>location.hash=t,tab);await page.waitForTimeout(200);
           if(tab==='trends')await page.waitForSelector('[data-trend-layer]');
+          if(tab==='realtime'&&await page.locator('#today-forecast-panel').getAttribute('open')===null)await page.locator('#today-forecast-panel > summary').click();
           const charts=page.locator('.interactive-chart,.trends-chart');let count=0;
           for(let i=0;i<await charts.count();i++){
             const wrap=charts.nth(i);

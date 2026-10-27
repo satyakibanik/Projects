@@ -167,3 +167,19 @@ test('matching scenario in a newly selected report is available before the stati
  vm.runInContext("currentDayData={today_date:'2026-10-24',demand_hourly:[],generation_hourly:[]};data={date:'2026-10-23',published_date:'2026-10-24',forecast:{scenario_date:'2026-10-24',demand_hourly:[{time:'00:00',demand_mw:150,generation_mw:149}]}}",c);
  assert.match(vm.runInContext('window.BEGDIndependentStudy.render()',c),/PGCB scenario for 24 Oct 2026/);
 });
+test('today forecasts start collapsed and preserve native disclosure state across refreshes',()=>{
+ const {c,controls}=load();
+ vm.runInContext("currentDayData={today_date:'2026-10-23'}",c);
+ let html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
+ assert.match(html,/<details[^>]*id="today-forecast-panel"[^>]*>/);
+ assert.doesNotMatch(html,/<details[^>]*id="today-forecast-panel"[^>]* open/);
+ const panel={events:{},addEventListener(name,handler){this.events[name]=handler}};
+ controls.set('today-forecast-panel',panel);
+ vm.runInContext('window.BEGDIndependentStudy.bind(rerender)',c);
+ panel.events.toggle({target:{open:true,querySelector(){return null}}});
+ html=vm.runInContext('window.BEGDIndependentStudy.renderToday()',c);
+ assert.match(html,/aria-labelledby="today-forecast-title" open/);
+ assert.match(html,/Collapse/);
+ panel.events.toggle({target:{open:false,querySelector(){return null}}});
+ assert.doesNotMatch(vm.runInContext('window.BEGDIndependentStudy.renderToday()',c),/aria-labelledby="today-forecast-title" open/);
+});

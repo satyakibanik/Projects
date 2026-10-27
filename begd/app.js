@@ -3,6 +3,7 @@ const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',
 const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
 let data, request=0, operatingDateRequest=0;
 let currentDayData=null, currentDayRequest=0, currentDayError=null;
+let realtimeYesterday=false;
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
 const customComparisons=new Map(), pinnedComparisons={};
 const chartVisibility=new Map();
@@ -112,7 +113,7 @@ function chart(rows,series,options={}){
  const waterMin=secondaryValues.length?Math.min(...secondaryValues):0,waterMax=secondaryValues.length?Math.max(...secondaryValues):1;
  const waterPadding=Math.max((waterMax-waterMin)*.1,.02),rightMin=Math.max(0,waterMin-waterPadding),rightMax=waterMax+waterPadding;
  const rightY=value=>H-B-(value-rightMin)/(rightMax-rightMin)*(H-T-B);
- const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
+ const x=r=>L+(options.xKey?r[options.xKey]:parseInt(r.time)*60+parseInt(r.time.slice(3)))/(options.xMax||1380)*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,width:W,unit,scope,syncGroup:options.syncGroup,redraw:()=>chart(rows,series,options),enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  if(secondary.length){
   body+=`<text x="${L-8}" y="${T-10}" text-anchor="end">${esc(unit)}</text>`;
@@ -123,7 +124,8 @@ function chart(rows,series,options={}){
   }
   body+='</g>';
  }
- for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
+ for(const tick of options.xTicks||[]){body+=`<text x="${x(tick)}" y="${H-7}" text-anchor="middle">${esc(tick.label)}</text>`;}
+ if(!options.xTicks)for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
  for(const item of plotSeries){
   const seriesY=item.axis==='right'?rightY:y,seriesUnit=item.unit||unit;
@@ -132,7 +134,7 @@ function chart(rows,series,options={}){
    const barIndex=bars.indexOf(item),offset=(barIndex-(bars.length-1)/2)*barWidth;
    for(const [rowIndex,row] of rows.entries()){
     const value=row[item.key];if(!Number.isFinite(value))continue;
-    body+=`<rect data-row-index="${rowIndex}" x="${x(row)+offset-barWidth/2}" y="${seriesY(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-seriesY(value))}" rx="1" fill="${item.color}"><title>${row.time}: ${fmt(value,2)} ${esc(seriesUnit)}</title></rect>`;
+    body+=`<rect data-row-index="${rowIndex}" x="${x(row)+offset-barWidth/2}" y="${seriesY(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-seriesY(value))}" rx="1" fill="${item.color}"><title>${row.label||row.time}: ${fmt(value,2)} ${esc(seriesUnit)}</title></rect>`;
    }
   }else{
    // Water-level gaps stay gaps instead of joining across absent readings.
@@ -144,12 +146,12 @@ function chart(rows,series,options={}){
    if(!item.pointsOnly||item.connectPoints)for(const points of segments.filter(segment=>segment.length))body+=`<polyline fill="none" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(item)}" ${item.dot?'stroke-linecap="round"':''} points="${points.join(' ')}"/>`;
    for(const [rowIndex,row] of rows.entries()){
     if(!Number.isFinite(row[item.key])||item.noMarkers)continue;
-    body+=seriesMarker(item,x(row),seriesY(row[item.key]),item.pointRadius??(item.pointsOnly?5:3),`data-row-index="${rowIndex}"`,`${item.name}, ${row.time}: ${fmt(row[item.key],2)} ${seriesUnit}`);
+    body+=seriesMarker(item,x(row),seriesY(row[item.key]),item.pointRadius??(item.pointsOnly?5:3),`data-row-index="${rowIndex}"`,`${item.name}, ${row.label||row.time}: ${fmt(row[item.key],2)} ${seriesUnit}`);
    }
   }
   body+='</g>';
  }
- rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" "+(s.unit||unit)).join(", "))}"/>`});
+ rows.forEach((r,i)=>{const left=i===0?L:(x(rows[i-1])+x(r))/2,right=i===rows.length-1?W-R:(x(r)+x(rows[i+1]))/2;body+=`<rect class="chart-hit" data-point="${i}" x="${left}" y="${T}" width="${right-left}" height="${H-T-B}" fill="transparent" tabindex="0" role="button" aria-label="${esc(r.label||r.time)}: ${esc(series.map(s=>s.name+": "+fmt(r[s.key],2)+" "+(s.unit||unit)).join(", "))}"/>`});
  const styleControl=selectedStyle?`<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="${options.styleSetting}">${options.styleSetting==='en-curve'?`<option value="area" ${selectedStyle==='area'?'selected':''}>Stacked area</option><option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option>`:`<option value="line" ${selectedStyle==='line'?'selected':''}>Line chart</option><option value="bar" ${selectedStyle==='bar'?'selected':''}>Bar chart</option>`}</select></label></div>`:'';
  return `<div class="interactive-chart${options.styleSetting==='en-curve'?' en-curve-chart':''}" data-chart="${id}"${options.syncGroup?' data-sync-group="'+esc(options.syncGroup)+'"':''}>${styleControl}<svg class="chart" viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(series.map(s=>s.name).join(" and "))} in ${hasSecondary?'MW and ft MSL':unit==='%'?'percent':'megawatts'}"><title>${esc(series.map(s=>s.name).join(" and "))} in ${hasSecondary?'MW and ft MSL':unit}</title>${body}<line class="chart-cursor" y1="${T}" y2="${H-B}" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>${chartLegend(plotSeries,options.balanceLegend,options.wrapLegend,options.familyLegend,options.forecastLegend,options.publishedLegend)}<p class="chart-help"><span class="chart-mouse-help">Hover or focus the chart for values. Use the legend to select series.</span><span class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</span></p></div>`;
 
@@ -435,16 +437,31 @@ function realTime(){
  if(!currentDayData)return independentStudyPanel+`<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
  const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=(currentDayData.demand_hourly||[]),generation=(currentDayData.generation_hourly||[]),routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
- const demandRows=rows.map(row=>({time:row.time,demand_mw:row.demand_mw,
-  supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw}));
+ const yesterdayDate=new Date((currentDayData.today_date||currentDayData.date)+'T00:00:00Z');
+ yesterdayDate.setUTCDate(yesterdayDate.getUTCDate()-1);
+ const yesterday=yesterdayDate.toISOString().slice(0,10);
+ const yesterdayRows=currentDayData.forecast_history?.[yesterday]?.demand_hourly||[];
+ const compare=realtimeYesterday&&yesterdayRows.length>0;
+ const minutes=time=>parseInt(time)*60+parseInt(time.slice(3));
+ const demandRows=compare?[
+  ...yesterdayRows.map(row=>({time:row.time,label:shortDate(yesterday)+' · '+row.time,minute:minutes(row.time),demand_mw:null,supply_mw:null,shed_mw:null,
+   yesterday_demand_mw:row.demand_mw??null,yesterday_supply_mw:row.supply_mw??null,yesterday_shed_mw:row.shed_mw??null})),
+  ...rows.map(row=>({time:row.time,label:today+' · '+row.time,minute:1440+minutes(row.time),demand_mw:row.demand_mw??null,supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw??null,
+   yesterday_demand_mw:null,yesterday_supply_mw:null,yesterday_shed_mw:null}))
+ ].sort((a,b)=>a.minute-b.minute):rows.map(row=>({...row,supply_mw:row.supply_mw??row.generation_mw??null}));
+ const timeline=compare?{xKey:'minute',xMax:2820,xTicks:[{minute:0,label:shortDate(yesterday)},{minute:720,label:'12:00'},{minute:1440,label:today},{minute:2160,label:'12:00'},{minute:2820,label:'23:00'}]}:{};
+ const previousSeries=(key,name,color,marker)=>compare?[{key:'yesterday_'+key,name:name+' · yesterday ('+shortDate(yesterday)+')',color,marker,dashArray:'6 4'}]:[];
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} readings`;
+ const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${yesterdayRows.length?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${yesterdayRows.length?yesterdayRows.length+' ERP readings · shown before today':'ERP readings unavailable'}</span></div>`;
  const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
-  '<div class="realtime-dispatch-plots">'+chart(demandRows,[
+  yesterdayControl+'<div class="realtime-dispatch-plots">'+chart(demandRows,[
    {key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},
-   {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}
-  ],{syncGroup:'realtime-dispatch'})+
-  '<h3>Reported load shedding</h3>'+chart(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],{syncGroup:'realtime-dispatch',height:160})+
-  '<p class="note">Substation-side load shedding = demand − supply at the same timestamp.</p>'+
+   {key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'},
+   ...previousSeries('demand_mw','Demand','#b46c13','circle'),
+   ...previousSeries('supply_mw','Supply','#71818c','plus')
+  ],{...timeline,syncGroup:'realtime-dispatch',key:'realtime-demand-supply'})+
+  '<h3>Reported load shedding</h3>'+chart(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'},...previousSeries('shed_mw','Load shedding','#b95442')],{...timeline,syncGroup:'realtime-dispatch',height:160,key:'realtime-shedding'})+
+  '<p class="note">Substation-side load shedding = demand − supply at the same timestamp. Yesterday’s comparison uses the previous calendar day of the snapshot in Bangladesh time.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel'}));
  const fuelTypePanel=generation.length?panel('Generation by fuel type',generationDate,chart(generation,fuelTypeSeries,{familyLegend:{family:'fuel',label:'All fuel types'}})):'';
@@ -691,7 +708,7 @@ function enCurve(){
  return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart+energyCurveHourlyTable(rows,generationSeries,totals,enCurveTableMode),'MW · BST')+'<div id="bpdb-day-cost" data-cost-date="'+esc(data.date)+'">'+(window.BEGDCosts?.dayPanel(data.date,undefined,data)||'')+'</div>'+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
 }
 document.addEventListener('click',event=>{const toggle=event.target.closest?.('[data-en-curve-table-mode]');if(!toggle)return;const mode=toggle.dataset.enCurveTableMode==='mw'?'mw':'energy';if(mode===enCurveTableMode)return;enCurveTableMode=mode;render()});
-function render(){plantDetailObserver?.disconnect();if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.length?'<p class="note" role="note">'+data.quality_notes.map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){plantDetailObserver?.disconnect();if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.length?'<p class="note" role="note">'+data.quality_notes.map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(live||valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(live)$('#realtime-yesterday')?.addEventListener('change',event=>{realtimeYesterday=event.target.checked;render();$('#realtime-yesterday')?.focus({preventScroll:true})});if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
  const control=event.target.closest?.('[data-regional-snapshot-style]');if(!control)return;
  regionalSnapshotStyle=control.value;
