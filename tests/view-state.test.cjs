@@ -22,7 +22,7 @@ test('view URL roundtrip preserves settings, resolved dates, stable series IDs a
   assert.equal(api.encode(url,restored.state),url);
   for(const key of ['date','custom','presets','dispatch','shed','fuel','regional','curve','table','days','generationUnit','importsUnit','temperatureUnit','detail'])assert.deepEqual(restored.state[key],plain(state[key]));
   assert.deepEqual(restored.state.layers,plain(api.visibilityOverrides(state.layers)));
-  assert.deepEqual(restored.state.trendLayers,plain(api.visibilityOverrides(state.trendLayers,true)));
+  assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
  }
 });
 test('empty/legacy links retain sensible defaults; compare accepts repeated and comma-separated dates',()=>{
@@ -177,4 +177,10 @@ test('explicit overview archive links still restore their exact operating date',
  const {context,run,location}=sharingApp('#overview');
  context.fetch=async()=>new Response(JSON.stringify({report_id:'5175',date:'2026-10-24',published_date:'2026-10-25'}));
  await context.window.BEGDView.start();assert.equal(run('data.date'),'2026-10-24');assert.equal(location.searchParams.get('date'),'2026-10-24');
+});
+test('cost averaging period and rate-chart layers survive shared view URLs without changing other cost layers',()=>{
+ const api=codec(),state={...api.defaults,costAverageDays:'90',trendLayers:[['bpdb-unit-cost|gas',false],['bpdb-cost|coal',true]]};
+ const url=api.encode('https://example.test/begd/#trends',state),restored=plain(api.decode(url));
+ assert.equal(new URL(url).searchParams.get('costAverageDays'),'90');assert.equal(restored.state.costAverageDays,'90');assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
+ assert.equal(api.decode('https://example.test/?costAverageDays=999').state.costAverageDays,'30');
 });

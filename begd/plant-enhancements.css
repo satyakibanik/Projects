@@ -1,6 +1,6 @@
 /* Compact GenLog unit table, without limiting row count or filters. */
 .plant-table-wrap{
-  max-height:clamp(290px,48vh,490px);
+  max-height:clamp(600px,85vh,960px);
   overflow:auto;
   overscroll-behavior:contain;
   scrollbar-gutter:stable;
@@ -18,7 +18,7 @@
 }
 .plant-table-wrap:focus-within{outline:1px solid var(--green);outline-offset:2px}
 @media(max-width:700px){
-  .plant-table-wrap{max-height:360px}
+  .plant-table-wrap{max-height:640px}
 }
 
 /* Six slides share one interactive geographic viewport. */
@@ -88,3 +88,15 @@
 .plant-category-key>button:hover,.plant-gradient-key>button:hover,.plant-category-key>button[aria-pressed="true"],.plant-gradient-key>button[aria-pressed="true"]{border-color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent)}
 .plant-category-key>button:focus-visible,.plant-gradient-key>button:focus-visible{outline:2px solid var(--green);outline-offset:2px}
 .plant-legend-filter-status{font:11px/1.6 var(--mono);color:var(--green);margin:10px 0 0}
+
+/* Expanded details fit as one block inside the table, including their chart. */
+.plant-table-wrap:has(.plant-expanded){max-height:max(850px,var(--plant-expanded-height,0px))}
+.plant-table .plant-detail-shell{overflow:visible}
+@keyframes plant-detail-open{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+@keyframes plant-detail-close{from{opacity:1;transform:translateY(0)}to{opacity:0;transform:translateY(-4px)}}
+.chart-secondary-axis text{fill:#087e8b}
+[data-theme=dark] .chart-secondary-axis text{fill:#6ed0da}
+
+.plant-table-wrap{container-type:inline-size}
+.plant-table .plant-detail-shell{width:calc(100cqw - 24px)}
+.plant-table .plant-detail{box-sizing:border-box;width:100%;white-space:normal}

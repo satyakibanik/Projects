@@ -61,3 +61,4 @@ jobs:
       - run: npx playwright install --with-deps chromium
       - run: node tests/browser/mobile-layers.cjs
       - run: node tests/browser/chart-touch.cjs
+      - run: node tests/browser/cost-water.cjs
