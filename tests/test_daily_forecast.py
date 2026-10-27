@@ -32,6 +32,9 @@ def ready(day='2026-10-23'):
 
 class PublicationTests(unittest.TestCase):
     def setUp(self):
+        costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
+        costs.start()
+        self.addCleanup(costs.stop)
         # ERP retrieval is tested separately. These publication tests use only
         # the manifest created by each fixture and must stay offline.
         def cached(kind, start, end, cache):

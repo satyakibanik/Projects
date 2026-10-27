@@ -2,6 +2,17 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 function load(){const window={addEventListener(){}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,Date,Map,Set});return window.BEGDTrends}
+test('water overlay labels its own right axis and leaves the primary metric scale independent',()=>{
+ const api=load(),rows=[{date:'2026-10-24',capacity_factor_pct:40,water_level:{mean_ft_msl:102.355417}}];
+ const primary={name:'Capacity factor',color:'#4e9acb',value:r=>r.capacity_factor_pct};
+ const water={name:'Kaptai Lake water level',color:'#087e8b',unit:'ft MSL',axis:'right',value:r=>r.water_level.mean_ft_msl};
+ const html=api.plot(rows,[primary,water],'Hydro','%',false,{fitExtent:true});
+ assert.match(html,/Kaptai Lake water level, right axis \(ft MSL\)/);
+ assert.match(html,/102.36 ft MSL/);assert.match(html,/Capacity factor: 40 %/);
+ assert.doesNotMatch(html,/Maximum temperature, right axis|NaN|undefined/);
+ const tooltip=api.tooltipRows({rows,series:[primary,water],unit:'%'},0);
+ assert.match(tooltip,/40 %/);assert.match(tooltip,/102.36 ft MSL/);
+});
 test('minimum–maximum bands split at missing or reversed extrema and retain isolated days',()=>{
  const api=load(),rows=[{date:'2026-01-01',lo:.9,hi:1},{date:'2026-01-02',lo:.91,hi:1.01},{date:'2026-01-03',lo:.92},{date:'2026-01-04',lo:.93,hi:1.03},{date:'2026-01-05',lo:1.1,hi:1}];
  const segments=api.rangeBandSegments(rows,r=>r.lo,r=>r.hi);

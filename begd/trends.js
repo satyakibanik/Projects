@@ -104,7 +104,8 @@
     const series=allSeries.filter(s=>!hidden.has(stableId(s.name))&&!s.legendOnly);
     const fitted=options.fitTrend&&series.length===1?linearTrend(rows,series[0]):null;
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
-    const W=840,H=options.compact?180:300,L=80,R=secondary.length?80:18,T=25,B=40;
+    const narrow=options.responsive&&root.innerWidth<600;
+    const W=narrow?420:840,H=options.compact?180:300,L=narrow?68:80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
@@ -121,10 +122,10 @@
     const seriesY=(value,s)=>s.axis==='right'?secondaryY(value):y(value);
     let body='';
     if(secondary.length){
-      body+=`<g class="trends-secondary-axis" aria-label="Maximum temperature, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
+      body+=`<g class="trends-secondary-axis" style="color:${escape(secondary[0].color)}" aria-label="${escape(secondary[0].name)}, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
       if(secondaryValues.length)for(let i=0;i<=4;i++){
         const value=secondaryMin+(secondaryMax-secondaryMin)*i/4;
-        body+=`<text x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
+        body+=`<text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
       }
       body+='</g>';
     }
@@ -137,7 +138,7 @@
     const ticks=options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
       :rows.length===365?monthTicks(rows)
-      :[...new Set([0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
+      :[...new Set(narrow?[0,rows.length-1]:[0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
     for(const {index:i,label,sparse} of options.hideDateLabels?[]:ticks)
       body+=`<text class="trends-date-tick${sparse?' tick-sparse':''}" x="${x(i)}" y="${H-12}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${escape(label)}</text>`;
     if(empty)body+=`<text x="${(L+W-R)/2}" y="${H/2}" text-anchor="middle">${series.length?'No reported values in this window':'Select a legend layer to display'}</text>`;
@@ -205,6 +206,9 @@
 
   function controls() {
     return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'10y':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full BengalGrid history · 2015–2026':'Ending on the latest available operating day'}</span></div>`;
+  }
+  function waterLevelRows(end,count) {
+    return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
   function content() {
     if(period==='10y')return controls()+`<p class="trends-coverage">BengalGrid historical view · full available record, ${history?dateLabel(history.start_date)+' – '+dateLabel(history.end_date):'2015–2026'} · generation only</p>`+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels());
@@ -332,7 +336,7 @@
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
-    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'));
+    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
     host.querySelectorAll('[data-trend-group]').forEach(control=>{
       control.indeterminate=control.dataset.partial==='true';
       control.addEventListener('change',()=>{
@@ -362,7 +366,7 @@
       chartUnits[chart]=unit;draw();
       [...host.querySelectorAll('[data-trend-unit]')].find(button=>button.dataset.unitChart===chart&&button.dataset.trendUnit===unit)?.focus({preventScroll:true});
     }));
-    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
     document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
@@ -370,7 +374,7 @@
   async function mount() {
     document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#trends'));
     document.querySelector('#title').textContent='Long-term trends';
-    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
     ['report-date-controls','date-status','day-sources','error'].forEach(id=>{document.getElementById(id).hidden=true});
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
@@ -381,7 +385,10 @@
     await pending;
   }
   function releaseCharts(host){host.querySelectorAll('[data-trend-chart]').forEach(wrap=>hoverCharts.delete(wrap.dataset.trendChart));}
-  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,mount,windowDays,total,plot,linearTrend,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
+  function setPeriod(days){if(![30,60,90,365].includes(Number(days)))return;period=Number(days);draw()}
+  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,setPeriod,mount,windowDays,total,plot,linearTrend,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows,waterLevelRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
+  let narrowViewport=root.innerWidth<600;
+  root.addEventListener('resize',()=>{const narrow=root.innerWidth<600;if(narrow!==narrowViewport){narrowViewport=narrow;draw()}});
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

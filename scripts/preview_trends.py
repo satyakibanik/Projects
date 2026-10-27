@@ -47,7 +47,7 @@ def main():
     def get(report_id):
         if report_id in local:
             return report_id, daily_summary(local[report_id])
-        if report_id in summaries and ('temperature_c' in summaries[report_id] or args.offline):
+        if report_id in summaries and 'water_level' in summaries[report_id] and ('temperature_c' in summaries[report_id] or args.offline):
             row = summaries[report_id]
             if row.get('demand_mwh') is not None:
                 row.setdefault('demand_basis', 'En-Curve published requirement')

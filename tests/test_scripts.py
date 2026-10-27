@@ -193,6 +193,9 @@ class ServerTests(unittest.TestCase):
 
 class BuildTests(unittest.TestCase):
     def setUp(self):
+        costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
+        costs.start()
+        self.addCleanup(costs.stop)
         from pgcb_forecast import collect_comparisons
         self.pgcb = patch('pgcb_forecast.collect_comparisons', side_effect=lambda reports,today,refresh: collect_comparisons(reports,today,False))
         self.pgcb.start()

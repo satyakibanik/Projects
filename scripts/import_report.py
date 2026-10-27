@@ -8,6 +8,7 @@ import re
 import unicodedata
 
 import openpyxl
+from water_level import extract_water_level
 
 
 def parse_report(report_bytes, source_file):
@@ -163,7 +164,7 @@ def parse_report(report_bytes, source_file):
     plant_units = []
     for col in range(2, generation_log.max_column + 1) if generation_log is not None else []:
         name = str(generation_log.cell(11, col).value or "").strip()
-        if not name or name.lower().endswith("total"):
+        if not name or name.lower().endswith("total") or name.lower() == "water level":
             continue
         if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
             continue
@@ -434,6 +435,7 @@ def parse_report(report_bytes, source_file):
         regions=regions,
         plants=plants,
         plant_units=plant_units,
+        water_level=extract_water_level(workbook),
         imports=imports,
         substations=substations,
         voltages=voltages,
