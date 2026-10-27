@@ -104,8 +104,8 @@
     const series=allSeries.filter(s=>!hidden.has(stableId(s.name))&&!s.legendOnly);
     const fitted=options.fitTrend&&series.length===1?linearTrend(rows,series[0]):null;
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
-    const narrow=options.responsive&&root.innerWidth<600;
-    const W=narrow?420:840,H=options.compact?180:300,L=narrow?68:80,R=secondary.length?80:18,T=25,B=40;
+    const narrow=root.innerWidth<600;
+    const W=narrow?420:840,H=options.compact?180:narrow?280:300,L=narrow?68:80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
@@ -182,7 +182,7 @@
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
     hoverCharts.set(id,{key,rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
+    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -282,7 +282,7 @@
       if(boundTooltipNodes.has(svg))return;boundTooltipNodes.add(svg);
       const tip=wrap.querySelector('[role=tooltip]'),cursor=svg.querySelector('[data-trend-cursor]');
       const linked=()=>record.syncGroup?[...host.querySelectorAll('[data-trend-chart]')].filter(other=>hoverCharts.get(other.dataset.trendChart)?.syncGroup===record.syncGroup):[wrap];
-      let selected=record.rows.length-1;
+      let selected=record.rows.length-1,touch=null;
       const show=(index,event)=>{
         selected=Math.max(0,Math.min(record.rows.length-1,index));
         tip.innerHTML=tooltipRows(record,selected);tip.hidden=false;
@@ -296,10 +296,18 @@
           other.querySelector('[role=tooltip]').hidden=true;
         }
         const bounds=svg.getBoundingClientRect();
-        positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);
+        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event);
+        else{tip.classList.remove('is-touch-tooltip');positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);}
       };
-      const hide=()=>{for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
+      const hide=()=>{if(touch?.pinned)return;for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
+      touch=root.BEGDChartTouch?.bind(svg,{tip,hide,select:event=>{
+        const transform=svg.getScreenCTM();if(!transform||!record.rows.length)return;
+        const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
+        const local=point.matrixTransform(transform.inverse());
+        show(Math.round((local.x-record.L)/(record.W-record.L-record.R)*(record.rows.length-1)),event);
+      }});
       svg.addEventListener('pointermove',event=>{
+        if(event.pointerType==='touch'||event.pointerType==='pen')return;
         const transform=svg.getScreenCTM();if(!transform)return;
         const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
         const local=point.matrixTransform(transform.inverse());

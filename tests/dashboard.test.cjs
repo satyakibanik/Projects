@@ -91,7 +91,7 @@ test('real-time subtitle uses the snapshot date instead of the selected workbook
  assert.match(vm.runInContext("reportSubtitle('realtime',{date:'2026-10-23'})",c),/Snapshot date unavailable/);
 });
 test('chart hover shows the same line colors, dash patterns and markers as the plot',()=>{
- const tooltip={style:{},getBoundingClientRect:()=>({width:400})},cursor={setAttribute(){},removeAttribute(){}};
+ const tooltip={style:{},classList:{remove(){}},getBoundingClientRect:()=>({width:400})},cursor={setAttribute(){},removeAttribute(){}};
  const hit=new Element(),svg=new Element();svg.getBoundingClientRect=()=>({left:0,width:800});
  const wrapper={dataset:{chart:'plot-1'},getBoundingClientRect:()=>({left:0,width:800}),addEventListener(){},
   querySelectorAll:s=>s==='[data-point]'?[hit]:[],
