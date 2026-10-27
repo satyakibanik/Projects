@@ -13,7 +13,7 @@
   const reverse=map=>Object.fromEntries(Object.entries(map).map(([key,value])=>[value,key]));
   const dailyChartNames=reverse(dailyCharts),dailySeriesNames=reverse(dailySeries),trendChartNames=reverse(trendCharts);
   const trendSeriesNames=Object.fromEntries(Object.entries(trendSeries).map(([chart,series])=>[chart,reverse(series)]));
-  function defaultVisible(id,trends=false){return trends?id!=='generation-demand|temperature_c':!['overview:dispatch|east_grid_mw','overview:dispatch|west_grid_mw','realtime:total_mw|forecasted_demand_mw','realtime:total_mw|independent_generation_mw','realtime:total_mw|independent_demand_mw'].includes(id);}
+  function defaultVisible(id,trends=false){return trends?(id.startsWith('bpdb-cost|')?id==='bpdb-cost|reported-total':id!=='generation-demand|temperature_c'):!['overview:dispatch|east_grid_mw','overview:dispatch|west_grid_mw','realtime:total_mw|forecasted_demand_mw','realtime:total_mw|independent_generation_mw','realtime:total_mw|independent_demand_mw'].includes(id);}
   function visibilityOverrides(pairs,trends=false){
     return [...new Map(pairs||[])].filter(([id,visible])=>visible!==defaultVisible(id,trends)).sort(([a],[b])=>a.localeCompare(b));
   }

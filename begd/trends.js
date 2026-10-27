@@ -24,6 +24,7 @@
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
     for(const [id,visible] of state.trendLayers||[]){const split=id.indexOf('|');if(split<0)continue;const chart=id.slice(0,split),name=id.slice(split+1);if(!hiddenLayers.has(chart))hiddenLayers.set(chart,new Set());if(!knownLayers.has(chart))knownLayers.set(chart,new Set());knownLayers.get(chart).add(name);if(!visible)hiddenLayers.get(chart).add(name);}
+    if(hiddenLayers.has('bpdb-cost'))for(const series of root.BEGDCosts?.series()||[])if(series.defaultVisible===false&&!knownLayers.get('bpdb-cost')?.has(stableId(series.name)))hiddenLayers.get('bpdb-cost').add(stableId(series.name));
     // Temperature is opt-in even when a link mentions only other layers.
     if(hiddenLayers.has('generation-demand')&&!knownLayers.get('generation-demand')?.has('temperature_c'))hiddenLayers.get('generation-demand').add('temperature_c');
   }
@@ -215,6 +216,7 @@
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
     if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
+    html+=root.BEGDCosts?.trendPanel(rows,plot)||'';
     html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
@@ -345,7 +347,7 @@
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     draw();
     if(!bundle&&!pending&&!failure){
-      pending=Promise.all([fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
+      pending=Promise.all([root.BEGDCosts?.load(),fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
     }
     await pending;
   }

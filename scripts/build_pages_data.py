@@ -254,6 +254,10 @@ def write_data_bundle(output_dir):
     (output_dir / "trends-data.json").write_text(
         json.dumps(trends, ensure_ascii=False,
                    separators=(",", ":")), encoding="utf-8")
+    # BPDB costs are independent from the Power Grid workbook archive.
+    from bpdb_costs import collect
+    costs = collect(ROOT / ".cache" / "bpdb-costs")
+    (output_dir / "costs-data.json").write_text(json.dumps(costs, allow_nan=False, separators=(",", ":")))
     archive_dir = output_dir / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     for report_id, report in reports_by_id.items():
