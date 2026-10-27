@@ -1,7 +1,26 @@
-function setupCharts(view) {
-  setupRegionalSnapshotTooltips();
-  const synchronized=new Map();
-  document.querySelectorAll('.interactive-chart').forEach(wrapper => {
+// Keep legend nodes mounted: replacing them invalidates mobile scroll anchors.
+const chartBindings=new WeakMap(),synchronizedCharts=new WeakMap();
+function bindChartControl(node,type,handler){
+  let bindings=chartBindings.get(node);if(!bindings){bindings=new Map();chartBindings.set(node,bindings)}
+  if(bindings.has(type))node.removeEventListener(type,bindings.get(type));
+  bindings.set(type,handler);node.addEventListener(type,handler);
+}
+function refreshChart(wrapper,view){
+  const previous=wrapper.dataset.chart,model=chartData.get(previous);
+  const template=document.createElement('template');template.innerHTML=model.redraw();
+  const next=template.content.querySelector('.interactive-chart');
+  wrapper.querySelector('svg.chart').replaceWith(next.querySelector('svg.chart'));
+  wrapper.dataset.chart=next.dataset.chart;chartData.delete(previous);
+  wrapper.querySelector('.chart-tooltip').hidden=true;
+  const nextModel=chartData.get(wrapper.dataset.chart);
+  wrapper.querySelectorAll('[data-toggle-series]').forEach(input=>{
+    input.checked=nextModel.series.find(series=>series.key===input.dataset.toggleSeries)?.defaultVisible!==false;
+  });
+  setupCharts(view,[wrapper]);
+}
+function setupCharts(view,wrappers=null) {
+  if(!wrappers)setupRegionalSnapshotTooltips();
+  (wrappers||document.querySelectorAll('.interactive-chart')).forEach(wrapper => {
     const model = chartData.get(wrapper.dataset.chart);
     const tooltip = wrapper.querySelector('.chart-tooltip');
     const cursor = wrapper.querySelector('.chart-cursor');
@@ -35,21 +54,22 @@ function setupCharts(view) {
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
       cursor.removeAttribute('hidden');
-      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronized.get(peer)?.show(index,true));
+      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronizedCharts.get(peer)?.show(index,true));
     }
     function hide(linked=false) { tooltip.hidden = true; cursor.setAttribute('hidden', ''); selected = null;
-      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronized.get(peer)?.hide(true));
+      if(!linked)peers().filter(peer=>peer!==wrapper).forEach(peer=>synchronizedCharts.get(peer)?.hide(true));
     }
-    synchronized.set(wrapper,{show,hide});
+    synchronizedCharts.set(wrapper,{show,hide});
     wrapper.querySelectorAll('[data-series-label]').forEach(label => {
       const highlight = () => highlightSeries(label.dataset.seriesLabel);
       const clear = () => highlightSeries(null);
-      label.addEventListener('pointerenter', highlight);
-      label.addEventListener('pointerleave', clear);
-      label.addEventListener('focus', highlight);
-      label.addEventListener('blur', clear);
+      bindChartControl(label,'pointerenter', highlight);
+      bindChartControl(label,'pointerleave', clear);
+      bindChartControl(label,'focus', highlight);
+      bindChartControl(label,'blur', clear);
     });
-    wrapper.querySelector('[data-chart-style]')?.addEventListener('change', event => {
+    const styleControl=wrapper.querySelector('[data-chart-style]');
+    if(styleControl)bindChartControl(styleControl,'change', event => {
       if (event.target.dataset.chartStyle === 'dispatch') dispatchChartStyle = event.target.value;
       if (event.target.dataset.chartStyle === 'shed') shedChartStyle = event.target.value;
       if (event.target.dataset.chartStyle === 'en-curve') enCurveChartStyle = event.target.value;
@@ -71,22 +91,21 @@ function setupCharts(view) {
       });
     });
     wrapper.querySelector('svg').addEventListener('pointerleave', () => hide());
-    wrapper.addEventListener('focusout', event => { if (!wrapper.contains(event.relatedTarget)) hide(); });
+    bindChartControl(wrapper,'focusout', event => { if (!wrapper.contains(event.relatedTarget)) hide(); });
     wrapper.querySelectorAll('[data-toggle-family]').forEach(master => {
       const members=[...wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`)];
       const checked=members.filter(input=>input.checked).length;master.checked=checked===members.length;master.indeterminate=checked>0&&checked<members.length;
-      master.addEventListener('change', () => {
+      bindChartControl(master,'change', () => {
       wrapper.querySelectorAll(`[data-series-family="${master.dataset.toggleFamily}"]`).forEach(input => {
+        input.checked=master.checked;
         chartVisibility.set(model.scope+'|'+input.dataset.toggleSeries,master.checked);
       });
-      render();
-      [...document.querySelectorAll('[data-toggle-family]')].find(control=>control.dataset.toggleFamily===master.dataset.toggleFamily&&chartData.get(control.closest('.interactive-chart').dataset.chart)?.scope===model.scope)?.focus({preventScroll:true});
+      refreshChart(wrapper,view);
     });});
-    wrapper.querySelectorAll('[data-toggle-series]').forEach(input => input.addEventListener('change', () => {
+    wrapper.querySelectorAll('[data-toggle-series]').forEach(input => bindChartControl(input,'change', () => {
       const key=input.dataset.toggleSeries;
       chartVisibility.set(model.scope+'|'+key,input.checked);
-      render();
-      [...document.querySelectorAll('[data-toggle-series]')].find(control=>control.dataset.toggleSeries===key&&chartData.get(control.closest('.interactive-chart').dataset.chart)?.scope===model.scope)?.focus({preventScroll:true});
+      refreshChart(wrapper,view);
     }));
   });
 }

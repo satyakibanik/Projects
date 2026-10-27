@@ -6,7 +6,7 @@
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
   let chartSerial=0,costTrendline=false;
-  const hoverCharts=new Map();
+  const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
   // IDs form part of the shared-link contract. Keep these mappings stable.
   const chartIds={'Generation and demand':'generation-demand','Reported load shedding':'load-shedding','Fuel mix':'fuel-mix','Imports':'imports','Import dependence and renewable share':'dependence-renewables','Unserved energy share':'unserved-share','Daily mean and 30-day rolling generation':'historical-generation'};
@@ -181,8 +181,8 @@
     const active=group.filter(s=>!hidden.has(stableId(s.name))).length;
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
-    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
+    hoverCharts.set(id,{key,rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
+    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -279,6 +279,7 @@
   function setupTooltips(host) {
     host.querySelectorAll('[data-trend-chart]').forEach(wrap=>{
       const record=hoverCharts.get(wrap.dataset.trendChart), svg=wrap.querySelector('svg');
+      if(boundTooltipNodes.has(svg))return;boundTooltipNodes.add(svg);
       const tip=wrap.querySelector('[role=tooltip]'),cursor=svg.querySelector('[data-trend-cursor]');
       const linked=()=>record.syncGroup?[...host.querySelectorAll('[data-trend-chart]')].filter(other=>hoverCharts.get(other.dataset.trendChart)?.syncGroup===record.syncGroup):[wrap];
       let selected=record.rows.length-1;
@@ -316,6 +317,7 @@
       });
     });
     host.querySelectorAll('[data-trend-tip]').forEach(cell=>{
+      if(boundTooltipNodes.has(cell))return;boundTooltipNodes.add(cell);
       cell.removeAttribute('title');
       const show=event=>{
         hideFloatingTooltip();floatingTooltip=document.createElement('div');
@@ -330,6 +332,71 @@
       cell.addEventListener('keydown',event=>{if(event.key==='Escape')hide()});
     });
   }
+  function unbound(host,selector){
+    return [...host.querySelectorAll(selector)].filter(node=>{if(boundControls.has(node))return false;boundControls.add(node);return true});
+  }
+  function bindControls(host){
+    unbound(host,'[data-trend-group]').forEach(control=>{
+      control.indeterminate=control.dataset.partial==='true';
+      control.addEventListener('change',()=>{
+        const key=control.dataset.trendGroup,hidden=hiddenLayers.get(key)||new Set();
+        control.closest('fieldset').querySelectorAll('[data-trend-layer]').forEach(input=>{const name=stableId(input.dataset.trendLayer);control.checked?hidden.delete(name):hidden.add(name)});
+        hiddenLayers.set(key,hidden);refreshLayerChart(control);
+      });
+    });
+    unbound(host,'[data-cost-trendline]').forEach(control=>control.addEventListener('change',()=>{costTrendline=control.checked;refreshLayerChart(control)}));
+    unbound(host,'[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
+      const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
+      const hidden=hiddenLayers.get(key)||new Set();
+      control.checked?hidden.delete(name):hidden.add(name);hiddenLayers.set(key,hidden);
+      refreshLayerChart(control);
+    }));
+    unbound(host,'[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
+      temperatureDetail=control.dataset.temperatureDetail;draw();
+      [...host.querySelectorAll('[data-temperature-detail]')].find(button=>button.dataset.temperatureDetail===temperatureDetail)?.focus({preventScroll:true});
+    }));
+    unbound(host,'[data-temperature-unit]').forEach(control=>control.addEventListener('click',()=>{
+      temperatureUnit=control.dataset.temperatureUnit;draw();
+      [...host.querySelectorAll('[data-temperature-unit]')].find(button=>button.dataset.temperatureUnit===temperatureUnit)?.focus({preventScroll:true});
+    }));
+    unbound(host,'[data-trend-unit]').forEach(control=>control.addEventListener('click',()=>{
+      const chart=control.dataset.unitChart,unit=control.dataset.trendUnit;
+      chartUnits[chart]=unit;draw();
+      [...host.querySelectorAll('[data-trend-unit]')].find(button=>button.dataset.unitChart===chart&&button.dataset.trendUnit===unit)?.focus({preventScroll:true});
+    }));
+  }
+  function refreshLayerChart(control){
+    const wrap=control.closest?.('.trends-chart')||control.closest?.('.panel')?.querySelector('.trends-chart');
+    if(!wrap){draw();return}
+    hideFloatingTooltip();
+    const host=document.querySelector('#content'),key=wrap.dataset.trendKey;
+    const template=document.createElement('template');template.innerHTML=content();
+    const next=[...template.content.querySelectorAll('[data-trend-chart]')].find(chart=>chart.dataset.trendKey===key);
+    // Only replace plot geometry and its tooltip. The panel and its legend stay mounted.
+    wrap.querySelector('svg').replaceWith(next.querySelector('svg'));
+    wrap.querySelector('[role=tooltip]').replaceWith(next.querySelector('[role=tooltip]'));
+    wrap.dataset.trendChart=next.dataset.trendChart;
+    const note=wrap.querySelector('.bpdb-fit-note'),nextNote=next.querySelector('.bpdb-fit-note');
+    if(note)note.remove();if(nextNote)wrap.append(nextNote);
+    wrap.querySelectorAll('[data-trend-layer]').forEach(input=>{input.checked=!hiddenLayers.get(key)?.has(stableId(input.dataset.trendLayer))});
+    wrap.querySelectorAll('[data-trend-group]').forEach(input=>{
+      const members=[...wrap.querySelectorAll('.bpdb-fuel-group [data-trend-layer]')],count=members.filter(member=>member.checked).length;
+      input.checked=count===members.length;input.indeterminate=count>0&&count<members.length;
+    });
+    if(key==='generation-demand'){
+      const panel=wrap.closest('.panel'),nextPanel=next.closest('.panel');
+      panel.querySelector('.panel-head p').textContent=nextPanel.querySelector('.panel-head p').textContent;
+      panel.querySelector('.trends-chart-controls').replaceWith(nextPanel.querySelector('.trends-chart-controls'));
+      const temperature=panel.querySelector('.temperature-subplot'),nextTemperature=nextPanel.querySelector('.temperature-subplot');
+      if(temperature)temperature.remove();if(nextTemperature)panel.querySelector('.trends-generation-figure').append(nextTemperature);
+      if(panel.nextElementSibling?.matches('.trends-temperature-note'))panel.nextElementSibling.remove();
+      if(nextPanel.nextElementSibling?.matches('.trends-temperature-note'))panel.after(nextPanel.nextElementSibling);
+    }
+    // Discard detached chart models, retaining on-demand entity history charts and their state.
+    const mounted=new Set([...host.querySelectorAll('[data-trend-chart]')].map(chart=>chart.dataset.trendChart));
+    for(const id of hoverCharts.keys())if(!mounted.has(id))hoverCharts.delete(id);
+    setupTooltips(host);bindControls(host);
+  }
   function draw() {
     if(root.location.hash!=='#trends')return;
     hideFloatingTooltip();
@@ -337,35 +404,7 @@
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
-    host.querySelectorAll('[data-trend-group]').forEach(control=>{
-      control.indeterminate=control.dataset.partial==='true';
-      control.addEventListener('change',()=>{
-        const key=control.dataset.trendGroup,hidden=hiddenLayers.get(key)||new Set();
-        control.closest('fieldset').querySelectorAll('[data-trend-layer]').forEach(input=>{const name=stableId(input.dataset.trendLayer);control.checked?hidden.delete(name):hidden.add(name)});
-        hiddenLayers.set(key,hidden);draw();host.querySelector('[data-trend-group]')?.focus({preventScroll:true});
-      });
-    });
-    host.querySelector('[data-cost-trendline]')?.addEventListener('change',event=>{costTrendline=event.target.checked;draw();host.querySelector('[data-cost-trendline]')?.focus({preventScroll:true})});
-    host.querySelectorAll('[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
-      const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
-      const hidden=hiddenLayers.get(key)||new Set();
-      control.checked?hidden.delete(name):hidden.add(name);hiddenLayers.set(key,hidden);
-      draw();
-      [...host.querySelectorAll('[data-trend-layer]')].find(input=>input.dataset.trendChartKey===key&&stableId(input.dataset.trendLayer)===name)?.focus({preventScroll:true});
-    }));
-    host.querySelectorAll('[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
-      temperatureDetail=control.dataset.temperatureDetail;draw();
-      [...host.querySelectorAll('[data-temperature-detail]')].find(button=>button.dataset.temperatureDetail===temperatureDetail)?.focus({preventScroll:true});
-    }));
-    host.querySelectorAll('[data-temperature-unit]').forEach(control=>control.addEventListener('click',()=>{
-      temperatureUnit=control.dataset.temperatureUnit;draw();
-      [...host.querySelectorAll('[data-temperature-unit]')].find(button=>button.dataset.temperatureUnit===temperatureUnit)?.focus({preventScroll:true});
-    }));
-    host.querySelectorAll('[data-trend-unit]').forEach(control=>control.addEventListener('click',()=>{
-      const chart=control.dataset.unitChart,unit=control.dataset.trendUnit;
-      chartUnits[chart]=unit;draw();
-      [...host.querySelectorAll('[data-trend-unit]')].find(button=>button.dataset.unitChart===chart&&button.dataset.trendUnit===unit)?.focus({preventScroll:true});
-    }));
+    bindControls(host);
     document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
     document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));

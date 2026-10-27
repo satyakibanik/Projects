@@ -108,7 +108,7 @@ function chart(rows,series,options={}){
  const plotSeries=series.map(item=>({...item,hatch:false,bar:selectedStyle?(!item.pointsOnly&&!item.fixedLine&&selectedStyle==='bar'):item.bar}));
  const W=800,H=options.height||250,L=58,R=15,T=14,B=32,visibleForScale=plotSeries.filter(item=>item.defaultVisible!==false),scale=chartScale(rows,visibleForScale);
  const x=r=>L+(parseInt(r.time)*60+parseInt(r.time.slice(3)))/1380*(W-L-R),y=v=>H-B-(v-scale.min)/(scale.max-scale.min)*(H-T-B);
- const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,unit,scope,syncGroup:options.syncGroup,enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
+ const id="plot-"+(++chartId); chartData.set(id,{rows,series:plotSeries,x,unit,scope,syncGroup:options.syncGroup,redraw:()=>chart(rows,series,options),enCurve:options.styleSetting==='en-curve'}); let body='';for(let i=0;i<=4;i++){const v=scale.min+(scale.max-scale.min)*i/4;body+=`<line class="axis" data-tick-line="${i}" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text data-tick-label="${i}" x="${L-8}" y="${y(v)+4}" text-anchor="end">${fmt(v,2)}</text>`}
  for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
  for(const s of plotSeries){body+=`<g data-series="${s.key}"${s.defaultVisible===false?' style="display:none"':''}>`;if(s.bar){const barIndex=bars.indexOf(s),offset=(barIndex-(bars.length-1)/2)*barWidth;for(const [rowIndex,r] of rows.entries()){const value=r[s.key];if(typeof value!=='number')continue;body+=`<rect data-row-index="${rowIndex}" x="${x(r)+offset-barWidth/2}" y="${y(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-y(value))}" rx="1" fill="${s.color}"><title>${r.time}: ${fmt(value,2)} ${unit}</title></rect>`}}else{const points=s.pointsOnly&&!s.connectPoints?'':rows.filter(r=>typeof r[s.key]==='number').map(r=>`${x(r)},${y(r[s.key])}`).join(' ');body+=`<polyline fill="none" stroke="${s.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(s)}" ${s.dot?'stroke-linecap="round"':''} points="${points}"/>`;for(const [rowIndex,r] of rows.entries()){if(typeof r[s.key]!=='number')continue;if(!s.noMarkers)body+=seriesMarker(s,x(r),y(r[s.key]),s.pointRadius??(s.pointsOnly?5:3),`data-row-index="${rowIndex}"`,`${s.name}, ${r.time}: ${fmt(r[s.key],2)} ${unit}`)}}body+=`</g>`}
@@ -528,7 +528,7 @@ function stackedAreaChart(rows,series){
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
  const stackSeries=series.filter(item=>item.key!=='shortage_mw').concat(series.filter(item=>item.key==='shortage_mw'));
- chartData.set(id,{rows,series:stackSeries,x,stackedArea:true,scope:'en-curve:en-curve',enCurve:true});
+ chartData.set(id,{rows,series:stackSeries,x,stackedArea:true,scope:'en-curve:en-curve',enCurve:true,redraw:()=>stackedAreaChart(rows,series)});
  const hatchDefs='<defs>'+series.map((item,index)=>hatchPattern('hatch-'+id+'-'+index,item,index)).join('')+'</defs>';
  let body=hatchDefs;
  let tick=0;
