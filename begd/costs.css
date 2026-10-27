@@ -7,3 +7,13 @@ html[data-theme=dark] .bpdb-fuel-icon{filter:invert(1)}
 .bpdb-cost-date-controls .note{margin:0 0 12px;line-height:1.7}
 .bpdb-cost-date-controls label{display:flex;align-items:center;gap:12px;flex-wrap:wrap;font:12px var(--mono)}
 .bpdb-cost-date-controls select{padding:9px 12px;background:var(--surface);color:var(--ink);border:1px solid var(--line);font:inherit}
+
+.bpdb-average-panel{border-top:1px solid var(--line);margin-top:24px;padding-top:24px}
+.bpdb-average-panel .panel-head{gap:18px;flex-wrap:wrap}.bpdb-average-panel h3{margin:0;font-size:22px}
+.bpdb-average-panel>.table-wrap,.bpdb-calculated-note+.table-wrap{margin:14px 18px;max-width:calc(100% - 36px);overflow:auto}
+.bpdb-average-table{width:100%;font-size:12px}.bpdb-average-table caption{text-align:left;padding:8px 0;color:var(--muted)}
+.bpdb-average-table th,.bpdb-average-table td{padding:9px;text-align:right;white-space:nowrap}.bpdb-average-table th:first-child{text-align:left}
+.bpdb-calculated-note{border-left:4px solid #c28a21;margin:8px 18px 18px;padding:12px!important;line-height:1.8;background:color-mix(in srgb,#c28a21 9%,var(--surface))}
+.bpdb-cost-panel.is-calculated .tag{border-color:#c28a21;color:var(--ink)}
+
+.bpdb-rate-basis{margin:0 18px 18px;font-size:12px}.bpdb-rate-basis summary{cursor:pointer;color:var(--ink);padding:8px 0}.bpdb-rate-basis>.table-wrap{overflow:auto}

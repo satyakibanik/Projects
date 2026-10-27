@@ -50,7 +50,7 @@
     if(event.target.matches('[data-chart-style], [data-toggle-series], [data-toggle-family], #fuel-mix-style, [data-regional-snapshot-style], [data-trend-layer]'))queueCommit();
   });
   document.addEventListener('click',event=>{
-    if(event.target.closest('[data-trend-days], [data-trend-unit], [data-temperature-unit], [data-temperature-detail], [data-en-curve-table-mode]'))queueCommit();
+    if(event.target.closest('[data-cost-average-days], [data-trend-days], [data-trend-unit], [data-temperature-unit], [data-temperature-detail], [data-en-curve-table-mode]'))queueCommit();
   });
   root.addEventListener('popstate',event=>{
     const decoded=codec.decode(location.href);

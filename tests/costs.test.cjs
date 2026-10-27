@@ -74,3 +74,48 @@ test('an outage or empty cost dataset produces a visible explanation rather than
  assert.match(api.dayPanel('2026-10-26'),/No validated BPDB cost breakdown/);
  api.setData({days:[]});assert.match(api.dayPanel('2026-10-26'),/Fuel cost by generation type/);
 });
+const rateRow=(date,cost,energy,extra={})=>({date,currency:'BDT',total_bdt:cost,costs_bdt:{Gas:cost,Coal:0,Oil:0},generation_kwh:{Gas:energy},...extra});
+const energyReport=(date,fuels={})=>({date,fuels:{Gas:0,Coal:0,HFO:0,HSD:0,Hydro:0,Solar:0,Imports:0,Wind:0,...fuels}});
+test('fuel averages weight matching energy and enforce exact calendar boundaries for every supported period',()=>{
+ const api=load();api.setData({days:[rateRow('2026-09-25',10000,1),rateRow('2026-09-26',10,1),rateRow('2026-10-25',90,30),rateRow('2026-10-26',10000,1)]});
+ const avg=api.averageCosts('2026-10-25',30);
+ assert.equal(avg.start,'2026-09-26');assert.equal(avg.fuels.Gas.days,2);assert.equal(avg.fuels.Gas.cost_bdt,100);assert.equal(avg.fuels.Gas.energy_kwh,31);assert.equal(avg.fuels.Gas.rate,100/31);assert.notEqual(avg.fuels.Gas.rate,6.5);
+ for(const days of [7,30,60,90,365]){
+  const end='2026-10-25',start=new Date(Date.parse(end+'T00:00:00Z')-(days-1)*86400000).toISOString().slice(0,10);
+  assert.equal(api.averageCosts(end,days).start,start);
+ }
+});
+test('calculated daily costs use preceding 30 days, multiply selected-day MWh by 1000, and never enter reported history',()=>{
+ const api=load();api.setData({days:[rateRow('2026-09-25',9999,1),rateRow('2026-09-26',10,1),rateRow('2026-10-25',90,30),rateRow('2026-10-27',9999,1)]});
+ const report=energyReport('2026-10-26',{Gas:2}),value=api.calculatedCosts(report);
+ assert.equal(value.calculated,true);assert.equal(value.partial,false);assert.ok(Math.abs(value.total_bdt-2000*100/31)<1e-9);assert.equal(value.generation_kwh.Gas,2000);
+ assert.equal(value.rate_basis.start,'2026-09-26');assert.equal(value.rate_basis.end,'2026-10-25');assert.equal(value.rate_basis.fuels.Gas.days,2);assert.equal(api.forDate(report.date),null);
+ const html=api.dayPanel(report.date,undefined,report);assert.match(html,/CALCULATED · 30D RATES/);assert.match(html,/Total calculated cost/);assert.match(html,/26 Oct 2026 \(calculated\)/);assert.doesNotMatch(html,/Reported daily cost · 26 Oct/);
+ assert.equal(api.valid(value),false);api.setData({days:[value,rateRow('2026-10-25',20,10)]});assert.equal(api.averageCosts('2026-10-26',30).fuels.Gas.days,1);
+});
+test('positive generation without a fuel rate stays unavailable and calculated subtotal is explicitly partial',()=>{
+ const api=load();api.setData({days:[rateRow('2026-10-25',50,10)]});const report=energyReport('2026-10-26',{Gas:1,Coal:2});
+ const result=api.calculatedCosts(report);assert.equal(result.costs_bdt.Gas,5000);assert.equal(result.costs_bdt.Coal,undefined);assert.equal(result.total_bdt,5000);assert.equal(result.partial,true);assert.equal(result.production_cost_per_kwh,null);
+ const html=api.dayPanel(report.date,undefined,report);assert.match(html,/CALCULATED · PARTIAL/);assert.match(html,/Calculated subtotal/);assert.match(html,/Coal \(30-day rate unavailable\)/);assert.match(html,/Unavailable/);
+ api.setData({days:[]});assert.equal(api.calculatedCosts(report).unavailable,true);assert.match(api.dayPanel(report.date,undefined,report),/<strong>Unavailable<\/strong>/);
+ const zero=api.calculatedCosts(energyReport(report.date));assert.equal(zero.total_bdt,0);assert.equal(zero.unavailable,false);assert.equal(zero.partial,false);
+});
+test('missing, nonfinite or zero historical generation cannot produce a rate, and absent current energy is never zero-filled',()=>{
+ const api=load();api.setData({days:[rateRow('2026-10-20',10,0),rateRow('2026-10-21',10,-1),rateRow('2026-10-22',10,NaN),rateRow('2026-10-23',10,null),rateRow('2026-10-24',0,10)]});
+ const avg=api.averageCosts('2026-10-25',30);assert.equal(avg.fuels.Gas.days,1);assert.equal(avg.fuels.Gas.rate,0);assert.equal(avg.fuels.Coal,undefined);
+ const result=api.calculatedCosts({date:'2026-10-26',fuels:{Gas:null}});assert.equal(result.generation_kwh.Gas,undefined);assert.equal(result.costs_bdt.Gas,undefined);assert.equal(result.partial,true);assert.equal(result.unavailable,true);
+});
+test('reported costs override calculation when published, cache invalidates, and duplicate operating dates count once',()=>{
+ const api=load(),report=energyReport('2026-10-26',{Gas:2});api.setData({days:[rateRow('2026-10-25',10,2)]});assert.equal(api.calculatedCosts(report).total_bdt,10000);
+ const reported=rateRow('2026-10-26',25,10);api.setData({days:[rateRow('2026-10-25',10,2),rateRow('2026-10-25',20,2),reported]});
+ assert.equal(api.calculatedCosts(report),reported);assert.equal(api.averageCosts('2026-10-25',30).fuels.Gas.days,1);assert.equal(api.averageCosts('2026-10-25',30).fuels.Gas.rate,10);
+ assert.match(api.dayPanel(report.date,undefined,report),/Reported daily cost/);assert.doesNotMatch(api.dayPanel(report.date,undefined,report),/CALCULATED · 30D RATES/);
+});
+test('second cost chart uses independently keyed per-fuel rates and selectable averaging periods',()=>{
+ const api=load(),calls=[];api.setData({days:[rateRow('2026-10-24',10,2),rateRow('2026-10-25',30,3)]});
+ const html=api.trendPanel([{date:'2026-10-25'},{date:'2026-10-26'}],(...args)=>{calls.push(args);return '<svg/>'},{averageDays:7});
+ assert.equal(calls.length,2);assert.equal(calls[0][5].key,'bpdb-cost');assert.equal(calls[1][5].key,'bpdb-unit-cost');assert.equal(calls[1][3],'BDT/kWh');
+ const [rows,layers]=calls[1];assert.equal(layers.find(s=>s.name==='Gas').value(rows[1]),8);assert.equal(rows[1].cost_rates.end,'2026-10-25');
+ for(const days of [7,30,60,90,365])assert.match(html,new RegExp(`data-cost-average-days="${days}"`));
+ assert.match(html,/data-cost-average-days="7" aria-pressed="true"/);assert.match(html,/Average cost per kWh by fuel type/);
+});

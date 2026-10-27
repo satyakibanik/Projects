@@ -5,7 +5,7 @@
   const format = value => value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits:2});
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
-  let chartSerial=0,costTrendline=false;
+  let chartSerial=0,costTrendline=false,costAverageDays=30;
   const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
   // IDs form part of the shared-link contract. Keep these mappings stable.
@@ -17,10 +17,11 @@
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
     // Include settings for charts not mounted in this session yet.
     for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
-    return {costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+    return {costAverageDays:String(costAverageDays),costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
   }
   function setViewState(state){
     costTrendline=state.costTrend==='linear';
+    costAverageDays=[7,30,60,90,365].includes(Number(state.costAverageDays))?Number(state.costAverageDays):30;
     period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
@@ -240,7 +241,7 @@
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
     if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
-    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline})||'';
+    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:costAverageDays})||'';
     html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
@@ -352,6 +353,10 @@
         hiddenLayers.set(key,hidden);refreshLayerChart(control);
       });
     });
+    unbound(host,'[data-cost-average-days]').forEach(control=>control.addEventListener('click',()=>{
+      costAverageDays=Number(control.dataset.costAverageDays);draw();
+      host.querySelector(`[data-cost-average-days="${costAverageDays}"]`)?.focus({preventScroll:true});
+    }));
     unbound(host,'[data-cost-trendline]').forEach(control=>control.addEventListener('change',()=>{costTrendline=control.checked;refreshLayerChart(control)}));
     unbound(host,'[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
       const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
