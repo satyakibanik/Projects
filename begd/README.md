@@ -93,6 +93,7 @@ The `#trends` tab offers 30, 60, 90, and 365 calendar days ending on the latest 
 - **Reported load shedding:** maximum available P4 reading for each day, in MW. The window summary shows the maximum of those daily observations. P1 energy not served is shown separately in GWh. Neither is inferred from demand minus generation.
 - **Fuel mix:** daily shares of P1 energy totals, with imports as a separate source. Only days with every fuel value present and a positive total are drawn.
 - **Imports:** P1 total and GenLog route energy, in GWh, retaining workbook route names.
+- **Kaptai Lake water level:** a default-on overlay in the Karnaphuli Hydro plant-history chart, showing daily means on an independent ft MSL right axis, using available whole-hour GenLog Water Level readings (00:00–23:00). The extractor locates the header rather than assuming column FG. Tooltips report hourly coverage, partial days remain included, and missing days remain gaps. The verified 160.02 ft reading at 22:00 on 24 September 2026 is retained and disclosed as a source anomaly. Existing archive reports that stored Water Level as a plant remain readable; newly parsed reports keep it separate from generation.
 
 A separate national-totals extractor recovers P1/P4 data when the full workbook parser fails on an ancillary sheet or plant/region reconciliation. These reports remain excluded from the full daily-report archive, retain quality notes in the data bundle, and do not bypass the original parser’s checks. Inconsistent fuel or import route breakdowns are omitted.
 

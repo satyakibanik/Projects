@@ -28,6 +28,13 @@ jobs:
           key: begd-historical-reports-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             begd-historical-reports-
+      - name: Restore validated BPDB costs
+        uses: actions/cache@v4
+        with:
+          path: .cache/bpdb-costs
+          key: begd-bpdb-costs-v2-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            begd-bpdb-costs-v2-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

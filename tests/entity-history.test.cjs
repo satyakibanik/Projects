@@ -2,6 +2,21 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function api(){const window={};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/entity-history.js'),'utf8'),{window,Map,Date});return window.BEGDEntityHistory}
+test('water overlay is restricted to Karnaphuli Hydro, including individual units',()=>{
+ const h=api();
+ for(const name of ['Karnaphuli Hydro PP Unit-1,2,3,4, 5','Karnaphuli Hydro PP Unit-1','Karnaphuli Hydro PP'])assert.equal(h.isKarnaphuliHydro({name}),true);
+ for(const name of ['Karnaphuli Power Ltd.','Kaptai 7 MW Solar PP','Other Hydro PP'])assert.equal(h.isKarnaphuliHydro({name}),false);
+ assert.equal(h.isKarnaphuliHydro(null),false);
+});
+test('water overlay joins exact dates, keeps gaps and never depends on the chosen plant metric',()=>{
+ const h=api(),rows=[{date:'2026-10-22',capacity_factor_pct:0},{date:'2026-10-23',peak_generation_mw:45},{date:'2026-10-24'}];
+ const source=[{date:'2026-10-22',water_level:{mean_ft_msl:103,hours:22}},{date:'2026-10-24',water_level:{mean_ft_msl:102.355417,hours:24}}];
+ const result=h.overlayWaterLevel(rows,source);
+ assert.equal(result[0].water_level.mean_ft_msl,103);assert.equal(result[0].capacity_factor_pct,0);
+ assert.equal(result[1].water_level,undefined);assert.equal(result[1].peak_generation_mw,45);
+ assert.equal(result[2].water_level.mean_ft_msl,102.355417);
+ assert.equal(rows[0].water_level,undefined);
+});
 test('entity windows include 30/90/365 calendar days, leap day, zero and gaps',()=>{
  for(const days of [30,90,365]){
   const rows=api().calendar({days:[{date:'2024-02-29',load_mw:0}]},'2024-03-01',days);

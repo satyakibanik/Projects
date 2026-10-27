@@ -5,7 +5,7 @@
   const format = value => value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits:2});
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
-  let chartSerial=0;
+  let chartSerial=0,costTrendline=false;
   const hoverCharts=new Map();
   const hiddenLayers=new Map(),knownLayers=new Map();
   // IDs form part of the shared-link contract. Keep these mappings stable.
@@ -17,13 +17,15 @@
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
     // Include settings for charts not mounted in this session yet.
     for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
-    return {days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+    return {costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
   }
   function setViewState(state){
+    costTrendline=state.costTrend==='linear';
     period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
     for(const [id,visible] of state.trendLayers||[]){const split=id.indexOf('|');if(split<0)continue;const chart=id.slice(0,split),name=id.slice(split+1);if(!hiddenLayers.has(chart))hiddenLayers.set(chart,new Set());if(!knownLayers.has(chart))knownLayers.set(chart,new Set());knownLayers.get(chart).add(name);if(!visible)hiddenLayers.get(chart).add(name);}
+    if(hiddenLayers.has('bpdb-cost'))for(const series of root.BEGDCosts?.series()||[])if(series.defaultVisible===false&&!knownLayers.get('bpdb-cost')?.has(stableId(series.name)))hiddenLayers.get('bpdb-cost').add(stableId(series.name));
     // Temperature is opt-in even when a link mentions only other layers.
     if(hiddenLayers.has('generation-demand')&&!knownLayers.get('generation-demand')?.has('temperature_c'))hiddenLayers.get('generation-demand').add('temperature_c');
   }
@@ -85,21 +87,33 @@
     });
     finish();return segments;
   }
+  function linearTrend(rows,series){
+    const points=rows.map((row,index)=>({index,x:Date.parse(row.date+'T00:00:00Z')/86400000,y:series.value(row)})).filter(point=>finite(point.x)&&finite(point.y));
+    if(points.length<2)return null;
+    const x0=points[0].x,meanX=points.reduce((n,p)=>n+p.x-x0,0)/points.length,meanY=points.reduce((n,p)=>n+p.y,0)/points.length;
+    const variance=points.reduce((n,p)=>n+(p.x-x0-meanX)**2,0);if(!variance)return null;
+    const slope=points.reduce((n,p)=>n+(p.x-x0-meanX)*(p.y-meanY),0)/variance;
+    const start=points[0].index,end=points.at(-1).index;
+    return {name:series.name+' · linear trend',color:series.color,slope,count:points.length,start,end,value:row=>{const x=Date.parse(row.date+'T00:00:00Z')/86400000;return x<points[0].x||x>points.at(-1).x?null:meanY+slope*(x-x0-meanX)},formatValue:series.formatValue};
+  }
   function plot(rows, allSeries, title, unit, stacked=false, options={}) {
     const key=options.key||chartIds[title]||stableId(title);
     knownLayers.set(key,new Set([...(knownLayers.get(key)||[]),...allSeries.map(s=>stableId(s.name))]));
     if(!hiddenLayers.has(key))hiddenLayers.set(key,new Set(allSeries.filter(s=>s.defaultVisible===false).map(s=>stableId(s.name))));
     const hidden=hiddenLayers.get(key);
     const series=allSeries.filter(s=>!hidden.has(stableId(s.name))&&!s.legendOnly);
+    const fitted=options.fitTrend&&series.length===1?linearTrend(rows,series[0]):null;
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
-    const W=840,H=options.compact?180:300,L=80,R=secondary.length?80:18,T=25,B=40;
+    const narrow=options.responsive&&root.innerWidth<600;
+    const W=narrow?420:840,H=options.compact?180:300,L=narrow?68:80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
+    if(fitted)values.push(fitted.value(rows[fitted.start]),fitted.value(rows[fitted.end]));
     if(values.length&&finite(options.reference?.value))values.push(options.reference.value);
     const extentMin=values.length?Math.min(...values):0,extentMax=values.length?Math.max(...values):1;
     const extentPadding=Math.max((extentMax-extentMin)*0.08,Math.abs(extentMax)*0.01,0.01);
-    const min=options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
+    const min=fitted?Math.min(0,...values):options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
     const max=options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08;
     const x=i=>L+i/Math.max(1,rows.length-1)*(W-L-R), y=v=>H-B-(v-min)/(max-min)*(H-T-B);
     const secondaryMin=secondaryValues.length?Math.floor(Math.min(...secondaryValues)-2):0;
@@ -108,10 +122,10 @@
     const seriesY=(value,s)=>s.axis==='right'?secondaryY(value):y(value);
     let body='';
     if(secondary.length){
-      body+=`<g class="trends-secondary-axis" aria-label="Maximum temperature, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
+      body+=`<g class="trends-secondary-axis" style="color:${escape(secondary[0].color)}" aria-label="${escape(secondary[0].name)}, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
       if(secondaryValues.length)for(let i=0;i<=4;i++){
         const value=secondaryMin+(secondaryMax-secondaryMin)*i/4;
-        body+=`<text x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
+        body+=`<text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
       }
       body+='</g>';
     }
@@ -124,7 +138,7 @@
     const ticks=options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
       :rows.length===365?monthTicks(rows)
-      :[...new Set([0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
+      :[...new Set(narrow?[0,rows.length-1]:[0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
     for(const {index:i,label,sparse} of options.hideDateLabels?[]:ticks)
       body+=`<text class="trends-date-tick${sparse?' tick-sparse':''}" x="${x(i)}" y="${H-12}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${escape(label)}</text>`;
     if(empty)body+=`<text x="${(L+W-R)/2}" y="${H/2}" text-anchor="middle">${series.length?'No reported values in this window':'Select a legend layer to display'}</text>`;
@@ -158,9 +172,17 @@
         if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
       });
     }
+    if(fitted){
+      const start=rows[fitted.start],end=rows[fitted.end];
+      body+=`<path data-cost-trendline-path d="M${x(fitted.start)},${y(fitted.value(start))} L${x(fitted.end)},${y(fitted.value(end))}" fill="none" stroke="${fitted.color}" stroke-width="3" stroke-dasharray="9 6" aria-label="${escape(fitted.name)} · least squares over ${fitted.count} reported days"/>`;
+    }
+    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`;
+    const group=options.groupLayers?allSeries.filter(s=>s.name!=='Reported total'):[];
+    const active=group.filter(s=>!hidden.has(stableId(s.name))).length;
+    const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
-    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries,syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${(options.hideLegend?[]:allSeries).map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
+    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
+    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -184,6 +206,9 @@
 
   function controls() {
     return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'10y':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full BengalGrid history · 2015–2026':'Ending on the latest available operating day'}</span></div>`;
+  }
+  function waterLevelRows(end,count) {
+    return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
   function content() {
     if(period==='10y')return controls()+`<p class="trends-coverage">BengalGrid historical view · full available record, ${history?dateLabel(history.start_date)+' – '+dateLabel(history.end_date):'2015–2026'} · generation only</p>`+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels());
@@ -215,6 +240,7 @@
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
     if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
+    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline})||'';
     html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
@@ -310,7 +336,16 @@
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
-    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'));
+    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
+    host.querySelectorAll('[data-trend-group]').forEach(control=>{
+      control.indeterminate=control.dataset.partial==='true';
+      control.addEventListener('change',()=>{
+        const key=control.dataset.trendGroup,hidden=hiddenLayers.get(key)||new Set();
+        control.closest('fieldset').querySelectorAll('[data-trend-layer]').forEach(input=>{const name=stableId(input.dataset.trendLayer);control.checked?hidden.delete(name):hidden.add(name)});
+        hiddenLayers.set(key,hidden);draw();host.querySelector('[data-trend-group]')?.focus({preventScroll:true});
+      });
+    });
+    host.querySelector('[data-cost-trendline]')?.addEventListener('change',event=>{costTrendline=event.target.checked;draw();host.querySelector('[data-cost-trendline]')?.focus({preventScroll:true})});
     host.querySelectorAll('[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
       const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
       const hidden=hiddenLayers.get(key)||new Set();
@@ -331,7 +366,7 @@
       chartUnits[chart]=unit;draw();
       [...host.querySelectorAll('[data-trend-unit]')].find(button=>button.dataset.unitChart===chart&&button.dataset.trendUnit===unit)?.focus({preventScroll:true});
     }));
-    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
     document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
@@ -339,18 +374,21 @@
   async function mount() {
     document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#trends'));
     document.querySelector('#title').textContent='Long-term trends';
-    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
     ['report-date-controls','date-status','day-sources','error'].forEach(id=>{document.getElementById(id).hidden=true});
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     draw();
     if(!bundle&&!pending&&!failure){
-      pending=Promise.all([fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
+      pending=Promise.all([root.BEGDCosts?.load(),fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
     }
     await pending;
   }
   function releaseCharts(host){host.querySelectorAll('[data-trend-chart]').forEach(wrap=>hoverCharts.delete(wrap.dataset.trendChart));}
-  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
+  function setPeriod(days){if(![30,60,90,365].includes(Number(days)))return;period=Number(days);draw()}
+  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,setPeriod,mount,windowDays,total,plot,linearTrend,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows,waterLevelRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
+  let narrowViewport=root.innerWidth<600;
+  root.addEventListener('resize',()=>{const narrow=root.innerWidth<600;if(narrow!==narrowViewport){narrowViewport=narrow;draw()}});
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

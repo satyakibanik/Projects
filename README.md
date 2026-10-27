@@ -89,3 +89,25 @@ validation, current readings, caching, and static bundle generation/fallbacks.
 Browser tests cover static API routes and errors, date navigation, fetch
 passthrough, script syntax, and local HTML asset references. These checks do
 not replace visual browser testing or a live ERP integration check.
+
+## BPDB daily costs (draft demo)
+
+The 30/60/90/365-day Trends views include reported daily costs in BDT crore (exact BDT in tooltips), with optional category lines. Energy Curve includes a cost pie and exact-BDT table only when a validated BPDB report matches the selected **printed operating date**. No older date is substituted when the PDF has not arrived.
+
+`scripts/bpdb_costs.py` discovers Page 1 links from the [BPDB archive](https://misc.bpdb.gov.bd/daily-generation-archive), extracts text with pdfplumber, and recognizes `Cost of the Consumed Fuel`, `Fuel cost`, and `Production Cost (Tk.)`. It validates the printed date, non-missing categories, their sum against the printed total, and production cost per kWh against energy when both are present. Source labels, category scope, URLs, archive dates, SHA-256 hashes, and fetch timestamps are retained. Oil/Renewable categories are not split into inferred sources, and production totals are not treated as full operating expenses.
+
+The linked October 26 archive PDF prints **2026-10-25**, BDT **2,490,660,278**, and **7.45341 BDT/kWh**. The original PDF is a regression fixture at `tests/fixtures/bpdb/page_1_20261026.pdf`; source: <https://misc.bpdb.gov.bd/storage/daily_archive/page_1_20261026_20261027094839.pdf>.
+
+The Pages build refreshes BPDB costs at most every six hours, restores validated history from a separate Actions cache, and rechecks the latest 14 archive days for revisions. A failed refresh retains validated data; missing/rejected dates stay gaps. Cold starts scan up to 40 archive pages with four PDF workers, reusing older validated records from the checked-in snapshot when no Actions cache exists. Overprinted PDF characters are deduplicated before extraction. A checked-in snapshot supplies the local demo; Pages overwrites it with the collected bundle. No changes are deployed until this branch is merged or explicitly deployed.
+
+```sh
+python scripts/bpdb_costs.py
+python scripts/preview_costs.py
+python -m http.server --directory .cache/cost-preview 8087
+# Open http://localhost:8087/begd/?date=2026-10-24#en-curve
+# Or http://localhost:8087/begd/#trends
+```
+
+Cost chart controls: a common **Individual fuel types** checkbox selects/deselects all available fuel layers (the reported total stays separate), including a partial-selection state. **Linear trendline**, beneath the BDT tag, fits least squares against calendar dates using reported observations only; it appears only with one selected layer and is not a forecast. The setting is retained in shared view URLs.
+
+Energy Curve cost slices provide pointer, touch, and keyboard tooltips matching the table. The table reuses Power plants fuel icons, sorts every column, and starts with descending cost share. Category BDT/kWh is calculated from the same PDF’s cost and matching national fuel-energy totals; these energy totals round to 0.01 MKWh. No cross-day or workbook denominator is substituted, and missing/zero energy stays blank.

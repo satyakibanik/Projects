@@ -117,6 +117,12 @@ class BengalGridTests(unittest.TestCase):
 
 
 class FallbackBuildTests(unittest.TestCase):
+    def setUp(self):
+        from unittest.mock import patch
+        costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
+        costs.start()
+        self.addCleanup(costs.stop)
+
     def test_recovered_totals_are_published_without_exposing_partial_full_reports(self):
         import tempfile
         import json
