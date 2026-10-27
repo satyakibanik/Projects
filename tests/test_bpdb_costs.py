@@ -20,6 +20,9 @@ class CostsTests(unittest.TestCase):
         self.assertEqual(row['costs_bdt']['HSD'], 0)
         self.assertEqual(row['costs_bdt']['Gas'], 400216748.7)
         self.assertEqual(row['production_cost_per_kwh'], 7.45341)
+        self.assertEqual(row['generation_kwh']['Gas'], 112060000)
+        self.assertEqual(row['generation_kwh']['HSD'], 0)
+        self.assertIn('0.01 MKWh', row['generation_basis'])
         self.assertEqual(row['currency'], 'BDT')
         self.assertEqual(row['source_url'], SOURCE)
 
@@ -38,8 +41,19 @@ class CostsTests(unittest.TestCase):
             self.assertEqual(row['date'], '2026-10-25')
             self.assertEqual(row['costs_bdt']['Oil'], 0)
             self.assertNotIn('HFO', row['costs_bdt'])
+            self.assertEqual(row['generation_kwh'], {})
         row = parse_cost_text('Date : 25-10-2026\nProduction Cost (Tk.)\nGas 100 Hydro 0\nCoal 100 Solar 0\nHFO 1234367 Import 0\nHSD 0 Wind 0\nTotal: 12,34,567 Tk.')
         self.assertEqual(row['total_bdt'], 1234567)
+
+    def test_energy_table_without_grand_total_column_keeps_its_explicit_units(self):
+        text = ('Date : 25-10-2026\nZone-wise Generation Summary (MKWHr.)\n'
+                'Gas Coal HFO HSD Hydro Solar Import Wind\nTotal 1 2 3 0 1 1 1 1\n'
+                'Production Cost (Tk.)\nGas 10 Hydro 10\nCoal 20 Solar 10\nHFO 30 Import 10\nHSD 0 Wind 10\nTotal: 100 Tk.')
+        row = parse_cost_text(text)
+        self.assertEqual(row['generation_kwh']['Coal'], 2000000)
+        self.assertEqual(row['generation_kwh']['HSD'], 0)
+        row = parse_cost_text('Energy Generated 100 MKWHr.\n'+text)
+        self.assertEqual(row['generation_kwh'], {})
 
     def test_invalid_dates_incomplete_breakdowns_and_bad_totals_rejected(self):
         base = 'Actual data of 25.10.26(Yesterday)\nFuel cost :\nGas=10 Coal=20 Oil=30 Total=60 Taka'

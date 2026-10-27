@@ -25,3 +25,32 @@ test('cost category selections round-trip through shared view URLs without enabl
  assert.match(html,/data-trend-layer="Gas" data-trend-chart-key="bpdb-cost" checked/);
  assert.doesNotMatch(html,/data-trend-layer="Coal" data-trend-chart-key="bpdb-cost" checked/);
 });
+
+test('category cost per kWh uses matching energy and never divides by zero or borrows another fuel',()=>{
+ const api=load(),sample={...row,generation_kwh:{Gas:2000000,Coal:10000000,Oil:0}};
+ assert.equal(api.costRate(sample,'Gas'),5);assert.equal(api.costRate(sample,'Coal'),5);assert.equal(api.costRate(sample,'Oil'),null);assert.equal(api.costRate(sample,'Solar'),null);assert.equal(api.costRate(row,'Gas'),null);
+ api.setData({days:[sample]});const html=api.piePanel(row.date);assert.match(html,/5.000/);assert.match(html,/plant-icons\/gas-factory.png/);assert.match(html,/data-cost-slice="Gas"/);assert.match(html,/role="tooltip" hidden/);
+ for(const key of ['name','cost','share','rate'])assert.match(html,new RegExp(`data-cost-sort="${key}"`));
+});
+test('all cost table sorts are numeric with unavailable rates last in both directions',()=>{
+ const api=load(),entries=[{name:'Gas',cost:9,share:9,rate:null},{name:'Coal',cost:100,share:100,rate:9},{name:'Solar',cost:0,share:0,rate:0}];
+ assert.equal(api.sortBreakdown(entries)[0].name,'Coal');
+ assert.equal(api.sortBreakdown(entries,{key:'rate',direction:'asc'})[0].name,'Solar');
+ assert.equal(api.sortBreakdown(entries,{key:'rate',direction:'desc'}).at(-1).name,'Gas');
+ assert.equal(api.sortBreakdown(entries,{key:'name',direction:'asc'})[0].name,'Coal');
+});
+test('cost legend groups individual fuels independently from the reported total',()=>{
+ const api=load(),window={addEventListener(){}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,Date,Map,Set});
+ const html=window.BEGDTrends.plot([{date:row.date}],api.series(),'Cost of consumed fuel','BDT crore',false,{key:'bpdb-cost',groupLayers:true});
+ assert.match(html,/data-trend-group="bpdb-cost"/);assert.match(html,/Individual fuel types/);
+ const fieldset=html.slice(html.indexOf('<fieldset'),html.indexOf('</fieldset>'));assert.doesNotMatch(fieldset,/Reported total/);assert.match(fieldset,/Gas/);
+});
+test('linear trend uses calendar distance and excludes missing days; only one layer may display a fit',()=>{
+ const window={addEventListener(){}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,Date,Map,Set});
+ const api=window.BEGDTrends,rows=[{date:'2026-01-01',v:10},{date:'2026-01-02'},{date:'2026-01-03',v:14}],series={name:'Gas',color:'#123',value:r=>r.v};
+ const fit=api.linearTrend(rows,series);assert.equal(fit.slope,2);assert.equal(fit.count,2);assert.equal(fit.value(rows[1]),12);
+ assert.match(api.plot(rows,[series],'Cost','BDT',false,{fitTrend:true}),/data-cost-trendline-path/);
+ assert.doesNotMatch(api.plot(rows,[series,{...series,name:'Coal'}],'Cost','BDT',false,{fitTrend:true}),/data-cost-trendline-path/);
+ assert.doesNotMatch(api.plot(rows,[series],'Cost','BDT',false,{fitTrend:false}),/data-cost-trendline-path/);
+ assert.equal(api.linearTrend(rows.slice(0,1),series),null);
+});

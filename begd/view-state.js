@@ -1,8 +1,8 @@
 /* Public, versioned URL contract. Chart/series IDs are independent of render order. */
 (function(root){
   const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
-  const choices={dispatch:['line','bar'],shed:['line','bar'],fuel:['bar','pie','ring'],regional:['line','stacked'],curve:['area','line'],table:['energy','mw'],days:['30','60','90','365','10y'],generationUnit:['GWh','MW'],importsUnit:['GWh','MW'],temperatureUnit:['C','F'],detail:['auto','daily','weekly']};
-  const defaults={dispatch:'line',shed:'bar',fuel:'bar',regional:'stacked',curve:'area',table:'energy',days:'30',generationUnit:'GWh',importsUnit:'GWh',temperatureUnit:'C',detail:'auto'};
+  const choices={dispatch:['line','bar'],shed:['line','bar'],fuel:['bar','pie','ring'],regional:['line','stacked'],curve:['area','line'],table:['energy','mw'],days:['30','60','90','365','10y'],generationUnit:['GWh','MW'],importsUnit:['GWh','MW'],temperatureUnit:['C','F'],detail:['auto','daily','weekly'],costTrend:['off','linear']};
+  const defaults={dispatch:'line',shed:'bar',fuel:'bar',regional:'stacked',curve:'area',table:'energy',days:'30',generationUnit:'GWh',importsUnit:'GWh',temperatureUnit:'C',detail:'auto',costTrend:'off'};
   const names=['date','compare','yesterday','tomorrow','highest','layers','trendLayers','hide','show','v',...Object.keys(choices)];
   // Append-only aliases: these IDs must not depend on chart/legend render order.
   const dailyCharts={'overview:dispatch':'od','overview:shed':'os','en-curve:en-curve':'ec','en-curve:shortage_mw':'es','imports:total_mw':'it','realtime:total_mw':'rt'};

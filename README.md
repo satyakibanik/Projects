@@ -107,3 +107,7 @@ python -m http.server --directory .cache/cost-preview 8087
 # Open http://localhost:8087/begd/?date=2026-10-24#en-curve
 # Or http://localhost:8087/begd/#trends
 ```
+
+Cost chart controls: a common **Individual fuel types** checkbox selects/deselects all available fuel layers (the reported total stays separate), including a partial-selection state. **Linear trendline**, beneath the BDT tag, fits least squares against calendar dates using reported observations only; it appears only with one selected layer and is not a forecast. The setting is retained in shared view URLs.
+
+Energy Curve cost slices provide pointer, touch, and keyboard tooltips matching the table. The table reuses Power plants fuel icons, sorts every column, and starts with descending cost share. Category BDT/kWh is calculated from the same PDF’s cost and matching national fuel-energy totals; these energy totals round to 0.01 MKWh. No cross-day or workbook denominator is substituted, and missing/zero energy stays blank.

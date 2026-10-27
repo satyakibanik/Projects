@@ -17,7 +17,7 @@ from urllib.parse import urljoin, urlparse
 from zoneinfo import ZoneInfo
 
 ARCHIVE = 'https://misc.bpdb.gov.bd/daily-generation-archive'
-VERSION = 1
+VERSION = 2
 NUMBER = r'\d[\d,]*(?:\.\d+)?'
 DATE = r'\d{1,2}[.\-/]\d{1,2}[.\-/](?:\d{4}|\d{2})\b'
 LABEL = r'Cost\s+of\s+the\s+Consumed\s+Fuel(?:\s*\([^)]*\))?|Fuel\s+cost\s*:?|Production\s+Cost\s*\(\s*Tk\.?\s*\)'
@@ -78,11 +78,26 @@ def parse_cost_text(text, source_url='', archive_date=None):
     energy_kwh = number(energy.group(1))*1_000_000 if energy else None
     if per_kwh is not None and energy_kwh and abs(per_kwh-total/energy_kwh) > .001:
         raise ValueError('Printed per-kWh cost disagrees with production cost and energy')
+    generation_kwh = {}
+    if production:
+        # The national Total row follows this source-specific header. Never use
+        # a regional row, peak MW, or a different day's workbook as denominator.
+        header = re.search(r'Gas\s+Coal\s+HFO\s+HSD\s+Hydro\s+Solar\s+Import\s+Wind(?:[ \t]+Total)?', text)
+        if header and re.search(r'Zone-wise\s+Generation\s+Summary\s*\(\s*MKWH', text, re.I):
+            table = text[header.end():heading.start()]
+            totals = re.search(r'^Total[ \t]+((?:' + NUMBER + r'[ \t]+){7}' + NUMBER + r'(?:[ \t]+' + NUMBER + r')?)[ \t]*$', table, re.M)
+            if totals:
+                parts = [number(value) for value in totals.group(1).split()]
+                # Source energy fields round to 0.01 MKWh per category.
+                if (len(parts)==8 or abs(sum(parts[:8])-parts[8]) <= .06) and (energy_kwh is None or abs(sum(parts[:8])*1e6-energy_kwh) <= 60000):
+                    generation_kwh = dict(zip(['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind'], [int(round(value*1e6)) for value in parts[:8]]))
     return dict(date=operating.isoformat(), archive_date=archive_date, source_url=source_url,
                 source_label=heading.group().strip().rstrip(':'),
                 scope='production' if production else 'consumed_fuel',
                 currency='BDT', total_bdt=total, costs_bdt=values,
-                production_cost_per_kwh=per_kwh, reported_energy_kwh=energy_kwh)
+                production_cost_per_kwh=per_kwh, reported_energy_kwh=energy_kwh,
+                generation_kwh=generation_kwh,
+                generation_basis='BPDB Page 1 national fuel totals, rounded to 0.01 MKWh' if generation_kwh else None)
 
 
 def parse_pdf(content, source_url='', archive_date=None):
