@@ -53,6 +53,7 @@ def parse_report(report_bytes, source_file):
 
     fuels = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind"]
     regions = []
+    quality_notes = []
     if not legacy_layout:
         for row in range(17, 26):
             i = row - 17
@@ -68,6 +69,22 @@ def parse_report(report_bytes, source_file):
                 shed_mw=number(summary_sheet.cell(60 + i, 7).value),
                 demand_mw=number(summary_sheet.cell(60 + i, 9).value),
             ))
+        # Some new workbooks publish zero regional totals while retaining all
+        # fuel cells. Derive totals only when every fuel column independently
+        # reconciles to its national subtotal; never mask a real discrepancy.
+        if regions and all(region['energy_mwh'] == 0 for region in regions):
+            complete = all(number(summary_sheet.cell(row, col).value) is not None
+                           for row in range(17, 26) for col in range(5, 13))
+            reconciled = all(number(summary_sheet.cell(26, col).value) is not None and
+                             abs(sum(region['fuels'][fuel] for region in regions) -
+                                 number(summary_sheet.cell(26, col).value) * 1000) < 0.1
+                             for col, fuel in enumerate(fuels, 5))
+            if complete and reconciled and sum(sum(region['fuels'].values()) for region in regions) > 0:
+                for region in regions:
+                    region['reported_energy_mwh'] = region['energy_mwh']
+                    region['energy_mwh'] = sum(region['fuels'].values())
+                    region['energy_source'] = 'Calculated from reported regional fuel values'
+                quality_notes.append('Regional totals calculated from reported fuel values because the workbook regional total cells are zero; fuel columns reconcile to national subtotals.')
     elif "P3" in workbook.sheetnames:
         # Legacy P3 has regional demand snapshots but no regional energy data.
         p3 = workbook["P3"]
@@ -416,6 +433,7 @@ def parse_report(report_bytes, source_file):
     data = dict(
         date=date,
         source_file=source_file,
+        quality_notes=quality_notes,
         timezone="Asia/Dhaka",
         summary=dict(
             peak_demand_mw=(number(summary_sheet["D10"].value) if legacy_layout else summary_sheet["E11"].value),
