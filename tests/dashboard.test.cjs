@@ -143,3 +143,25 @@ test('water overlay uses a separate axis, does not rescale MW, and retains gaps 
  const group=overlay.split('data-series="water"')[1].split('</g>')[0];assert.equal((group.match(/<polyline/g)||[]).length,2);
  const hidden=vm.runInContext(`chart(${rows},[${power},{...${water},defaultVisible:false}])`,c);assert.doesNotMatch(hidden,/class="chart-secondary-axis"/);
 });
+test('yesterday extends the timeline with ERP supply and reported shedding, preserving dates, gaps and zero',()=>{
+ const c=app();
+ vm.runInContext(`currentDayData={today_date:'2026-01-01',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:95,shed_mw:4}],generation_hourly:[],imports:[],forecast_history:{'2025-12-31':{demand_hourly:[{time:'00:00',demand_mw:90,supply_mw:90,shed_mw:0},{time:'23:00',demand_mw:110,supply_mw:100,shed_mw:9}]},'2025-12-30':{demand_hourly:[{time:'12:00',demand_mw:999}]}}}`,c);
+ let html=vm.runInContext('realTime()',c);
+ assert.match(html,/id="realtime-yesterday">/);assert.doesNotMatch(html,/yesterday_demand_mw/);
+ vm.runInContext('chartData.clear();realtimeYesterday=true',c);
+ html=vm.runInContext('realTime()',c);
+ assert.match(html,/id="realtime-yesterday" checked/);assert.match(html,/31 Dec 2025/);
+ const models=vm.runInContext('[...chartData.values()].filter(m=>m.syncGroup)',c);
+ assert.equal(models[0].rows.length,3);assert.equal(models[0].rows[1].demand_mw,null);
+ assert.equal(models[0].rows[0].yesterday_supply_mw,90);
+ assert.equal(models[1].rows[0].yesterday_shed_mw,0);assert.equal(models[1].rows[1].yesterday_shed_mw,9);
+ assert.equal(models[1].rows[2].shed_mw,4);
+ assert.equal(models[0].rows[2].minute,1440);assert.match(models[0].rows[2].label,/1 Jan 2026/);
+ assert(models[0].x(models[0].rows[2])>models[0].x(models[0].rows[1]));
+ assert(models[0].series.filter(s=>s.key.startsWith('yesterday_')).every(s=>s.dashArray==='6 4'));
+ assert.equal(models[0].x(models[0].rows[1]),models[1].x(models[1].rows[1]));
+ vm.runInContext('delete currentDayData.forecast_history["2025-12-31"];chartData.clear()',c);
+ html=vm.runInContext('realTime()',c);
+ assert.match(html,/id="realtime-yesterday" checked disabled/);assert.match(html,/ERP readings unavailable/);
+ assert.equal(vm.runInContext('[...chartData.values()][0].series.length',c),2);
+});

@@ -255,3 +255,9 @@ Energy Curve shows reported BPDB costs for the selected operating date when avai
 Under Trends → Cost of consumed fuel, the original daily-cost chart is followed by **Average cost per kWh by fuel type**. Its independent 7/30/60/90/365-day averaging selector controls the trailing window at each plotted operating date, ending the day before that date. The global Trends range controls which points are plotted. The final rates and matched-day coverage appear in a table. Shared URLs preserve the averaging period and independent fuel-layer visibility. Daily estimates always use 30 days regardless of the selected chart period.
 
 The Power plants table also overlays hourly Kaptai Lake readings for Karnaphuli Hydro PP, using the selected workbook's Water Level column and an independent right axis in ft MSL. The same-named Karnaphuli Power Ltd. receives no lake overlay. The water legend toggle, tooltip units and missing-reading gaps are retained. The table is taller by default and grows to fit an expanded detail; its chart fits the visible table width, with resizing handled automatically. The Trends daily-mean water overlay remains separate.
+
+## Realtime yesterday comparison
+
+The first realtime panel has an initially unchecked **Yesterday’s data** option. It adds the previous calendar day before the snapshot day on both the demand/supply and reported load-shedding timelines. Dates and tooltips use Bangladesh time, and yesterday comes from the dated ERP substation history, independently of the selected workbook or availability of a forecast. Missing history disables the option. Reported shedding and measured zeros are retained. The build always includes yesterday’s ERP actuals in the snapshot history.
+
+**Today’s BEGD & PGCB forecasts** starts collapsed. Click its summary, or focus it and press Enter/Space, to expand it. The disclosure state and yesterday selection survive in-session rerenders and snapshot refreshes.

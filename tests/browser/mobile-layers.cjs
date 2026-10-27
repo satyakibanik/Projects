@@ -54,6 +54,7 @@ async function checkLayer(page,selector,index,touch){
         for(const tab of ['realtime','trends','overview','en-curve','regions','plants','imports','substations','operations','forecast']){
           await page.evaluate(t=>location.hash=t,tab);await page.waitForTimeout(180);
           if(tab==='trends')await page.waitForSelector('[data-trend-layer]');
+          if(tab==='realtime'&&await page.locator('#today-forecast-panel').getAttribute('open')===null)await page.locator('#today-forecast-panel > summary').click();
           let count=0;
           for(const selector of ['#content [data-toggle-series]','#content [data-toggle-family]','#content [data-trend-layer]','#content [data-trend-group]','#content [data-cost-trendline]']){
             const total=await page.locator(selector).count();

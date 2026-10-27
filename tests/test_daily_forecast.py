@@ -94,6 +94,17 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(current['forecast_history']['2026-10-24']['generation_hourly'],[])
             self.assertEqual(json.loads((cache/daily.VERSION/'2026-10-23.json').read_text()),previous)
 
+    def test_yesterday_actuals_are_published_without_a_yesterday_forecast(self):
+        with tempfile.TemporaryDirectory() as directory:
+            current = dict(today_date='2026-10-24')
+            readings = [dict(time='00:00', demand_mw=100, supply_mw=100, shed_mw=0)]
+            with patch.object(daily, 'prepare_forecasts', return_value={'2026-10-24': ready('2026-10-24')}), patch('erp_history.load_range', return_value=dict(days={'2026-10-23': readings})) as refresh:
+                build.attach_forecasts([], {}, current, Path(directory))
+            self.assertEqual(refresh.call_args_list[0].args[1:3], ('2026-10-23', '2026-10-23'))
+            yesterday = current['forecast_history']['2026-10-23']
+            self.assertIsNone(yesterday['forecast'])
+            self.assertEqual(yesterday['demand_hourly'], readings)
+
     def test_refresh_actuals_even_when_all_predictions_are_frozen(self):
         with tempfile.TemporaryDirectory() as directory:
             cache = Path(directory)

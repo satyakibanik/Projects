@@ -46,3 +46,8 @@
 .pgcb-score .study-scores .note{grid-column:1/-1;text-align:right;margin:0}
 .forecast-report-context{margin:24px 0 12px}
 .independent-study-panel .forecast-layer>.legend{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+
+.realtime-comparison-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;margin:0 0 16px}
+.realtime-comparison-controls label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
+.realtime-comparison-controls .note{margin:0}
+.realtime-comparison-controls input{accent-color:var(--blue)}

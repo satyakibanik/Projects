@@ -6,7 +6,7 @@
  const ranked=target=>catalog.rankings[target].slice(0,3);
  const names=target=>ranked(target).map(r=>r.model);
  const best=Object.fromEntries(targets.map(t=>[t,names(t)[0]]));
- let selectedDate=null,expanded=true,choices={...best};
+ let selectedDate=null,expanded=true,todayExpanded=false,choices={...best};
  const options=(values,selected,label=v=>v)=>values.map(v=>`<option value="${esc(v)}"${v===selected?' selected':''}>${esc(label(v))}</option>`).join('');
  const finite=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
  function validForecast(value,day){
@@ -88,7 +88,7 @@
  }
  function renderToday(){
   const ctx=context(true);if(!ctx.date)return '';
-  return `<section class="panel independent-study-panel today-forecast-panel" id="today-forecast-panel" aria-labelledby="today-forecast-title"><div class="panel-head"><div><h2 id="today-forecast-title">Today's BEGD &amp; PGCB forecasts</h2><p>Operating date · ${esc(shortDate(ctx.date))} · Bangladesh time · top-ranked BEGD model per target</p></div><a href="#forecast">All dates &amp; models →</a></div><div class="forecast-body"><div class="forecast-subplots">${subplots(ctx,true)}</div><p class="note">${issueNote(ctx)} Models are ranked by the study evaluation, not today's partial results. PGCB scenarios use the matching operating date; PGCB demand is generation-side demand.</p></div></section>`;
+  return `<details class="panel independent-study-panel today-forecast-panel" id="today-forecast-panel" aria-labelledby="today-forecast-title"${todayExpanded?' open':''}><summary class="forecast-summary"><h2 id="today-forecast-title">Today's BEGD &amp; PGCB forecasts</h2><span>Operating date · ${esc(shortDate(ctx.date))} · ${todayExpanded?'Collapse':'Expand'}</span></summary><div class="forecast-body"><p class="note">Bangladesh time · top-ranked BEGD model per target · <a href="#forecast">All dates &amp; models →</a></p><div class="forecast-subplots">${subplots(ctx,true)}</div><p class="note">${issueNote(ctx)} Models are ranked by the study evaluation, not today's partial results. PGCB scenarios use the matching operating date; PGCB demand is generation-side demand.</p></div></details>`;
  }
  function render(){
   const ctx=context(),{date,dates,pgcb}=ctx,index=dates.indexOf(date),limits=catalog.window;
@@ -98,6 +98,7 @@
   return `<details class="panel independent-study-panel" id="independent-study-panel" aria-labelledby="study-title" open>${summary}<div class="forecast-body"><div class="study-controls"><label>Operating date · Bangladesh time<div class="forecast-date-navigation"><button type="button" id="study-previous" aria-label="Previous forecast operating day" ${index<=0?'disabled':''}>←</button><select id="study-date" aria-label="Independent forecast operating day">${options([...dates].reverse(),date,shortDate)}</select><button type="button" id="study-next" aria-label="Next forecast operating day" ${index>=dates.length-1?'disabled':''}>→</button></div></label></div><div class="forecast-subplots">${subplots(ctx,false)}</div><p class="note">Top three per target by evaluation MAE, ${esc(shortDate(limits.start))} – ${esc(shortDate(limits.end))}; rank 1 is selected initially. Rankings are retrospective. Demand uses ERP substation-side demand; generation uses ERP generation including imports. PGCB scenarios are excluded from model inputs.</p><p class="note">${pgcbNote} PGCB demand MAE uses generation-side ERP or workbook P4 actuals, never substation demand. PGCB generation MAE uses ERP generation actuals. Each MAE uses only matching hourly readings; the demand scores have different measurement bases.</p><p class="note">${issueNote(ctx)} ${esc(bundle.availability)}</p></div></details>`;
  }
  function bind(rerender){
+  document.querySelector('#today-forecast-panel')?.addEventListener('toggle',event=>{todayExpanded=event.target.open;const hint=event.target.querySelector('.forecast-summary>span');if(hint)hint.textContent='Operating date · '+shortDate(context(true).date)+' · '+(todayExpanded?'Collapse':'Expand')});
   document.querySelector('#independent-study-panel')?.addEventListener('toggle',event=>{if(expanded!==event.target.open){expanded=event.target.open;rerender()}});
   document.querySelector('#study-date')?.addEventListener('change',event=>{if(context().dates.includes(event.target.value)){selectedDate=event.target.value;rerender()}});
   for(const target of targets)document.querySelector('#study-'+target)?.addEventListener('change',event=>{if(names(target).includes(event.target.value)){choices[target]=event.target.value;rerender()}});
