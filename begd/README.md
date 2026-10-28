@@ -263,3 +263,11 @@ A shared, initially unchecked **Yesterday’s data** option above the realtime p
 The snapshot includes exact-date ERP fuel and import history in a separate `realtime_history` display bundle. This uses a dedicated detailed-generation cache, preserving the model-training generation schema and frozen forecasts. India routes come from the imports page; Nepal comes from generation. The forecast plots use matching historical actuals and forecast issues; their displayed MAE remains today's score. Missing historical readings stay blank and plots with no matching series explain the gap. Total imports and import dependence require all four routes at the same timestamp.
 
 **Today’s BEGD & PGCB forecasts** starts collapsed. Click its summary, or focus it and press Enter/Space, to expand it. This state is retained when toggling yesterday.
+
+## News (TEST)
+
+The final sidebar tab, after Forecast and a divider, opens `#news`. It loads independently of ERP workbooks from `news-data.json`, currently a saved catalog of 94 articles (18 Bangla) spanning 30 July–27 October 2026. This is selective research coverage, not an exhaustive archive. Automatic news collection is not enabled. The refresh status records the catalog update date rather than page-load time. The original refresh time was not recorded.
+
+Search, publisher, manually assigned story group, and All / English / বাংলা filters combine; Reset clears them and returns to page 1. The list is newest first and shows 20 articles per page, with numbered pagination. Verified posting times use AM/PM in Asia/Dhaka; unknown times are explicitly labeled. Date-only articles have no assumed posting time. New badges and pale-yellow cards apply only to verified timestamps less than 24 hours old and expire on a one-minute check. Related coverage uses manually curated event IDs and names, not automatic clustering.
+
+The Pages build copies the catalog and assets without adding a service or credentials. To update coverage, review source links, publication dates/times, language, short paraphrased summaries and group assignments in the JSON. Update successful-refresh metadata only after validating the catalog. Source-evidence notes are retained per article. Grid-history links remain a proposed feature.
