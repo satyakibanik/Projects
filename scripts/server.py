@@ -564,6 +564,7 @@ def parse_report_item(report):
     result["report_name"] = report["name"]
     result["published_date"] = report["published_date"]
     result["source_url"] = report["download_url"]
+    result["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
     with cache_lock:
         report_data_cache[report["id"]] = (time.time(), result)
     return result

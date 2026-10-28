@@ -425,6 +425,7 @@
   function draw() {
     if(root.location.hash!=='#trends')return;
     hideFloatingTooltip();
+    root.BEGDDataStatus?.set('trends',[{label:period==='10y'?'Historical dataset updated':'Trends data updated',value:period==='10y'?history?.generated_at:bundle?.generated_at},...(period==='10y'?[{label:'Historical coverage through',value:history?.end_date}]:[])]);
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
