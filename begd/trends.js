@@ -169,15 +169,16 @@
       series.forEach(s=>{
         let path='',connected=false;
         rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${seriesY(v,s)} `;connected=true});
-        body+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
+        body+=`<g data-trend-series="${escape(s.name)}"><path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
         if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
+        body+='</g>';
       });
     }
     if(fitted){
       const start=rows[fitted.start],end=rows[fitted.end];
       body+=`<path data-cost-trendline-path d="M${x(fitted.start)},${y(fitted.value(start))} L${x(fitted.end)},${y(fitted.value(end))}" fill="none" stroke="${fitted.color}" stroke-width="3" stroke-dasharray="9 6" aria-label="${escape(fitted.name)} · least squares over ${fitted.count} reported days"/>`;
     }
-    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`;
+    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${s.name==='Imports'?'<img class="bpdb-fuel-icon" src="plant-icons/import-export.png" alt="">':''}${escape(s.name)}</label>`;
     const group=options.groupLayers?allSeries.filter(s=>s.name!=='Reported total'):[];
     const active=group.filter(s=>!hidden.has(stableId(s.name))).length;
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
@@ -358,12 +359,23 @@
       host.querySelector(`[data-cost-average-days="${costAverageDays}"]`)?.focus({preventScroll:true});
     }));
     unbound(host,'[data-cost-trendline]').forEach(control=>control.addEventListener('change',()=>{costTrendline=control.checked;refreshLayerChart(control)}));
-    unbound(host,'[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
+    unbound(host,'[data-trend-layer]').forEach(control=>{
+      const label=control.closest?.('label'),wrap=control.closest?.('.trends-chart');
+      const highlight=active=>wrap?.querySelectorAll('[data-trend-series]').forEach(group=>{
+        const selected=active&&control.checked&&group.dataset.trendSeries===control.dataset.trendLayer;
+        group.classList.toggle('is-highlighted',selected);
+        group.classList.toggle('is-dimmed',active&&control.checked&&!selected);
+      });
+      label?.addEventListener('pointerenter',()=>highlight(true));label?.addEventListener('pointerleave',()=>highlight(false));
+      label?.addEventListener('focusin',()=>highlight(true));label?.addEventListener('focusout',()=>highlight(false));
+      control.addEventListener('change',()=>{
       const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
       const hidden=hiddenLayers.get(key)||new Set();
       control.checked?hidden.delete(name):hidden.add(name);hiddenLayers.set(key,hidden);
       refreshLayerChart(control);
-    }));
+      highlight(Boolean(label&&(label.matches(':hover')||label.contains(document.activeElement))));
+    });
+    });
     unbound(host,'[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
       temperatureDetail=control.dataset.temperatureDetail;draw();
       [...host.querySelectorAll('[data-temperature-detail]')].find(button=>button.dataset.temperatureDetail===temperatureDetail)?.focus({preventScroll:true});

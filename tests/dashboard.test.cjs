@@ -218,3 +218,10 @@ test('regional stacked comparisons have full-bar hatching, numbered dates and ma
  const again=vm.runInContext('regionalSnapshotChart()',c);assert.notEqual(html.match(/pattern id="([^"]+)"/)[1],again.match(/pattern id="([^"]+)"/)[1]);
  const line=vm.runInContext("regionalSnapshotStyle='line';regionalSnapshotChart()",c);assert.doesNotMatch(line,/class="regional-date-number"/);
 });
+
+test('fuel icons remain in legends without adding icons to series endpoints',()=>{
+ const c=app();
+ const html=vm.runInContext(`chart([{time:'00:00',gas:10},{time:'23:00',gas:20}],[{key:'gas',name:'Gas',color:'#123456',fuelIcon:'gas-factory.png'}])`,c);
+ assert.match(html,/class="series-fuel-icon"/);assert.match(html,/gas-factory.png/);
+ assert.doesNotMatch(html,/series-end-icon|<mask|<image/);
+});
