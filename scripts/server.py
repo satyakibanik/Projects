@@ -206,6 +206,9 @@ def fetch_current_day():
         "imports": imports,
         "source_urls": [CURRENT_DEMAND_URL, CURRENT_GENERATION_URL,
                         CURRENT_INDIA_IMPORT_URL],
+        "fetched_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "erp_posted_at": None,
+        "erp_posted_at_status": "not_exposed",
         "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     }
 

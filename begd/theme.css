@@ -112,3 +112,6 @@ nav a.nav-live.active:before{display:none}
 .bangladesh-clock time{white-space:nowrap;color:var(--ink)}
 .data-updated{font:11px/1.7 var(--mono,monospace);color:var(--muted);margin:0 0 18px;overflow-wrap:anywhere}
 @media(max-width:700px){.header-title-row{flex-wrap:wrap}header .header-title-row>.brand{flex-basis:100%}.header-title-row .header-actions{width:100%;justify-content:flex-end}.bangladesh-clock{margin-right:auto;text-align:left}}
+
+.data-updated[data-view="realtime"]{white-space:nowrap;overflow-x:auto;overflow-wrap:normal;padding-bottom:4px}
+.data-updated[data-view="realtime"]:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
