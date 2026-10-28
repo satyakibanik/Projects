@@ -45,3 +45,27 @@ test('news mounts without a workbook and limits the main feed to 20 cards',async
  assert.equal((n('#news-results').innerHTML.match(/<article class="news-card/g)||[]).length,20);
  assert.match(n('#news-results').innerHTML,/News page 5/);assert.match(n('#content').innerHTML,/Last successful refresh/);
 });
+
+test('automatic collection status distinguishes partial and failed refreshes',()=>{
+ const {collectionStatus,newsGroups}=news().api;
+ const base={refresh_mode:'automatic',curated_on:'2026-10-27',last_successful_refresh_at:'2026-10-28T10:00:00+06:00',last_attempt_at:'2026-10-28T10:15:00+06:00',feed_status:[{status:'ok'},{status:'failed'}]};
+ assert.match(collectionStatus({...base,collection_status:'partial'}),/Partial collection/);
+ assert.match(collectionStatus({...base,collection_status:'partial'}),/1\/2 feeds checked/);
+ assert.match(collectionStatus({...base,collection_status:'failed'}),/keeping saved coverage/);
+ assert.match(collectionStatus(base),/every build/);assert.doesNotMatch(collectionStatus(base),/Automatic collection off/);
+ assert.deepEqual(Array.from(newsGroups({articles:[{event:'auto-single'},{event:'auto-pair'},{event:'auto-pair'},{event:'curated'}]})),['auto-pair','curated']);
+});
+
+test('open news tabs replace the catalog only with a newer valid build and retain it on errors',async()=>{
+ const seed=JSON.parse(fs.readFileSync(path.join(root,'begd/news-data.json'),'utf8'));
+ const first={...seed,last_attempt_at:'2026-10-28T10:00:00+06:00'};
+ let response=first;
+ const {api,node}=news('#news',async()=>({ok:true,json:async()=>response}));
+ await api.mount();
+ response={...first,refresh_mode:'automatic',collection_status:'success',last_attempt_at:'2026-10-28T10:15:00+06:00',last_successful_refresh_at:'2026-10-28T10:15:00+06:00'};
+ await api.refreshCatalog();assert.match(node('#content').innerHTML,/Automatic collection every build/);
+ const shown=node('#content').innerHTML;
+ response=first;await api.refreshCatalog();assert.equal(node('#content').innerHTML,shown);
+ response={...first,last_attempt_at:'bad'};await api.refreshCatalog();assert.equal(node('#content').innerHTML,shown);
+ response=null;await api.refreshCatalog();assert.equal(node('#content').innerHTML,shown);
+});
