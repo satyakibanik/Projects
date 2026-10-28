@@ -17,3 +17,10 @@ html[data-theme=dark] .bpdb-fuel-icon{filter:invert(1)}
 .bpdb-cost-panel.is-calculated .tag{border-color:#c28a21;color:var(--ink)}
 
 .bpdb-rate-basis{margin:0 18px 18px;font-size:12px}.bpdb-rate-basis summary{cursor:pointer;color:var(--ink);padding:8px 0}.bpdb-rate-basis>.table-wrap{overflow:auto}
+
+.series-fuel-icon{display:inline-block;flex:none;width:20px;height:20px;background:currentColor;mask:var(--fuel-icon) center/contain no-repeat;-webkit-mask:var(--fuel-icon) center/contain no-repeat}
+.trends-plot [data-trend-series]{transition:opacity .12s}
+.trends-plot [data-trend-series].is-dimmed{opacity:.16}
+.trends-plot [data-trend-series].is-highlighted>path{stroke-width:4}
+
+.legend [data-series-label] .series-fuel-icon{vertical-align:middle;margin-right:6px}

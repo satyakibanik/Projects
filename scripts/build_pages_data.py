@@ -295,6 +295,13 @@ def write_data_bundle(output_dir):
         print(f"Skipped {len(failures)} report(s): {', '.join(failures)}")
 
 
+def write_news_bundle(output_dir):
+    """News collection is independent of workbook and forecast calculations."""
+    from grid_news import collect
+    news = collect(ROOT / ".cache" / "grid-news", published_url="https://satyakibanik.github.io/Projects/begd/news-data.json")
+    (output_dir / "news-data.json").write_text(json.dumps(news, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default="_site")
@@ -307,6 +314,7 @@ def main():
     shutil.copy2(ROOT / "sitemap.xml", output / "sitemap.xml")
     shutil.copytree(DASHBOARD, output / "begd")
     write_data_bundle(output / "begd")
+    write_news_bundle(output / "begd")
 
 
 if __name__ == "__main__":

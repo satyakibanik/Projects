@@ -12,3 +12,5 @@ Icons supplied for BEGD, sourced from Flaticon. The same credits are linked in t
 | wind-energy.png | [Wind turbine icons by Magnific — Flaticon](https://www.flaticon.com/free-icons/wind-turbine) |
 | HSD.png | [Diesel icons by Iconjam — Flaticon](https://www.flaticon.com/free-icons/diesel) |
 | HFO.png | [Combustion icons by alekseyvanin — Flaticon](https://www.flaticon.com/free-icons/combustion) |
+
+`import-export.png` is the import/export icon supplied by the user for BEGD.

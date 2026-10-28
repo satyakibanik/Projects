@@ -33,6 +33,13 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    await page.locator('nav a[href="#trends"]').click();
    await page.locator('.bpdb-average-panel').waitFor();
    assert.equal(await page.locator('.bpdb-cost-trend svg.trends-plot').count(),2);
+   const gas=page.locator('[data-trend-chart-key="bpdb-unit-cost"][data-trend-layer="Gas"]'),chart=page.locator('[data-trend-key="bpdb-unit-cost"]');
+   await gas.locator('..').hover();
+   assert.equal(await chart.locator('[data-trend-series="Gas"].is-highlighted').count(),1);
+   assert.equal(await chart.locator('[data-trend-series="Coal"].is-dimmed').count(),1);
+   await page.getByRole('heading',{name:'Average cost per kWh by fuel type',exact:true}).hover();
+   assert.equal(await chart.locator('.is-highlighted,.is-dimmed').count(),0);
+   await gas.focus();assert.equal(await chart.locator('[data-trend-series="Gas"].is-highlighted').count(),1);
    await page.locator('[data-cost-average-days="90"]').click();
    assert.equal(await page.locator('[data-cost-average-days="90"]').getAttribute('aria-pressed'),'true');
    await page.waitForFunction(()=>new URL(location.href).searchParams.get('costAverageDays')==='90');

@@ -14,7 +14,7 @@ const slides=[
  {id:'status',title:'Online / offline',description:'Online: reported output during the day. Offline: no reported output; this alone does not establish an outage.'}
 ];
 const colors=['#2878cd','#e67e28','#8b5bc7','#279d78','#df527b','#b18a1f','#19a1b3','#b85936','#6776c9','#5d8e39','#bd49a4','#627484'];
-const icons={Coal:'coal.png',Gas:'gas-factory.png',HFO:'HFO.png',HSD:'HSD.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png',Nuclear:'nuclear-plant.png'};
+const icons={Imports:'import-export.png',Coal:'coal.png',Gas:'gas-factory.png',HFO:'HFO.png',HSD:'HSD.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png',Nuclear:'nuclear-plant.png'};
 let preferred=0,instance=0;
 const categoryRegistry={region:new Map(),producer:new Map()};
 const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:1});

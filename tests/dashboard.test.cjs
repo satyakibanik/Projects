@@ -227,3 +227,21 @@ test('Operations passes selected and comparison circuits to the chart while keep
  vm.runInContext(`data={date:'2026-10-26',operations:{ewic:[{time:'00:00',ishwardi_ghorashal:1}]}};comparisonData.yesterday={date:'2026-10-25',operations:{ewic:[{time:'01:00',ishwardi_ghorashal:2}]}};chart=(rows,series)=>JSON.stringify({rows,series});metric=()=>'';`,c);
  const html=vm.runInContext('operations()',c);assert.match(html,/ishwardi_ghorashal_yesterday/);assert.match(html,/Yesterday \(25 Oct 2026\)/);assert.match(html,/selected and comparison operating dates/);
 });
+
+test('regional stacked comparisons have full-bar hatching, numbered dates and matching legend patterns',()=>{
+ const c=app();vm.runInContext(fs.readFileSync(path.join(root,'begd/comparisons.js'),'utf8'),c);
+ vm.runInContext(`data={date:'2026-10-26',regions:[{name:'Dhaka',energy_mwh:24000,demand_mw:2000,shed_mw:10}]};comparisonData.yesterday={date:'2026-10-25',regions:[{name:'Dhaka',energy_mwh:20000,demand_mw:1800,shed_mw:5}]};regionalSnapshotStyle='stacked';`,c);
+ const html=vm.runInContext('regionalSnapshotChart()',c);
+ assert.match(html,/class="regional-snapshot-date-outline"[^>]*fill="url\(#regional-dates-\d+-1\)"[^>]*pointer-events="none"/);
+ assert.match(html,/class="regional-date-number"[^>]*>1<\/text>/);assert.match(html,/class="regional-date-number"[^>]*>2<\/text>/);
+ assert.match(html,/2 · Yesterday · 25 Oct 2026/);assert.match(html,/regional-dates-\d+-legend-1/);
+ const again=vm.runInContext('regionalSnapshotChart()',c);assert.notEqual(html.match(/pattern id="([^"]+)"/)[1],again.match(/pattern id="([^"]+)"/)[1]);
+ const line=vm.runInContext("regionalSnapshotStyle='line';regionalSnapshotChart()",c);assert.doesNotMatch(line,/class="regional-date-number"/);
+});
+
+test('fuel icons remain in legends without adding icons to series endpoints',()=>{
+ const c=app();
+ const html=vm.runInContext(`chart([{time:'00:00',gas:10},{time:'23:00',gas:20}],[{key:'gas',name:'Gas',color:'#123456',fuelIcon:'gas-factory.png'}])`,c);
+ assert.match(html,/class="series-fuel-icon"/);assert.match(html,/gas-factory.png/);
+ assert.doesNotMatch(html,/series-end-icon|<mask|<image/);
+});
