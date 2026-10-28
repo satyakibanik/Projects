@@ -207,3 +207,14 @@ test('comparison tooltips show only the inspected date, without empty rows for t
  hits[0].events.focus();assert.match(tooltip.innerHTML,/31 Dec 2025/);assert.match(tooltip.innerHTML,/90 MW/);assert.doesNotMatch(tooltip.innerHTML,/100 MW|— MW/);
  hits[1].events.focus();assert.match(tooltip.innerHTML,/1 Jan 2026/);assert.match(tooltip.innerHTML,/100 MW/);assert.doesNotMatch(tooltip.innerHTML,/yesterday|90 MW|— MW/);
 });
+
+test('regional stacked comparisons have full-bar hatching, numbered dates and matching legend patterns',()=>{
+ const c=app();vm.runInContext(fs.readFileSync(path.join(root,'begd/comparisons.js'),'utf8'),c);
+ vm.runInContext(`data={date:'2026-10-26',regions:[{name:'Dhaka',energy_mwh:24000,demand_mw:2000,shed_mw:10}]};comparisonData.yesterday={date:'2026-10-25',regions:[{name:'Dhaka',energy_mwh:20000,demand_mw:1800,shed_mw:5}]};regionalSnapshotStyle='stacked';`,c);
+ const html=vm.runInContext('regionalSnapshotChart()',c);
+ assert.match(html,/class="regional-snapshot-date-outline"[^>]*fill="url\(#regional-dates-\d+-1\)"[^>]*pointer-events="none"/);
+ assert.match(html,/class="regional-date-number"[^>]*>1<\/text>/);assert.match(html,/class="regional-date-number"[^>]*>2<\/text>/);
+ assert.match(html,/2 · Yesterday · 25 Oct 2026/);assert.match(html,/regional-dates-\d+-legend-1/);
+ const again=vm.runInContext('regionalSnapshotChart()',c);assert.notEqual(html.match(/pattern id="([^"]+)"/)[1],again.match(/pattern id="([^"]+)"/)[1]);
+ const line=vm.runInContext("regionalSnapshotStyle='line';regionalSnapshotChart()",c);assert.doesNotMatch(line,/class="regional-date-number"/);
+});
