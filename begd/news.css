@@ -11,3 +11,11 @@ body.news-view .intro{margin-bottom:20px}body.news-view .intro .eyebrow{display:
 /* Bangla glyphs need a smaller headline size and more line spacing. */
 .news-card[lang="bn"] h2{font-size:20px;line-height:1.4}
 @media(max-width:600px){.news-card[lang="bn"] h2{font-size:18px}}
+
+/* Keep search controls compact until the reader needs them. */
+.news-search-settings{border:1px solid #698a9955;border-radius:4px;margin-bottom:12px}
+.news-search-settings>summary{cursor:pointer;padding:12px 14px;font-size:14px;font-weight:600}
+.news-search-settings>summary:focus-visible{outline:2px solid #c18a35;outline-offset:3px}
+.news-search-settings .news-tools{padding:4px 14px 0}
+.news-search-settings .news-group-help{margin:10px 14px 14px}
+.news-filter-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
