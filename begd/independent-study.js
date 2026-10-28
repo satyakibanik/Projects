@@ -111,5 +111,5 @@
    if(next){selectedDate=next;rerender();document.querySelector('#'+id)?.focus({preventScroll:true})}
   });
  }
- window.BEGDIndependentStudy={render,renderToday,bind};
+ window.BEGDIndependentStudy={render,renderToday,bind,freshness:()=>context().forecast?.issued_at||bundle.issued_at};
 })();
