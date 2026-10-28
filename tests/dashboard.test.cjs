@@ -207,3 +207,23 @@ test('comparison tooltips show only the inspected date, without empty rows for t
  hits[0].events.focus();assert.match(tooltip.innerHTML,/31 Dec 2025/);assert.match(tooltip.innerHTML,/90 MW/);assert.doesNotMatch(tooltip.innerHTML,/100 MW|— MW/);
  hits[1].events.focus();assert.match(tooltip.innerHTML,/1 Jan 2026/);assert.match(tooltip.innerHTML,/100 MW/);assert.doesNotMatch(tooltip.innerHTML,/yesterday|90 MW|— MW/);
 });
+
+test('Operations overlays every comparison source on the union of EWIC timestamps without zero-filling',()=>{
+ const c=app();
+ const report={date:'2026-10-26',operations:{ewic:[{time:'00:00',ishwardi_ghorashal:0,sirajganj_sreepur:-10,gopalganj_aminbazar:20},{time:'02:00',ishwardi_ghorashal:30}]}};
+ const sources=[['yesterday',{date:'2026-10-25',operations:{ewic:[{time:'01:00',ishwardi_ghorashal:-40,sirajganj_sreepur:50}]}}],['tomorrow',{date:'2026-10-27',operations:{ewic:[]}}],['highest',{date:'2026-05-20',operations:{ewic:[{time:'02:00',gopalganj_aminbazar:60}]}}],['custom_2026-09-13',{date:'2026-09-13',operations:{ewic:[{time:'03:00',ishwardi_ghorashal:70}]}}]];
+ const result=vm.runInContext(`operationsFlowComparison(${JSON.stringify(report)},${JSON.stringify(sources)})`,c);
+ assert.deepEqual(Array.from(result.rows,r=>r.time),['00:00','01:00','02:00','03:00']);
+ assert.equal(result.rows[0].ishwardi_ghorashal,0);assert.equal(result.rows[0].sirajganj_sreepur,-10);
+ assert.equal(result.rows[1].ishwardi_ghorashal,null);assert.equal(result.rows[1].ishwardi_ghorashal_yesterday,-40);
+ assert.equal(result.rows[2].gopalganj_aminbazar_highest,60);
+ assert.equal(result.rows[3]['ishwardi_ghorashal_custom_2026-09-13'],70);
+ assert.equal(result.series.length,15);assert.match(result.series[3].name,/Yesterday \(25 Oct 2026\)/);
+ assert.equal(result.series[3].source,'yesterday');assert.equal(result.series[0].key,'ishwardi_ghorashal');
+ assert.equal(result.rows[0].ishwardi_ghorashal_tomorrow,null);
+});
+test('Operations passes selected and comparison circuits to the chart while keeping daily summaries selected-day only',()=>{
+ const c=app();
+ vm.runInContext(`data={date:'2026-10-26',operations:{ewic:[{time:'00:00',ishwardi_ghorashal:1}]}};comparisonData.yesterday={date:'2026-10-25',operations:{ewic:[{time:'01:00',ishwardi_ghorashal:2}]}};chart=(rows,series)=>JSON.stringify({rows,series});metric=()=>'';`,c);
+ const html=vm.runInContext('operations()',c);assert.match(html,/ishwardi_ghorashal_yesterday/);assert.match(html,/Yesterday \(25 Oct 2026\)/);assert.match(html,/selected and comparison operating dates/);
+});
