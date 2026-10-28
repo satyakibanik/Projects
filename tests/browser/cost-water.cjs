@@ -7,7 +7,7 @@ const report={...fixture.report,date:'2026-10-26',published_date:'2026-10-27',
   {name:'Karnaphuli Hydro PP Unit-1,2,3,4, 5',fuel:'Hydro',producer:'PDB',region:'Chattogram',status:'running',installed_capacity_mw:230,present_capacity_mw:230,peak_generation_mw:40,energy_mwh:720,hourly:[{time:'00:00',mw:20},{time:'01:00',mw:30},{time:'02:00',mw:40}]},
   {name:'Karnaphuli Power Ltd.',fuel:'HFO',producer:'IPP',status:'running',hourly:[{time:'00:00',mw:80}]}
  ],water_level:{source_range:'GenLog!FG13:FG37',hourly:[{time:'00:00',level_ft_msl:102.13},{time:'01:00',level_ft_msl:null},{time:'02:00',level_ft_msl:102.05}]}};
-const cost=date=>({date,currency:'BDT',total_bdt:70000000,costs_bdt:{Gas:10000000,Coal:50000000,Oil:0,Imports:10000000},generation_kwh:{Gas:2000000,Coal:10000000},source_label:'Production Cost (Tk.)'});
+const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:10000000,Coal:50000000,Oil:0},generation_kwh:{Gas:2000000,Coal:10000000},source_label:'Production Cost (Tk.)'});
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{
@@ -43,11 +43,6 @@ const cost=date=>({date,currency:'BDT',total_bdt:70000000,costs_bdt:{Gas:1000000
    await page.locator('[data-cost-average-days="90"]').click();
    assert.equal(await page.locator('[data-cost-average-days="90"]').getAttribute('aria-pressed'),'true');
    await page.waitForFunction(()=>new URL(location.href).searchParams.get('costAverageDays')==='90');
-   await page.locator('nav a[href="#imports"]').click();
-   await page.locator('#bpdb-import-cost .interactive-chart').waitFor();
-   assert.match(await page.locator('#bpdb-import-cost').innerText(),/2 \/ 365 days reported/);
-   assert.match(await page.locator('#bpdb-import-cost').innerText(),/Individual route costs are not available/);
-   assert.equal(await page.locator('#bpdb-import-cost .series-end-icon').count(),1);
    await page.locator('nav a[href="#plants"]').click();
    await page.locator('[data-filter="name"]').fill('Karnaphuli Hydro');await page.locator('.plant-row').click();
    const axis=page.locator('.chart-secondary-axis'),water=page.locator('[data-toggle-series="water_level_ft_msl"]');

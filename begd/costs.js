@@ -71,18 +71,6 @@
  const icons={Imports:'import-export.png',Coal:'coal.png',Gas:'gas-factory.png',HFO:'HFO.png',HSD:'HSD.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png'};
  let tableSort={key:'share',direction:'desc'};
  function fuelIcon(name){return icons[name]?`<img class="bpdb-fuel-icon" src="plant-icons/${icons[name]}" alt="">`:`<i class="bpdb-cost-dot" style="background:${colors[name]||'#758c99'}"></i>`;}
- function importPanel(date,plot){
-  const start=shiftDate(date,-364),rows=Array.from({length:365},(_,i)=>{const day=shiftDate(start,i),cost=forDate(day)?.costs_bdt?.Imports;return {date:day,time:dateLabel(day),day:i,import_cost_crore:finite(cost)?cost/1e7:null}});
-  const reported=rows.filter(row=>finite(row.import_cost_crore));
-  const summary=reported.length?`${reported.length} / 365 days reported · latest ${dateLabel(reported.at(-1).date)}`:loadFailed?'Cost data unavailable. Reload to retry.':'No reported import costs in this window.';
-  return `<section class="panel full"><div class="panel-head"><div><h2>Cost of electricity imports</h2><p>${esc(summary)}</p></div><span class="tag">BDT CRORE · DAILY</span></div>${plot(rows,[{key:'import_cost_crore',name:'Total import cost',color:colors.Imports,fuelIcon:'import-export.png'}],{key:'imports:cost',unit:'BDT crore',xKey:'day',xMax:364,preserveGaps:true,xTicks:[0,91,182,273,364].map(day=>({day,label:dateLabel(rows[day].date)}))})}<p class="note">365 calendar days through ${esc(dateLabel(date))}. Source: <a href="https://misc.bpdb.gov.bd/daily-generation-archive" target="_blank" rel="noopener">BPDB Page 1 PDFs</a>, reported Imports category. Missing dates remain gaps. 1 crore = 10,000,000 BDT. Individual route costs are not available in this dataset; the total is not allocated between routes. Published production costs may differ from full purchase expenditure.</p></section>`;
- }
- async function mountImports(date,plot,bind){
-  await load();
-  const host=document.getElementById('bpdb-import-cost');
-  if(host?.dataset.costDate!==date)return;
-  host.innerHTML=importPanel(date,plot);bind();
- }
  function costRate(row,name){const energy=row.generation_kwh?.[name],cost=row.costs_bdt?.[name];return finite(cost)&&finite(energy)&&energy>0?cost/energy:null;}
  function breakdown(row){const sum=Object.values(row.costs_bdt).reduce((a,b)=>a+b,0);return Object.keys(row.calculated?row.generation_kwh:row.costs_bdt).map(name=>{const cost=row.costs_bdt[name];return {name,cost:finite(cost)?cost:null,share:finite(cost)?(sum>0?cost/sum*100:0):null,rate:row.calculated?row.rate_basis.fuels[name]?.rate??null:costRate(row,name)};});}
  function sortBreakdown(entries,sort=tableSort){return [...entries].sort((a,b)=>{
@@ -165,5 +153,5 @@
   const host=document.getElementById('bpdb-day-cost');
   if(host?.dataset.costDate===date){host.innerHTML=dayPanel(date,undefined,report);bindDay(host,date,report);}
  }
- root.BEGDCosts={importPanel,mountImports,icons,fuelIcon,load,setData,valid,forDate,series,trendPanel,averageCosts,calculatedCosts,averagePanel,piePanel,dayPanel,costDateFor,mountDay,costRate,breakdown,sortBreakdown,bindDay};
+ root.BEGDCosts={load,setData,valid,forDate,series,trendPanel,averageCosts,calculatedCosts,averagePanel,piePanel,dayPanel,costDateFor,mountDay,costRate,breakdown,sortBreakdown,bindDay};
 })(window);
