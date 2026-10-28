@@ -218,3 +218,13 @@ test('regional stacked comparisons have full-bar hatching, numbered dates and ma
  const again=vm.runInContext('regionalSnapshotChart()',c);assert.notEqual(html.match(/pattern id="([^"]+)"/)[1],again.match(/pattern id="([^"]+)"/)[1]);
  const line=vm.runInContext("regionalSnapshotStyle='line';regionalSnapshotChart()",c);assert.doesNotMatch(line,/class="regional-date-number"/);
 });
+
+test('fuel endpoint icons use each series last finite reading and follow visibility',()=>{
+ const c=app();
+ const html=vm.runInContext(`chart([{time:'00:00',gas:10,coal:null},{time:'12:00',gas:20,coal:30},{time:'23:00',gas:null,coal:40}],[{key:'gas',name:'Gas',color:'#123456',fuelIcon:'gas-factory.png'},{key:'coal',name:'Coal',color:'#654321',fuelIcon:'coal.png',defaultVisible:false}])`,c);
+ assert.equal((html.match(/class="series-end-icon"/g)||[]).length,1);
+ assert.match(html,/<image href="plant-icons\/gas-factory.png"/);assert.doesNotMatch(html,/<image href="plant-icons\/coal.png"/);
+ assert.match(html,/fill="#123456" mask="url/);assert.match(html,/--fuel-icon:url\('plant-icons\/gas-factory.png'\)/);
+ const position=Number(html.match(/<image[^>]+x="([^"]+)"/)[1])+9;
+ assert.ok(Math.abs(position-(58+720/1380*(800-58-15)))<.001);
+});

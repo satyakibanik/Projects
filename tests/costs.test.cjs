@@ -119,3 +119,18 @@ test('second cost chart uses independently keyed per-fuel rates and selectable a
  for(const days of [7,30,60,90,365])assert.match(html,new RegExp(`data-cost-average-days="${days}"`));
  assert.match(html,/data-cost-average-days="7" aria-pressed="true"/);assert.match(html,/Average cost per kWh by fuel type/);
 });
+
+ test('import cost history uses reported Imports only, retains missing dates and excludes future values',()=>{
+  const api=load();api.setData({days:[{...row,total_bdt:70000000,costs_bdt:{...row.costs_bdt,Imports:10000000}},{...row,date:'2026-10-27',total_bdt:80000000,costs_bdt:{...row.costs_bdt,Imports:20000000}}]});
+  let rows,layers,options;
+  const html=api.importPanel('2026-10-26',(r,s,o)=>{rows=r;layers=s;options=o;return '<svg/>'});
+  assert.equal(rows.length,365);assert.equal(rows.at(-1).date,'2026-10-26');assert.equal(rows.at(-1).import_cost_crore,null);assert.equal(rows.at(-2).import_cost_crore,1);
+  assert.equal(layers.length,1);assert.equal(options.unit,'BDT crore');assert.equal(options.preserveGaps,true);assert.match(html,/Individual route costs are not available/);
+  assert.match(api.piePanel(row.date),/plant-icons\/import-export.png/);
+ });
+ test('late import-cost responses cannot populate a different report date',async()=>{
+  let resolve;const host={dataset:{costDate:'2026-10-26'},innerHTML:''};let bound=false;
+  const api=load({document:{getElementById:()=>host},fetch:()=>new Promise(r=>resolve=r)});
+  const pending=api.mountImports('2026-10-25',()=>'',()=>{bound=true});resolve({ok:true,json:async()=>({days:[row]})});await pending;
+  assert.equal(host.innerHTML,'');assert.equal(bound,false);
+ });
