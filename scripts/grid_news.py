@@ -20,10 +20,10 @@ FEEDS = (
     ('The Business Standard', 'en', 'https://www.tbsnews.net/top-news/rss.xml'),
     ('The Business Standard', 'en', 'https://www.tbsnews.net/economy/rss.xml'),
     ('The Daily Star', 'en', 'https://www.thedailystar.net/news/rss.xml'),
-    ('Prothom Alo', 'en', 'https://en.prothomalo.com/feed/'),
+    ('Prothom Alo English', 'en', 'https://en.prothomalo.com/feed/'),
     ('প্রথম আলো', 'bn', 'https://www.prothomalo.com/feed/'),
     ('বাংলা ট্রিবিউন', 'bn', 'https://www.banglatribune.com/feed/'),
-    ('জাগো নিউজ২৪', 'bn', 'https://www.jagonews24.com/rss/rss.xml'),
+    ('Jagonews24.com', 'bn', 'https://www.jagonews24.com/rss/rss.xml'),
 )
 POWER = re.compile(r'\b(?:electricity|power plant|power sector|power supply|power grid|national grid|power outage|power generation|power tariff|load[ -]?shedding|blackout|bpdb|pgcb|rooppur)\b|বিদ্যু[ৎত]|লোডশেডিং|লোডশেড|ব্ল্যাকআউট|পিডিবি|পিজিসিবি|রূপপুর', re.I)
 FUEL = re.compile(r'\b(?:lng|petrobangla|gas supply|gas shortage|gas tariff|coal import|coal supply)\b|এলএনজি|পেট্রোবাংলা|গ্যাস সরবরাহ|গ্যাসসংকট|গ্যাস সংকট|গ্যাসের দাম|কয়লা আমদানি|কয়লা আমদানি', re.I)
