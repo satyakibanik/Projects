@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function status(hash='#overview'){
- const clock={},updated={},events={},timers=[];
+ const clock={},updated={dataset:{}},events={},timers=[];
  const document={querySelector:s=>s==='#bangladesh-clock'?clock:updated,addEventListener(){}};
  const window={setInterval:(fn,ms)=>timers.push({fn,ms}),addEventListener:(name,fn)=>events[name]=fn};
  const location={hash};
@@ -26,4 +26,17 @@ test('clock ticks every second while source update times stay fixed and late tab
  api.set('trends',[{label:'Trends data updated',value:'2026-10-28T11:00:00Z'}]);assert.equal(updated.textContent,'Data updated: loading…');
  api.set('news',[{label:'News data updated',value:'2026-10-27'}]);assert.match(updated.textContent,/27 Oct 2026 · time unavailable/);
  api.set('news',[{label:'News data updated',value:null}]);assert.match(updated.textContent,/update time unavailable/);
+});
+
+test('realtime transparency separates source readings, unknown posting time, ERP fetch and browser chart updates',()=>{
+ const {api,updated}=status('#realtime');
+ const snapshot={today_date:'2026-10-28',updated_at:'2026-10-28T14:46:52Z',fetched_at:'2026-10-28T14:45:00Z',demand_hourly:[{time:'15:00'}],generation_hourly:[{time:'16:00'}],imports:[]};
+ api.realtime(snapshot,'2026-10-28T17:30:00Z');
+ assert.match(updated.textContent,/ERP reading: 28 Oct 2026, 16:00 BST/);
+ assert.match(updated.textContent,/ERP posted: not exposed/);
+ assert.match(updated.textContent,/ERP fetched: 28 Oct 2026, 20:45 BST/);
+ assert.match(updated.textContent,/Chart updated: 28 Oct 2026, 23:30 BST/);
+ assert.equal(updated.dataset.view,'realtime');assert.equal(updated.tabIndex,0);
+ api.realtime({today_date:'2026-10-28',demand_hourly:[],generation_hourly:[],imports:[]},null);
+ assert.match(updated.textContent,/ERP reading: unavailable/);assert.doesNotMatch(updated.textContent,/Invalid Date/);
 });

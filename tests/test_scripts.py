@@ -204,6 +204,20 @@ class ServerTests(unittest.TestCase):
             with self.assertRaises(LookupError):
                 server.parse_current_table(minimum_cells=3, url='https://example.test')
 
+    def test_current_day_records_fetch_time_without_inventing_post_time(self):
+        today = dt.datetime.now(server.ZoneInfo('Asia/Dhaka')).date().isoformat()
+        tables = {
+            server.CURRENT_DEMAND_URL: [(today, '22:00', ['date', '22:00', '100', '90', '10', ''])],
+            server.CURRENT_GENERATION_URL: [(today, '21:00', ['date', '21:00'] + ['1'] * 11)],
+            server.CURRENT_INDIA_IMPORT_URL: [(today, '20:00', ['date', '20:00'] + ['1'] * 6)],
+        }
+        with patch.object(server, 'parse_current_table', side_effect=lambda **kwargs: tables[kwargs['url']]):
+            result = server.fetch_current_day()
+        self.assertEqual(result['demand_hourly'][-1]['time'], '22:00')
+        self.assertIsNotNone(dt.datetime.fromisoformat(result['fetched_at']).tzinfo)
+        self.assertIsNone(result['erp_posted_at'])
+        self.assertEqual(result['erp_posted_at_status'], 'not_exposed')
+
     def test_current_day_cache_hit(self):
         with patch.object(server, 'current_day_cache', {'today_date': '2026-10-15'}), patch.object(server, 'current_day_cache_time', 100), patch.object(server.time, 'time', return_value=101), patch.object(server, 'fetch_current_day') as fetch:
             self.assertEqual(server.get_current_day()['today_date'], '2026-10-15')

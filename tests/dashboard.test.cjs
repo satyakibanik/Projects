@@ -245,3 +245,18 @@ test('fuel icons remain in legends without adding icons to series endpoints',()=
  assert.match(html,/class="series-fuel-icon"/);assert.match(html,/gas-factory.png/);
  assert.doesNotMatch(html,/series-end-icon|<mask|<image/);
 });
+
+test('realtime polling keeps chart update time on unchanged snapshots and retains readings when refresh fails',async()=>{
+ const c=app();c.location={hash:'#overview'};
+ const snapshot={today_date:'2026-10-28',updated_at:'2026-10-28T14:46:52Z',demand_hourly:[{time:'15:00'}],generation_hourly:[],imports:[]};
+ c.fetch=async()=>({ok:true,json:async()=>snapshot});
+ await vm.runInContext('loadCurrentDay()',c);
+ assert(Number.isFinite(Date.parse(vm.runInContext('currentDayChartUpdatedAt',c))));
+ vm.runInContext("currentDayChartUpdatedAt='2026-10-28T17:00:00Z'",c);
+ await vm.runInContext('loadCurrentDay()',c);
+ assert.equal(vm.runInContext('currentDayChartUpdatedAt',c),'2026-10-28T17:00:00Z');
+ c.fetch=async()=>{throw Error('offline')};await vm.runInContext('loadCurrentDay()',c);
+ assert.equal(vm.runInContext('currentDayData.demand_hourly[0].time',c),'15:00');
+ assert.equal(vm.runInContext('currentDayData.snapshot_refresh_failed',c),true);
+ assert.equal(vm.runInContext('currentDayChartUpdatedAt',c),'2026-10-28T17:00:00Z');
+});
