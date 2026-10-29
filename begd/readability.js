@@ -15,7 +15,7 @@ function roleFor(el,doc,nativeSize){
  if(el.closest('.dashboard-link .link-label'))return 'subheading';
  if(el.closest('.metric .value'))return el.matches('.value')?'metric':'small';
  if(el.closest('h2'))return 'heading';
- if(el.closest('.realtime-dispatch-plots>h3'))return 'heading';
+ if(el.closest('.realtime-dispatch-plots>h3,#energy-curve-hourly-title'))return 'heading';
  if(el.closest('h3,h4,h5,h6'))return 'subheading';
  if(el.namespaceURI==='http://www.w3.org/2000/svg')return 'chart';
  if(el.closest('table'))return 'table';
@@ -29,10 +29,16 @@ function roleFor(el,doc,nativeSize){
 function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.brand-logo,.mark')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
 function svgScale(el){try{const m=el.getScreenCTM();return m?Math.hypot(m.c,m.d)||1:1;}catch{return 1;}}
 
-const noteSelector='.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
+const noteSelector='.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
 const informationPanel='.forecast-subplot,.vb-combined,.plant-detail,.panel,.dispatch-main,.energy-band';
 function collapseNotes(){
  const groups=new Map();
+ // A slide re-renders its own content; replace the previous slide explanation.
+ for(const note of document.querySelectorAll('.plant-slide-info .plant-slide-note')){
+  const panel=note.closest('.panel');
+  panel?.querySelectorAll('.more-information .plant-slide-note').forEach(previous=>previous.remove());
+ }
+
  for(const note of document.querySelectorAll('#content '+noteSelector.split(',').join(',#content '))){
   const panel=note.closest(informationPanel);
   const disclosure=note.closest('details:not(.more-information)');

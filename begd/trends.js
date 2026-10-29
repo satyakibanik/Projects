@@ -431,7 +431,7 @@
     setupTooltips(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
     bindControls(host);
-    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
     document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
@@ -439,7 +439,7 @@
   async function mount() {
     document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#trends'));
     document.querySelector('#title').textContent='Long-term trends';
-    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix, imports and Kaptai water level · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
     ['report-date-controls','date-status','day-sources','error'].forEach(id=>{document.getElementById(id).hidden=true});
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';

@@ -29,7 +29,7 @@
  
 [data-text-role="small"],[data-text-role="micro"]{opacity:1!important;color:var(--ink,#243b4b)!important}
 
-.more-information{margin:14px 0 4px;border-top:1px solid var(--line,#dbe3db);padding-top:10px;clear:both}
+.more-information{margin:14px 0 4px;border:0!important;padding-top:0;clear:both}
 .more-information>summary{font:500 15px/1.4 "IBM Plex Sans",sans-serif;cursor:pointer;color:var(--ink);padding:6px 0;min-height:38px}
 .more-information>summary:focus-visible{outline:2px solid var(--blue,#477d9c);outline-offset:3px}
 .more-information[open]>summary{margin-bottom:10px}
@@ -39,3 +39,7 @@
 .interactive-chart,.trends-chart,.vb-combined{overflow-x:auto;max-width:100%}
 .interactive-chart>svg,.trends-chart>svg,.vb-combined>svg{min-width:600px}
 }
+
+.regional-fuel-table{table-layout:fixed;min-width:780px;width:100%}
+.regional-fuel-table th:first-child,.regional-fuel-table td:first-child{width:14ch;white-space:nowrap}
+.icon-references{margin-top:24px}.icon-references summary{cursor:pointer;font-size:15px;padding:10px 0}.icon-references details>div{display:flex;flex-wrap:wrap;gap:12px 24px}
