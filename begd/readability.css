@@ -49,3 +49,5 @@
 /* Tooltip dimensions must be final before the touch handler positions them. */
 .chart-tooltip.is-touch-tooltip,.trends-tooltip.is-touch-tooltip{font-size:14px!important;line-height:1.5}
 .is-touch-tooltip>strong{font-size:14px!important}
+
+.temperature-subplot-heading{flex-wrap:wrap}
