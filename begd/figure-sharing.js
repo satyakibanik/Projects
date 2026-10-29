@@ -13,7 +13,7 @@
     const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail'),svg=target.matches('svg')?target:target.querySelector('svg:not(.series-swatch)');
     const heading=(target.matches('.trends-generation-figure,.realtime-dispatch-plots')?cleanText(panel?.querySelector('h2')):cleanText(target.querySelector('h2,h3')))||cleanText(panel?.querySelector('h2,h3'))||'Grid figure';
     const label=target.matches('.fuel-report-chart')?cleanText(target.querySelector('.comparison-strip-label')):target.matches('.trends-chart,.regional-fuel-svg')?svg?.getAttribute('aria-label')?.split('. Missing dates')[0]||'':'';
-    const note=cleanText(panel?.querySelector('.panel-head p'));
+    const note=cleanText(panel?.querySelector('[data-panel-caption],.panel-head p'));
     const sourceRoot=target.matches('.forecast-subplot')?target:panel;
     const source=[...sourceRoot?.querySelectorAll('.note,.information-note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
     if(target.matches('.forecast-subplot'))source.push(...[...panel?.querySelectorAll('.forecast-body > .note')||[]].map(cleanText));

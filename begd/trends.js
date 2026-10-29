@@ -401,7 +401,7 @@
     wrap.querySelector('svg').replaceWith(next.querySelector('svg'));
     wrap.querySelector('[role=tooltip]').replaceWith(next.querySelector('[role=tooltip]'));
     wrap.dataset.trendChart=next.dataset.trendChart;
-    const note=wrap.querySelector('.bpdb-fit-note'),nextNote=next.querySelector('.bpdb-fit-note');
+    const note=wrap.querySelector('.bpdb-fit-note')||[...wrap.closest('.panel').querySelectorAll('[data-trend-note]')].find(note=>note.dataset.trendNote===key),nextNote=next.querySelector('.bpdb-fit-note');
     if(note)note.remove();if(nextNote)wrap.append(nextNote);
     wrap.querySelectorAll('[data-trend-layer]').forEach(input=>{input.checked=!hiddenLayers.get(key)?.has(stableId(input.dataset.trendLayer))});
     wrap.querySelectorAll('[data-trend-group]').forEach(input=>{
@@ -410,7 +410,7 @@
     });
     if(key==='generation-demand'){
       const panel=wrap.closest('.panel'),nextPanel=next.closest('.panel');
-      panel.querySelector('.panel-head p').textContent=nextPanel.querySelector('.panel-head p').textContent;
+      panel.querySelector('[data-panel-caption],.panel-head p').textContent=nextPanel.querySelector('.panel-head p').textContent;
       panel.querySelector('.trends-chart-controls').replaceWith(nextPanel.querySelector('.trends-chart-controls'));
       const temperature=panel.querySelector('.temperature-subplot'),nextTemperature=nextPanel.querySelector('.temperature-subplot');
       if(temperature)temperature.remove();if(nextTemperature)panel.querySelector('.trends-generation-figure').append(nextTemperature);
