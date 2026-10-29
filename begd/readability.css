@@ -37,9 +37,11 @@
 
 @media(max-width:600px){
 .interactive-chart,.trends-chart,.vb-combined{overflow-x:auto;max-width:100%}
-.interactive-chart>svg,.trends-chart>svg,.vb-combined>svg{min-width:600px}
+.vb-combined>svg{min-width:600px}
 }
 
 .regional-fuel-table{table-layout:fixed;min-width:780px;width:100%}
 .regional-fuel-table th:first-child,.regional-fuel-table td:first-child{width:14ch;white-space:nowrap}
 .icon-references{margin-top:24px}.icon-references summary{cursor:pointer;font-size:15px;padding:10px 0}.icon-references details>div{display:flex;flex-wrap:wrap;gap:12px 24px}
+
+.plant-table-hint{font-family:"IBM Plex Sans",sans-serif;font-weight:400!important;white-space:normal}
