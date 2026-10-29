@@ -27,7 +27,7 @@ function roleFor(el,doc,nativeSize){
  if(el.closest('p,li,blockquote,.hero-description'))return 'body';
  if(nativeSize<=12)return 'small';if(nativeSize>=30)return 'metric';return 'body';
 }
-function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.brand-logo,.mark')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
+function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.brand-logo,.mark,.chart-tooltip,.trends-tooltip,.plant-tooltip')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
 function svgScale(el){try{const m=el.getScreenCTM();return m?Math.hypot(m.c,m.d)||1:1;}catch{return 1;}}
 
 const noteSelector='.model-description,.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
