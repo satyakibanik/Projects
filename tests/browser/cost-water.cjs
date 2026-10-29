@@ -60,6 +60,7 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    const ticks=()=>page.locator('.plant-output-chart [data-tick-label]').allTextContents();const baseline=await ticks();
    await water.uncheck();assert.equal(await axis.count(),0);assert.deepEqual(await ticks(),baseline);
    await water.check();await axis.waitFor();assert.deepEqual(await ticks(),baseline);
+   await page.mouse.move(0,0);
    await page.locator('.plant-output-chart [data-point="0"]').focus();
    assert.match(await page.locator('.plant-output-chart .chart-tooltip').innerText(),/102.13 ft MSL/);
    assert.match(await page.locator('.plant-output-chart .chart-tooltip').innerText(),/20 MW/);
