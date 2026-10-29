@@ -15,6 +15,7 @@ function roleFor(el,doc,nativeSize){
  if(el.closest('.dashboard-link .link-label'))return 'subheading';
  if(el.closest('.metric .value'))return el.matches('.value')?'metric':'small';
  if(el.closest('h2'))return 'heading';
+ if(el.closest('.realtime-dispatch-plots>h3'))return 'heading';
  if(el.closest('h3,h4,h5,h6'))return 'subheading';
  if(el.namespaceURI==='http://www.w3.org/2000/svg')return 'chart';
  if(el.closest('table'))return 'table';
@@ -28,21 +29,37 @@ function roleFor(el,doc,nativeSize){
 function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.brand-logo,.mark')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
 function svgScale(el){try{const m=el.getScreenCTM();return m?Math.hypot(m.c,m.d)||1:1;}catch{return 1;}}
 
-const noteSelector='.note,.chart-help,.chart-touch-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
+const noteSelector='.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
+const informationPanel='.forecast-subplot,.vb-combined,.plant-detail,.panel,.dispatch-main,.energy-band';
 function collapseNotes(){
- const parents=new Map();
+ const groups=new Map();
  for(const note of document.querySelectorAll('#content '+noteSelector.split(',').join(',#content '))){
-  if(note.closest('.more-information,[role="status"],[role="alert"],.chart-tooltip,.plant-tooltip,.trends-tooltip')||(note.closest('details')&&!note.closest('details').classList.contains('panel'))||note.matches('[role="status"],[role="alert"]')||!note.textContent.trim())continue;
-  // Unavailable-data and error messages must remain visible.
+  const panel=note.closest(informationPanel);
+  const disclosure=note.closest('details:not(.more-information)');
+  // Top-level sources, comparison controls, errors and live status stay visible.
+  if(!panel||note.closest('[role="status"],[role="alert"],.chart-tooltip,.plant-tooltip,.trends-tooltip')||(disclosure&&!disclosure.classList.contains('panel'))||!note.textContent.trim())continue;
   if(/^(no |unavailable|unable |loading|failed|missing )/i.test(note.textContent.trim()))continue;
-  const parent=note.closest('.panel-head,.vb-chart-heading') ? note.closest('.panel,.vb-combined')||note.parentElement : note.parentElement;
-  if(!parents.has(parent))parents.set(parent,[]);
-  parents.get(parent).push(note);
+  if(note.parentElement.closest(noteSelector)&&note.parentElement.closest(noteSelector)!==panel)continue;
+  if(!groups.has(panel))groups.set(panel,[]);
+  groups.get(panel).push(note);
  }
- for(const [parent,notes] of parents){
-  let details=[...parent.children].find(el=>el.classList.contains('more-information'));
-  if(!details){details=document.createElement('details');details.className='more-information';const summary=document.createElement('summary');summary.textContent='More information';details.append(summary);parent.append(details);}
-  for(const note of notes){note.classList.add('information-note');details.append(note);}
+ for(const [panel,notes] of groups){
+  let details=[...panel.children].find(el=>el.classList.contains('more-information'));
+  if(!details){details=document.createElement('details');details.className='more-information';const summary=document.createElement('summary');summary.textContent='More information';details.append(summary);panel.append(details);}
+  const hints=new Set();
+  for(const note of notes){
+   const text=note.textContent.trim();
+   if(note.matches('.chart-help')&&!note.id){if(hints.has(text)){note.remove();continue;}hints.add(text);}
+   note.classList.add('information-note');if(note.parentElement!==details)details.append(note);
+  }
+ }
+ // Renderers can replace or clear a chart's notes. Never leave a blank disclosure.
+ for(const details of document.querySelectorAll('#content .more-information')){
+  const children=[...details.children].filter(el=>el.tagName!=='SUMMARY');
+  if(!children.some(el=>el.textContent.trim()&&!el.matches('.chart-touch-help,[hidden]'))){
+   for(const child of children)details.before(child);
+   details.remove();
+  }
  }
 }
 const nativeSizes=new WeakMap();
