@@ -60,7 +60,10 @@ test('all supplied generation icons exist with creator credits',()=>{
  for(const name of ['coal.png','gas-factory.png','HFO.png','HSD.png','hydroelectricity.png','solar.png','wind-energy.png','nuclear-plant.png']){
   assert(fs.existsSync(path.join(root,'begd/plant-icons',name)),name);assert(credits.includes(name),name);
  }
- for(const creator of ['Magnific','Mutualism','Andy Horvath','Iconfromus','Iconjam','alekseyvanin'])assert(source.includes(creator)&&credits.includes(creator));
+ const references=fs.readFileSync(path.join(root,'begd/app.js'),'utf8');
+ assert(references.includes('<summary>Icon references</summary>'));
+ assert(!source.includes('Plant icon credits · Flaticon'));
+ for(const creator of ['Magnific','Mutualism','Andy Horvath','Iconfromus','Iconjam','alekseyvanin'])assert(references.includes(creator)&&credits.includes(creator));
 });
 test('slide extension loads after the base map and before dashboard initialization',()=>{
  const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8');

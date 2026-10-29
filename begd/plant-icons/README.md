@@ -1,6 +1,6 @@
 # Generation type icon credits
 
-Icons supplied for BEGD, sourced from Flaticon. The same credits are linked in the dashboard's expandable Plant icon credits section.
+Icons supplied for BEGD, sourced from Flaticon. The same credits are linked in the Overview tab’s expandable Icon references section.
 
 | File | Creator and source |
 | --- | --- |

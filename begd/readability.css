@@ -1,0 +1,54 @@
+[data-text-role="body"]{font-size:17px!important}
+[data-text-role="small"]{font-size:14px!important}
+[data-text-role="controls"]{font-size:15px!important}
+[data-text-role="table"]{font-size:15px!important}
+[data-text-role="chart"]{font-size:13px!important}
+[data-text-role="micro"]{font-size:12px!important}
+[data-text-role="title"]{font-size:44px!important}
+[data-text-role="heading"]{font-size:28px!important}
+[data-text-role="subheading"]{font-size:21px!important}
+[data-text-role="reading"]{font-size:24px!important}
+[data-text-role="metric"]{font-size:36px!important}
+[data-text-role="article"]{font-size:24px!important}
+[data-text-role="bangla"]{font-size:22px!important}
+[data-text-role="brand"]{font-size:26px!important}
+[data-text-role="brand-acronym"]{font-size:15px!important;font-weight:700!important;color:var(--blue,#477d9c)!important}
+[data-text-role="hero"]{font-size:64px!important}
+@media(max-width:600px){[data-text-role="body"]{font-size:16px!important}[data-text-role="small"]{font-size:14px!important}[data-text-role="controls"]{font-size:15px!important}[data-text-role="table"]{font-size:14px!important}[data-text-role="chart"]{font-size:13px!important}[data-text-role="micro"]{font-size:12px!important}[data-text-role="title"]{font-size:36px!important}[data-text-role="heading"]{font-size:24px!important}[data-text-role="subheading"]{font-size:20px!important}[data-text-role="reading"]{font-size:22px!important}[data-text-role="metric"]{font-size:32px!important}[data-text-role="article"]{font-size:22px!important}[data-text-role="bangla"]{font-size:20px!important}[data-text-role="brand"]{font-size:22px!important}[data-text-role="brand-acronym"]{font-size:14px!important}[data-text-role="hero"]{font-size:42px!important}}
+ [data-text-role="chart"]{font-size:var(--readable-svg-size,13px)!important}
+ [data-text-role="body"],[data-text-role="small"]{line-height:1.55!important}
+ [data-text-role="heading"],[data-text-role="subheading"],[data-text-role="title"],[data-text-role="article"],[data-text-role="bangla"]{line-height:1.25!important}
+ label,button,select,input{line-height:1.4!important}button,input,select{min-height:38px}
+ .chart-legend,.chart-selector,.map-controls,.region-map-key,.news-language,.header-actions{flex-wrap:wrap!important}
+ .panel-head{flex-wrap:wrap!important;gap:12px!important}.region-map-reading{align-items:baseline;flex-wrap:wrap!important}
+ svg.chart,.interactive-chart svg,.trends-chart>svg{overflow:visible!important}
+ .chart-tooltip,.trends-tooltip,.plant-tooltip{max-width:min(440px,90vw)!important;white-space:normal!important}
+ .metric .value{white-space:normal!important}.brand-title{white-space:normal!important}
+ .header-title-row{flex-wrap:wrap!important}.header-title-row>.brand{flex:1 1 380px!important}.header-title-row .header-actions{flex:1 1 360px!important;justify-content:flex-end!important}
+ @media(max-width:1000px){.header-title-row>.brand{flex-basis:100%!important}.header-title-row .header-actions{width:100%!important;justify-content:space-between!important}.header-meta{flex-wrap:wrap!important;gap:14px!important}.header-meta #date-status{flex-basis:100%!important}}
+ @media(max-width:600px){header .brand{gap:10px!important}.brand-title{line-height:1.15!important}.bangladesh-clock{flex:1 1 100%!important;text-align:left!important}.header-title-row .header-actions{justify-content:flex-start!important}}
+ 
+[data-text-role="small"],[data-text-role="micro"]{opacity:1!important;color:var(--ink,#243b4b)!important}
+
+.more-information{margin:14px 0 4px;border:0!important;padding-top:0;clear:both}
+.more-information>summary{font:500 15px/1.4 "IBM Plex Sans",sans-serif;cursor:pointer;color:var(--ink);padding:6px 0;min-height:38px}
+.more-information>summary:focus-visible{outline:2px solid var(--blue,#477d9c);outline-offset:3px}
+.more-information[open]>summary{margin-bottom:10px}
+.more-information p{max-width:85ch;overflow-wrap:anywhere}
+
+@media(max-width:600px){
+.interactive-chart,.trends-chart,.vb-combined{overflow-x:auto;max-width:100%}
+.vb-combined>svg{min-width:600px}
+}
+
+.regional-fuel-table{table-layout:fixed;min-width:780px;width:100%}
+.regional-fuel-table th:first-child,.regional-fuel-table td:first-child{width:14ch;white-space:nowrap}
+.icon-references{margin-top:24px}.icon-references summary{cursor:pointer;font-size:15px;padding:10px 0}.icon-references details>div{display:flex;flex-wrap:wrap;gap:12px 24px}
+
+.plant-table-hint{font-family:"IBM Plex Sans",sans-serif;font-weight:400!important;white-space:normal}
+
+/* Tooltip dimensions must be final before the touch handler positions them. */
+.chart-tooltip.is-touch-tooltip,.trends-tooltip.is-touch-tooltip{font-size:14px!important;line-height:1.5}
+.is-touch-tooltip>strong{font-size:14px!important}
+
+.temperature-subplot-heading{flex-wrap:wrap}

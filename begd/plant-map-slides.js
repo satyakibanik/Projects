@@ -60,16 +60,6 @@ async function create(options){
  const heat=make(doc,'g',{class:'plant-map-heat','clip-path':'url(#plant-country-clip)','aria-hidden':'true'});svg.insertBefore(heat,svg.querySelector('.plant-map-boundaries'));
  const heatDefs=make(doc,'g');svg.querySelector('defs').append(heatDefs);
  const iconKey=doc.createElement('div');iconKey.className='plant-icon-key';iconKey.setAttribute('aria-label','Generation type icons');panel.querySelector('.plant-map-layout').before(iconKey);
- const credits=doc.createElement('details');credits.className='plant-icon-credits';credits.innerHTML=`<summary>Plant icon credits · Flaticon</summary><div>
- <a href="https://www.flaticon.com/free-icons/coal">Coal · Magnific</a>
- <a href="https://www.flaticon.com/free-icons/solar-panel">Solar panel · Mutualism</a>
- <a href="https://www.flaticon.com/free-icons/nuclear">Nuclear · Magnific</a>
- <a href="https://www.flaticon.com/free-icons/gas-factory">Gas factory · Andy Horvath</a>
- <a href="https://www.flaticon.com/free-icons/hydroelectric-power-station">Hydroelectric power station · Iconfromus</a>
- <a href="https://www.flaticon.com/free-icons/wind-turbine">Wind turbine · Magnific</a>
- <a href="https://www.flaticon.com/free-icons/diesel">Diesel (HSD) · Iconjam</a>
- <a href="https://www.flaticon.com/free-icons/combustion">Combustion (HFO) · alekseyvanin</a></div><p>Icons created by the credited authors on Flaticon.</p>`;
- panel.querySelector('.plant-map-layout').after(credits);credits.querySelectorAll('a').forEach(a=>{a.target='_blank';a.rel='noopener noreferrer'});
  function readout(plant){
   const slide=slides[index];if(slide.unit){const v=metric(plant,slide.id,options);return `${slide.title}: ${v===null?'Not reported':fmt(v)+' '+slide.unit}`;}
   return `${slide.title}: ${category(plant,slide.id,options)}`;
