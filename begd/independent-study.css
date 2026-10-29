@@ -45,6 +45,11 @@
 .pgcb-score .study-scores{display:grid;grid-template-columns:auto auto;gap:4px 12px}
 .pgcb-score .study-scores .note{grid-column:1/-1;text-align:right;margin:0}
 .forecast-report-context{margin:24px 0 12px}
+.forecast-study-info{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:14px 0 4px}
+.forecast-information-group{min-width:0;padding:12px 14px;border-left:2px solid var(--blue);background:var(--surface,#fff)}
+.forecast-information-group h3{margin:0 0 7px;font:600 16px/1.35 "IBM Plex Sans",sans-serif;color:var(--ink)}
+.forecast-information-group p.note{margin:0;max-width:none}
+@media(max-width:760px){.forecast-study-info{grid-template-columns:1fr}}
 .independent-study-panel .forecast-layer>.legend{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
 
 .realtime-comparison-controls{display:flex;align-items:center;flex-wrap:wrap;gap:8px 16px;margin:0 0 16px}

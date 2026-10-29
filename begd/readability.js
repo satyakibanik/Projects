@@ -5,7 +5,7 @@
 (()=>{'use strict';
 function roleFor(el,doc,nativeSize){
  if(el.matches('.plant-table-hint'))return 'controls';
- if(el.closest('.brand-acronym'))return 'micro';
+ if(el.closest('.brand-acronym'))return 'brand-acronym';
  if(el.closest('.brand-title'))return 'brand';
  if(el.closest('.news-card h2'))return el.closest('[lang="bn"]')?'bangla':'article';
  if(el.closest('.hero h1'))return 'hero';
@@ -27,10 +27,10 @@ function roleFor(el,doc,nativeSize){
  if(el.closest('p,li,blockquote,.hero-description'))return 'body';
  if(nativeSize<=12)return 'small';if(nativeSize>=30)return 'metric';return 'body';
 }
-function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.brand-logo,.mark,.chart-tooltip,.trends-tooltip,.plant-tooltip')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
+function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.mark,.chart-tooltip,.trends-tooltip,.plant-tooltip')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
 function svgScale(el){try{const m=el.getScreenCTM();return m?Math.hypot(m.c,m.d)||1:1;}catch{return 1;}}
 
-const noteSelector='.model-description,.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
+const noteSelector='.forecast-study-info,.model-description,.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
 const informationPanel='.forecast-subplot,.vb-combined,.plant-detail,.panel,.dispatch-main,.energy-band';
 function collapseNotes(){
  const groups=new Map();
