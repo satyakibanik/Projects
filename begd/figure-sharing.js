@@ -15,7 +15,7 @@
     const label=target.matches('.fuel-report-chart')?cleanText(target.querySelector('.comparison-strip-label')):target.matches('.trends-chart,.regional-fuel-svg')?svg?.getAttribute('aria-label')?.split('. Missing dates')[0]||'':'';
     const note=cleanText(panel?.querySelector('.panel-head p'));
     const sourceRoot=target.matches('.forecast-subplot')?target:panel;
-    const source=[...sourceRoot?.querySelectorAll('.note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
+    const source=[...sourceRoot?.querySelectorAll('.note,.information-note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
     if(target.matches('.forecast-subplot'))source.push(...[...panel?.querySelectorAll('.forecast-body > .note')||[]].map(cleanText));
     if(panel?.matches('.plant-detail'))source.push('Source: GenLog · hourly plant output · MW · Bangladesh time.');
     if(target.matches('.trends-generation-figure')&&panel?.nextElementSibling?.matches('.trends-temperature-note'))source.push(cleanText(panel.nextElementSibling));
