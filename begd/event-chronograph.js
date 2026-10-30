@@ -42,12 +42,18 @@
       const value = valueAt(readings, key, minutes);
       return `<div class="event-tooltip-reading"><span>${seriesName(key)}</span><strong>${value == null ? 'Unavailable' : `${Math.round(value).toLocaleString('en-US')} MW`}</strong></div>`;
     }).join('');
-    if (event.unavailable) return `<strong>${description}</strong><span class="event-tooltip-time">No event time reported</span><p>No timeseries point can be linked without a reported time.</p>`;
+    const summary = time => `<div class="event-tooltip-summary"><strong>${description}</strong><span class="event-tooltip-time">${time}</span></div>`;
+    if (event.unavailable) return `${summary('No event time reported')}<p>No timeseries point can be linked without a reported time.</p>`;
+    const note = '<small class="event-tooltip-note">Values between hourly readings are interpolated from P4 actuals.</small>';
     if (event.duration != null) {
-      return `<strong>${description}</strong><span class="event-tooltip-time">Outage ${formatClock(event.outage)} · restoration ${formatClock(event.restoration)} · ${event.duration} min</span><div class="event-tooltip-endpoint"><b>Start · ${formatClock(event.outage)}</b>${pointRows(event.outage)}</div><div class="event-tooltip-endpoint"><b>End · ${formatClock(event.restoration)}</b>${pointRows(event.end)}</div><small>Values between hourly readings are interpolated from P4 actuals.</small>`;
+      return `${summary(`Outage ${formatClock(event.outage)} · restoration ${formatClock(event.restoration)} · ${event.duration} min`)}<div class="event-tooltip-endpoint"><b>Start · ${formatClock(event.outage)}</b>${pointRows(event.outage)}</div><div class="event-tooltip-endpoint"><b>End · ${formatClock(event.restoration)}</b>${pointRows(event.end)}</div>${note}`;
     }
     const minutes = event.outage ?? event.restoration;
-    return `<strong>${description}</strong><span class="event-tooltip-time">${event.outage != null ? 'Outage' : 'Restoration'} · ${formatClock(minutes)}</span>${pointRows(minutes)}<small>Values between hourly readings are interpolated from P4 actuals.</small>`;
+    const values = seriesKeys.map(key => {
+      const value = valueAt(readings, key, minutes);
+      return `<div class="event-tooltip-endpoint"><b>${seriesName(key)}</b><strong>${value == null ? 'Unavailable' : `${Math.round(value).toLocaleString('en-US')} MW`}</strong></div>`;
+    }).join('');
+    return `${summary(`${event.outage != null ? 'Outage' : 'Restoration'} · ${formatClock(minutes)}`)}${values}${note}`;
   }
 
   function seriesTooltipMarkup(target) {
@@ -271,11 +277,13 @@
     return `<div class="event-density-chart-wrap"><svg class="event-density-svg" viewBox="0 0 1000 390" role="group" aria-label="Demand and generation curves with a 30-minute event activity histogram"><title>Demand and generation with 30-minute outage activity · P4 actual · MW</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top - 6}" width="${selectedWidth}" height="${activeY + 19 - (top - 6)}"/>${curveGrid}${timeTicks}<line class="event-density-separator" x1="${x0}" x2="${x1}" y1="${barsTop - 9}" y2="${barsTop - 9}"/><text class="event-density-section-label" x="${x0}" y="${barsTop - 15}">EVENT COUNTS · 30 MIN</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${curve('demand_mw')}${curve('generation_mw')}${bars}${chartLegend(1000)}</svg></div><div class="event-density-legend"><span class="outage-key">Outage</span><span class="restoration-key">Restoration</span></div><div class="event-density-mobile-picker" role="group" aria-label="Choose a 30-minute time window">${picker}</div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest, readings)}</section>`;
   }
 
-  function selectDensityBin(target) {
+  function selectDensityBin(target, pin = false) {
     const panel = target.closest('.event-chronograph-panel');
     const index = Number(target.dataset.densityIndex);
     const bin = densityBins([...currentEventsByIndex.values()])[index];
     if (!panel || !bin) return;
+    if (!pin && panel.dataset.densityPinned != null) return;
+    if (pin) panel.dataset.densityPinned = String(index);
     panel.querySelectorAll('[data-density-index]').forEach(node => {
       const selected = Number(node.dataset.densityIndex) === index;
       node.classList.toggle('is-selected', selected);
@@ -416,9 +424,10 @@
   document.addEventListener('click', event => {
     const densityBin = event.target.closest?.('[data-density-index]');
     if (densityBin) {
-      selectDensityBin(densityBin);
+      selectDensityBin(densityBin, true);
       return;
     }
+    document.querySelectorAll('[data-density-pinned]').forEach(panel => { delete panel.dataset.densityPinned; });
     const view = event.target.closest?.('[data-event-view-select]');
     if (view) {
       const panel = view.closest('.event-chronograph-panel');
@@ -450,7 +459,7 @@
     const densityBin = event.target.closest?.('.event-density-bin');
     if (densityBin && (event.key === 'Enter' || event.key === ' ')) {
       event.preventDefault();
-      selectDensityBin(densityBin);
+      selectDensityBin(densityBin, true);
       return;
     }
     if ((event.key === 'Enter' || event.key === ' ') && event.target.matches?.('[data-event-index][role=button]')) {
@@ -460,6 +469,7 @@
     }
     if (event.key !== 'Escape') return;
     const pinned = event.target.closest?.('.event-chronograph-panel');
+    if (pinned) delete pinned.dataset.densityPinned;
     pinned?.querySelectorAll('.event-context-group').forEach(node => { delete node.dataset.pinnedEvent; });
     event.target.closest?.('.event-chronograph-panel')?.querySelectorAll('[data-event-index].is-selected').forEach(node => node.classList.remove('is-selected'));
     event.target.closest?.('.event-context-group')?.querySelectorAll('.event-context-tooltip').forEach(node => { node.hidden = true; });

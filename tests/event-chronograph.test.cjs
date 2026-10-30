@@ -2,10 +2,10 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function viewer(){
- const listeners={};
- const context=vm.createContext({window:{},document:{addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
+ const listeners={},panels=[];
+ const context=vm.createContext({window:{},document:{querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/event-chronograph.js'),'utf8'),context);
- return {api:context.window.BEGDEventChronograph,listeners};
+ return {api:context.window.BEGDEventChronograph,listeners,panels};
 }
 test('normalisation handles midnight, missing times and zero-length periods',()=>{
  const {api}=viewer();
@@ -61,4 +61,23 @@ test('pulse counts outage and restoration endpoints separately without a period 
  assert.match(html,/Demand \(MW\)/);assert.match(html,/Generation \(MW\)/);
  assert.doesNotMatch(html,/event-view-description|Demand &amp; generation response/);
  assert.match(html,/event-lanes-scroll/);
+});
+
+test('pulse click locks selection against hover/focus until an outside click or Escape',()=>{
+ const {api,listeners,panels}=viewer();api.render([{outage_time:'01:00',restoration_time:'02:00'}],[]);
+ const selection={innerHTML:''},nodes=[],panel={dataset:{},querySelectorAll(){return nodes},querySelector(s){return s==='.event-density-selection'?selection:null}};
+ const target=index=>({dataset:{densityIndex:String(index)},closest(s){return s==='[data-density-index]'||s==='.event-density-bin'?this:s==='.event-chronograph-panel'?panel:null}});
+ panels.push(panel);
+ const clicked=target(2),other=target(4);
+ for(const fn of listeners.click)fn({target:clicked});
+ assert.equal(panel.dataset.densityPinned,'2');assert.match(selection.innerHTML,/01:00–01:30/);
+ for(const fn of listeners.pointerover)fn({target:other});
+ for(const fn of listeners.focusin)fn({target:other});
+ assert.match(selection.innerHTML,/01:00–01:30/);
+ for(const fn of listeners.click)fn({target:other});assert.equal(panel.dataset.densityPinned,'4');assert.match(selection.innerHTML,/02:00–02:30/);
+ for(const fn of listeners.click)fn({target:{closest(){return null}}});assert.equal(panel.dataset.densityPinned,undefined);
+ for(const fn of listeners.pointerover)fn({target:clicked});assert.match(selection.innerHTML,/01:00–01:30/);
+ for(const fn of listeners.click)fn({target:other});
+ for(const fn of listeners.keydown)fn({target:other,key:'Escape'});assert.equal(panel.dataset.densityPinned,undefined);
+ for(const fn of listeners.pointerover)fn({target:clicked});assert.match(selection.innerHTML,/01:00–01:30/);
 });
