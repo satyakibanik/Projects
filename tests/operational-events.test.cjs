@@ -19,10 +19,10 @@ test('description search is case-insensitive literal text and combines with cate
  const api=load(),rows=[{description:'Sylhet GT Tripped',category:'trip'},{description:'SYLHET synchronized',category:'synchronized'},{description:'Line . trip',category:'trip'}];
  assert.equal(api.filterRows(rows,' sylhet ','trip').length,1);assert.equal(api.filterRows(rows,'.','trip').length,1);assert.equal(api.filterRows(rows,'','').length,3);assert.equal(api.filterRows(rows,'missing','').length,0);
 });
-test('source text is escaped in every cell and unsafe source links are rejected',()=>{
+test('source text is escaped and dates open in-dashboard logs rather than workbook downloads',()=>{
  const api=load(),row={date:'2026-10-29',outage_time:'<img>',restoration_time:'—',category:'trip',description:'<script>alert(1)</script> & "full"',source_url:'javascript:alert(1)'};
  let html=api.rowsHTML([row]);assert.doesNotMatch(html,/<script>|<img>|href=/);assert.match(html,/&lt;script&gt;/);assert.match(html,/&amp; &quot;full&quot;/);
- row.source_url='https://erp.powergrid.gov.bd/web/files/download?location=erp%2Freport.xlsx';html=api.rowsHTML([row]);assert.match(html,/target="_blank" rel="noopener"/);
+ row.source_url='https://erp.powergrid.gov.bd/web/files/download?location=erp%2Freport.xlsx';html=api.rowsHTML([row]);assert.doesNotMatch(html,/href=|target=|files\/download/);assert.match(html,/data-operational-event-date="2026-10-29"/);assert.match(html,/Open daily event log for 2026-10-29/);
 });
 test('clock parsing preserves midnight, accepts 24:00 and rejects invalid source times',()=>{
  const api=load();assert.equal(api.clockMinutes('00:00'),0);assert.equal(api.clockMinutes('24:00'),1440);

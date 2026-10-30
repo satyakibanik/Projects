@@ -208,3 +208,5 @@
  .event-context-fixed .event-context-svg{width:100%;height:auto}
  .event-density-time-label,.event-density-y-label{font-size:13px}.event-density-section-label{font-size:12px}
 }
+
+.event-chronograph-panel{scroll-margin-top:110px}

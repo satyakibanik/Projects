@@ -51,13 +51,9 @@
     const needle=String(search||'').trim().toLocaleLowerCase();
     return rows.filter(row=>(!selected||row.category===selected)&&(!needle||String(row.description).toLocaleLowerCase().includes(needle)));
   }
-  function sourceURL(value){
-    try{const url=new URL(value);return url.protocol==='https:'&&url.hostname==='erp.powergrid.gov.bd'&&url.pathname==='/web/files/download'?url.href:null}catch{return null}
-  }
   function rowsHTML(rows){
     return rows.map(row=>{
-      const url=sourceURL(row.source_url);
-      const date=url?`<a href="${escape(url)}" target="_blank" rel="noopener">${escape(row.date)}</a>`:escape(row.date);
+      const date=`<button type="button" class="event-explorer-date" data-operational-event-date="${escape(row.date)}" aria-label="Open daily event log for ${escape(row.date)}">${escape(row.date)}</button>`;
       return `<tr><td class="event-explorer-time">${date}<br><span>${escape(row.outage_time||'—')} – ${escape(row.restoration_time||'—')}</span></td><td>${escape(labels[row.category]||labels.review)}</td><td class="remarks">${escape(row.description)}</td></tr>`;
     }).join('');
   }
@@ -96,6 +92,14 @@
       previous.disabled=page===0;next.disabled=start+PAGE_SIZE>=matches.length;
       pageLabel.textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(matches.length/PAGE_SIZE))}`;
     }
+    host.addEventListener('click',async event=>{
+      const button=event.target.closest('[data-operational-event-date]');if(!button)return;
+      button.disabled=true;
+      let opened=false;
+      try{opened=await root.BEGDView?.openOperationsLog(button.dataset.operationalEventDate)}catch{/* Retain the current view and show a local error below. */}
+      button.disabled=false;
+      if(!opened){const current=document.querySelector('#operational-event-explorer [data-event-result]');if(current)current.textContent='The operating report could not be opened. Please try again.';}
+    });
     search.addEventListener('input',()=>{query=search.value;page=0;render()});
     select.addEventListener('change',()=>{category=select.value;page=0;render()});
     previous.addEventListener('click',()=>{page=Math.max(0,page-1);render()});

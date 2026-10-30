@@ -1,7 +1,7 @@
 // Offline desktop/mobile integration: window changes, filters, pagination and retry.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {serve}=require('./fixture-site.cjs');
+const {serve,fixture}=require('./fixture-site.cjs');
 const bundle={version:1,end_date:'2026-10-29',days:[
  {date:'2026-10-29',report_id:'2',events:Array.from({length:65},(_,i)=>({outage_time:i===0?'—':'08:01',restoration_time:i===0?'09:00':'—',description:i===0?'Special line is restored.':`Unit ${i} Scheduled S/D Due to annual maintenance <full> & source`}))},
  {date:'2026-09-29',report_id:'1',events:[{outage_time:'03:00',restoration_time:'—',description:'Older generator Tripped with remarks:- flame failure'}]},
@@ -13,8 +13,13 @@ const bundle={version:1,end_date:'2026-10-29',days:[
  try{
   for(const width of [390,1440]){
    const context=await browser.newContext({viewport:{width,height:900},isMobile:width===390,hasTouch:width===390});
-   let requests=0,fail=false;const errors=[];
+   let requests=0,fail=false,failDate=false;const errors=[];
    await context.route('**/*',route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/api/report'&&url.searchParams.has('date')){
+      const date=url.searchParams.get('date');
+      return route.fulfill(failDate?{status:404,json:{error:'No report'}}:{json:{...fixture.report,date,report_id:'day-'+date,operations:{...fixture.report.operations,events:bundle.days.find(d=>d.date===date)?.events||[]}}});
+    }
     if(route.request().url().endsWith('/operational-events.json')){requests++;return route.fulfill(fail?{status:503,body:'Unavailable'}:{json:bundle})}
     return serve(route);
    });
@@ -44,6 +49,22 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    assert.ok(await page.locator('[data-trend-chart]').count()>0);
    fail=false;await page.getByRole('button',{name:'Retry event logs'}).click();
    await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('65 of 65'));
+   await page.locator('#operational-event-search').fill('Special');
+   const dateButton=page.locator('[data-operational-event-date="2026-10-29"]');
+   assert.equal(await dateButton.count(),1);
+   assert.equal(await page.locator('#operational-event-explorer a[href]').count(),0);
+   await dateButton.click();
+   await page.waitForFunction(()=>location.hash==='#operations'&&document.querySelector('#report-date').value==='2026-10-29'&&!document.querySelector('[data-event-view="table"]').hidden);
+   assert.match(page.url(),/date=2026-10-29#operations/);
+   assert.ok(await page.locator('.event-chronograph-panel').boundingBox());
+   await page.locator('[data-event-view-select="lanes"]').click();
+   await page.locator('nav a[href="#trends"]').click();
+   await page.locator('[data-operational-event-date="2026-10-29"]').click();
+   await page.waitForFunction(()=>location.hash==='#operations'&&!document.querySelector('[data-event-view="table"]').hidden);
+   await page.locator('nav a[href="#trends"]').click();failDate=true;
+   await page.locator('[data-operational-event-date="2026-10-29"]').click();
+   await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('could not be opened'));
+   assert.equal(new URL(page.url()).hash,'#trends');
    assert.deepEqual(errors,[]);
    console.log('PASS operational event explorer',width,'filters, all windows, pagination, missing fields and isolated retry');
    await context.close();
