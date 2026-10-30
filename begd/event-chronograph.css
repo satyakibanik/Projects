@@ -183,3 +183,28 @@
 .event-context-tooltip strong,.event-context-tooltip b{color:var(--ink)}
 .event-context-tooltip .event-tooltip-time{color:var(--green)}
 .event-context-tooltip small,.event-context-tooltip p{color:var(--muted)}
+
+/* Keep both timeline SVGs on one shared-width canvas when panning. */
+.event-context-canvas{position:relative;min-width:850px}
+.event-context-svg{min-width:0}
+.event-lanes-scroll{width:100%;touch-action:pan-y}
+.event-context-fixed .event-context-canvas{min-width:0}
+.event-context-fixed .event-context-wrap{overflow:hidden}
+.event-fixed-legend{display:flex;justify-content:flex-end;flex-wrap:wrap;gap:8px 18px;padding:8px 12px;color:var(--ink);font:12px var(--mono);background:var(--surface)}
+.event-fixed-legend span:before{content:"";display:inline-block;width:15px;height:3px;margin:0 5px 3px 0;background:currentColor}
+.event-chronograph-panel .event-fixed-legend .demand-key{color:var(--event-demand)!important}
+.event-chronograph-panel .event-fixed-legend .generation-key{color:var(--event-generation)!important}
+.event-density-chart-wrap{overflow-x:auto;overflow-y:hidden;overscroll-behavior-x:contain;touch-action:pan-x pan-y;background:var(--surface)}
+.event-density-mobile-picker{display:none!important}
+.event-density-selection{background:var(--surface)}
+.event-dial-span{stroke-width:8}
+.event-dial-hit{fill:none;stroke:transparent;stroke-width:26;pointer-events:stroke}
+.event-dial-point-hit{fill:transparent;pointer-events:all}
+.event-dial-event{touch-action:manipulation}
+.event-dial-event.is-selected .event-dial-span,.event-dial-event:hover .event-dial-span,.event-dial-event:focus-visible .event-dial-span{stroke-width:11}
+@media(max-width:760px){
+ .event-density-svg{width:2256px;max-width:none;height:390px}
+ .event-density-chart-wrap .event-fixed-legend{position:sticky;left:0;justify-content:flex-start;width:100%;box-sizing:border-box}
+ .event-context-fixed .event-context-svg{width:100%;height:auto}
+ .event-density-time-label,.event-density-y-label{font-size:13px}.event-density-section-label{font-size:12px}
+}
