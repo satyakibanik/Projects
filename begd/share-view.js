@@ -58,17 +58,5 @@
   });
   // Native hash navigation already added its history entry. Fill that entry with this view.
   root.addEventListener('hashchange',()=>{if(!restoring)commit({replace:true});});
-  async function openOperationsLog(date){
-    // Cancel an unfinished initial URL restore before the explicit selection.
-    const token=++revision;restoring=false;
-    // Reuse the picker loader so report data, comparison dates and URL agree.
-    if(!await selectOperatingDate(date)||token!==revision)return false;
-    root.location.hash='#operations';render();
-    await new Promise(resolve=>root.requestAnimationFrame(resolve));
-    const panel=document.querySelector('.event-chronograph-panel')||document.querySelector('[aria-label="Scrollable daily event log"]')?.closest('.panel');
-    panel?.querySelector('[data-event-view-select="table"]')?.click();
-    panel?.scrollIntoView({block:'start',behavior:'instant'});
-    return true;
-  }
-  root.BEGDView={start,commit,capture,openOperationsLog,get started(){return started;}};
+  root.BEGDView={start,commit,capture,get started(){return started;}};
 })(window);

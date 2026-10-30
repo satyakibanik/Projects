@@ -30,7 +30,6 @@
 
 .event-explorer-coverage{font-size:12px;color:var(--muted)}
 
-.event-explorer-date{appearance:none;border:0;padding:0;background:none;color:var(--blue);text-decoration:underline;font:inherit;cursor:pointer}
 .event-explorer-tabs{display:flex;gap:8px;margin:16px 0}
 .event-explorer-tabs [aria-selected=true]{background:var(--ink);color:var(--surface,#fff)}
 .event-heatmap-settings{padding:12px 0;border-bottom:1px solid var(--line)}
@@ -50,4 +49,4 @@
 [data-heatmap-evidence]{margin-top:22px}
 @media(max-width:600px){.event-heatmap-heading{align-items:flex-start;flex-direction:column}}
 
-.event-explorer-filters [hidden]{display:none!important}
+.event-explorer-filters[hidden],.event-explorer-filters [hidden]{display:none!important}
