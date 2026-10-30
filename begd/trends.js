@@ -136,10 +136,10 @@
       const tick=options.tickDecimals!=null?value.toLocaleString('en-US',{minimumFractionDigits:options.tickDecimals,maximumFractionDigits:options.tickDecimals}):unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10);
       body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${tick}</text>`;
     }
-    const ticks=options.annual
+    const ticks=options.ticks|| (options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
       :rows.length===365?monthTicks(rows)
-      :[...new Set(narrow?[0,rows.length-1]:[0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
+      :[...new Set(narrow?[0,rows.length-1]:[0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true})));
     for(const {index:i,label,sparse} of options.hideDateLabels?[]:ticks)
       body+=`<text class="trends-date-tick${sparse?' tick-sparse':''}" x="${x(i)}" y="${H-12}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${escape(label)}</text>`;
     if(empty)body+=`<text x="${(L+W-R)/2}" y="${H/2}" text-anchor="middle">${series.length?'No reported values in this window':'Select a legend layer to display'}</text>`;
@@ -170,7 +170,7 @@
         let path='',connected=false;
         rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${seriesY(v,s)} `;connected=true});
         body+=`<g data-trend-series="${escape(s.name)}"><path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
-        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
+        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.fiscal_year?'FY '+row.fiscal_year:row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
         body+='</g>';
       });
     }
@@ -207,13 +207,13 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'10y':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full BengalGrid history · 2015–2026':'Ending on the latest available operating day'}</span></div>`;
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
   }
   function waterLevelRows(end,count) {
     return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
   function content() {
-    if(period==='10y')return controls()+`<p class="trends-coverage">BengalGrid historical view · full available record, ${history?dateLabel(history.start_date)+' – '+dateLabel(history.end_date):'2015–2026'} · generation only</p>`+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels());
+    if(period==='10y')return controls()+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
@@ -263,7 +263,7 @@
     const fullValues=(record.allSeries||record.series).map(s=>s.value(row));
     const complete=fullValues.every(finite)&&fullValues.reduce((a,b)=>a+b,0)>0;
     const sum=complete?fullValues.reduce((a,b)=>a+b,0):null;
-    let html=`<strong>${row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
+    let html=`<strong>${row.fiscal_year?'FY '+escape(row.fiscal_year):row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
     if(row.window_days)html+=`<small>${row.window_days}-day average · temperature averages daily maxima</small>`;
     if(!tooltipSeries.length)html+='<small>No layers selected</small>';
     tooltipSeries.forEach((s,i)=>{
@@ -439,7 +439,7 @@
     root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),period,bundle?.end_date);
     bindControls(host);
     document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
-    document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
+    document.querySelector('#source').textContent=period==='10y'?'Sources: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0; Power Division / Power Cell annual system-loss table. Each panel shows its own coverage.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
   }
@@ -452,7 +452,7 @@
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     draw();
     if(!bundle&&!pending&&!failure){
-      pending=Promise.all([root.BEGDCosts?.load(),fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
+      pending=Promise.all([root.BEGDSystemLoss?.load(),root.BEGDCosts?.load(),fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
     }
     await pending;
   }
