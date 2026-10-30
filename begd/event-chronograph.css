@@ -137,3 +137,6 @@
 @media(max-width:760px){.event-view-controls{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.event-view-controls button{font-size:11px}.event-view-controls button:nth-child(2){border-right:0}.event-view-controls button:nth-child(-n+2){border-bottom:1px solid var(--line)}}
 .event-chronograph-panel .event-plot-legend .demand-key,.event-chronograph-panel .event-density-legend .demand-key{color:var(--event-demand)}
 .event-chronograph-panel .event-plot-legend .generation-key,.event-chronograph-panel .event-density-legend .generation-key{color:var(--event-generation)}
+.event-chronograph-panel .event-chronograph-list-item:hover,.event-chronograph-panel .event-chronograph-list-item:focus-visible{color:var(--ink);background:#69d5bc12}
+.event-chronograph-panel .event-plot-legend .demand-key,.event-chronograph-panel .event-density-legend .demand-key{color:var(--event-demand)!important}
+.event-chronograph-panel .event-plot-legend .generation-key,.event-chronograph-panel .event-density-legend .generation-key{color:var(--event-generation)!important}
