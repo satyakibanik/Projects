@@ -220,7 +220,7 @@
       const restorationTime = event.end ?? event.restoration;
       const restorationHere = restorationTime != null && restorationTime >= bin.start && restorationTime < bin.end;
       const label = outageHere && restorationHere ? 'Outage and restoration in window' : outageHere ? 'Outage in window' : restorationHere ? 'Restoration in window' : 'Ongoing from earlier';
-      return `<li><div class="event-density-item-head"><span>${esc(eventLabel(event))}</span><small>${label}</small></div><strong>${esc(event.description || 'Event without a description')}</strong></li>`;
+      return `<li><div class="event-density-item-head"><span>${esc(eventLabel(event))}</span><small>${label}</small></div><span class="event-category">${esc(window.BEGDOperationalEvents?.categoryLabel(event.description))}</span><strong>${esc(event.description || 'Event without a description')}</strong></li>`;
     }).join('');
     return `<div class="event-density-selection-head"><div><h3>${formatClock(bin.start)}–${formatClock(bin.end)}</h3><span>${bin.outage} outages · ${bin.restoration} restorations</span></div></div>${events.length ? `<ol class="event-density-list">${eventMarkup}</ol>` : '<p class="event-density-empty">No reported events in this window.</p>'}`;
   }

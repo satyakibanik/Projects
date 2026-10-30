@@ -260,3 +260,31 @@ test('realtime polling keeps chart update time on unchanged snapshots and retain
  assert.equal(vm.runInContext('currentDayData.snapshot_refresh_failed',c),true);
  assert.equal(vm.runInContext('currentDayChartUpdatedAt',c),'2026-10-28T17:00:00Z');
 });
+
+test('daily Operations table uses the same categories as the Trends Explorer',()=>{
+ const c=app();
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/operational-events.js'),'utf8'),c);
+ const html=vm.runInContext(`data={operations:{events:[{outage_time:'08:00',restoration_time:'—',description:'Grid Forced S/D Due to CB tripped <source>'},{description:'Unspecified note'}]}};operations()`,c);
+ assert.match(html,/Filter daily event log by category/);
+ assert.match(html,/<td class="event-category">Forced Shutdown<\/td>/);
+ assert.match(html,/<td class="event-category">Unclassified \/ Source Fragment<\/td>/);
+ assert.match(html,/&lt;source&gt;/);assert.doesNotMatch(html,/<source>/);
+ assert.match(vm.runInContext('data={operations:{events:[]}};operations()',c),/colspan="4"/);
+});
+
+test('daily event category filter keeps the chart mounted and updates matching rows and count',()=>{
+ const c=app(),rows=[{dataset:{eventCategory:'trip'},hidden:false},{dataset:{eventCategory:'forced'},hidden:false}],count={textContent:''};
+ const wrap={scrollTop:100,querySelectorAll(){return rows},parentElement:{querySelector(){return count}}};
+ c.control={value:'trip',closest(){return wrap}};
+ vm.runInContext('filterDailyEvents(control)',c);
+ assert.deepEqual(rows.map(row=>row.hidden),[false,true]);assert.equal(count.textContent,'1 of 2 entries shown');assert.equal(wrap.scrollTop,0);
+ c.control.value='';vm.runInContext('filterDailyEvents(control)',c);
+ assert.deepEqual(rows.map(row=>row.hidden),[false,false]);assert.equal(count.textContent,'2 of 2 entries shown');
+});
+test('daily event filter persists where available and resets for a report without that category',()=>{
+ const c=app();vm.runInContext(fs.readFileSync(path.join(root,'begd/operational-events.js'),'utf8'),c);
+ let html=vm.runInContext(`dailyEventCategory='trip';data={operations:{events:[{description:'Unit Tripped'},{description:'Grid Forced S/D'}]}};operations()`,c);
+ assert.match(html,/<option value="trip" selected>/);assert.match(html,/data-event-category="forced" hidden/);assert.match(html,/1 of 2 entries shown/);
+ html=vm.runInContext(`data={operations:{events:[{description:'Grid Forced S/D'}]}};operations()`,c);
+ assert.equal(vm.runInContext('dailyEventCategory',c),'');assert.match(html,/1 of 1 entries shown/);
+});
