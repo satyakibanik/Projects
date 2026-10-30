@@ -13,6 +13,21 @@ async function swipe(session,start,end){
 async function inspect(page,wrap){
   const svg=wrap.locator('svg.chart').first(),tip=wrap.locator('.chart-tooltip,[role=tooltip]').first();
   await svg.scrollIntoViewIfNeeded();
+  // A queued scroll event dismisses pinned values. Let the programmatic scroll
+  // and layout settle before measuring the chart and sending the first tap.
+  await svg.evaluate(async node=>{
+    await document.fonts.ready;
+    let previous='',stable=0;
+    for(let frame=0;frame<120;frame++){
+      await new Promise(requestAnimationFrame);
+      const box=node.getBoundingClientRect();
+      const position=[scrollX,scrollY,box.x,box.y,box.width,box.height].join('|');
+      stable=position===previous?stable+1:0;
+      if(stable>=3)return;
+      previous=position;
+    }
+    throw Error('Chart layout did not settle before touch inspection');
+  });
   const bounds=await svg.boundingBox();
   assert(bounds.width>=240,'Phone plot is too narrow');
   const viewBox=await svg.getAttribute('viewBox');assert.equal(Number(viewBox.split(' ')[2]),420,'Phone plot uses compressed desktop geometry');
