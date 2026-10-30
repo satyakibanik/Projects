@@ -42,32 +42,8 @@ test('empty reports show unavailable circuits and disable the slider; failed ass
  assert.equal((node('[data-ewic-branches]').innerHTML.match(/stroke-dasharray="5 5"/g)||[]).length,3);
  const failed=load(true);await failed.api.mount([]);assert.match(failed.node('[data-ewic-frame]').innerHTML,/Retry map/);
 });
-test('route catalogue retains provenance, connected line geometry and explicit candidate endpoint corrections',()=>{
+test('catalogue contains six approved endpoints and explicitly discloses schematic routes',()=>{
  assert.equal(catalog.coordinate_reference,'WGS84');assert.equal(catalog.circuits.length,3);
- assert.equal(catalog.route_source.license,'ODbL');assert.equal(catalog.route_source.timestamp,'2026-10-25T07:30:02Z');
- let vertices=0;
- for(const c of catalog.circuits){
-  assert.equal(c.routes.length,c.route_ids.length);
-  for(const route of c.routes){assert.ok(route.length>2);vertices+=route.length;assert.ok(route.every(p=>p.length===2&&p.every(Number.isFinite)))}
-  for(const s of [c.west,c.east]){assert.ok(Number.isFinite(s.latitude)&&Number.isFinite(s.longitude));assert.ok(s.match_evidence);assert.ok(s.osm_id)}
- }
- assert.equal(vertices,931);
- const siraj=catalog.circuits.find(c=>c.key==='sirajganj_sreepur');
- assert.deepEqual(siraj.routes[0].at(-1),siraj.routes[1][0]);
- assert.equal(siraj.west.osm_id,'way/315574753');
- assert.equal(siraj.west.replaces_approved_site.osm_id,'way/210993438');
- const gopal=catalog.circuits.find(c=>c.key==='gopalganj_aminbazar');
- assert.equal(gopal.west.osm_id,'way/1040883470');
- assert.equal(gopal.west.replaces_approved_site.osm_id,'way/354528965');
- for(const c of [siraj,gopal]){assert.notEqual(c.west.decision,'Use it');assert.equal(c.west.replaces_approved_site.decision,'Use it')}
- assert.match(catalog.note,/inferred/);
-});
-test('rendered branches retain route vertices and separate segments, rather than straight endpoint chords',async()=>{
- const {api,node}=load();await api.mount([{time:'00:00',ishwardi_ghorashal:100,sirajganj_sreepur:200,gopalganj_aminbazar:300}]);
- const html=node('[data-ewic-branches]').innerHTML;
- const paths=[...html.matchAll(/data-ewic-circuit="([^"]+)" d="([^"]+)"/g)];assert.equal(paths.length,3);
- for(const [,key,d] of paths){const circuit=catalog.circuits.find(c=>c.key===key);assert.equal((d.match(/M/g)||[]).length,circuit.routes.length);assert.equal((d.match(/L/g)||[]).length,circuit.routes.flat().length-circuit.routes.length)}
- assert.match(node('[data-ewic-frame]').innerHTML,/Sirajganj \/ Jamuna Bridge/);
- assert.match(node('[data-ewic-frame]').innerHTML,/Gopalganj \(N\)/);
- assert.match(api.render(),/OpenStreetMap contributors/);assert.doesNotMatch(api.render(),/LOCAL PREVIEW|local only|schematic connections/);
+ for(const c of catalog.circuits)for(const s of [c.west,c.east]){assert.equal(s.decision,'Use it');assert.ok(Number.isFinite(s.latitude)&&Number.isFinite(s.longitude));assert.ok(s.match_evidence);assert.ok(s.osm_id)}
+ assert.match(catalog.note,/schematic/);
 });
