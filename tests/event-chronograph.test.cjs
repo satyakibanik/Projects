@@ -1,9 +1,9 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
-function viewer(){
+function viewer(mobile=false){
  const listeners={},panels=[];
- const context=vm.createContext({window:{},document:{querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
+ const context=vm.createContext({window:{matchMedia(){return {matches:mobile}}},document:{querySelector(){return null},querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/event-chronograph.js'),'utf8'),context);
  return {api:context.window.BEGDEventChronograph,listeners,panels};
 }
@@ -80,4 +80,17 @@ test('pulse click locks selection against hover/focus until an outside click or 
  for(const fn of listeners.click)fn({target:other});
  for(const fn of listeners.keydown)fn({target:other,key:'Escape'});assert.equal(panel.dataset.densityPinned,undefined);
  for(const fn of listeners.pointerover)fn({target:clicked});assert.match(selection.innerHTML,/01:00–01:30/);
+});
+
+test('phone views use a wide pulse plot, a shared timeline canvas and a fitted dial chart',()=>{
+ const {api}=viewer(true);
+ const html=api.render([{outage_time:'08:00',restoration_time:'10:00'},{outage_time:'12:00'}],[{time:'08:00',demand_mw:100,generation_mw:90}]);
+ assert.match(html,/event-context-canvas/);
+ assert.match(html,/viewBox="0 0 2256 390"/);
+ assert.match(html,/data-density-slot="44"/);
+ assert.doesNotMatch(html,/event-density-mobile-picker|event-density-bin-button/);
+ assert.match(html,/event-context-group event-context-fixed/);
+ assert.match(html,/viewBox="0 0 640 280"/);
+ assert.match(html,/event-dial-hit/);assert.match(html,/event-dial-point-hit/);
+ assert.doesNotMatch(html,/NaN|Infinity/);
 });

@@ -91,6 +91,7 @@ const observer=new MutationObserver(records=>{if(records.every(r=>r.target.close
 let previousWidth=0;new ResizeObserver(entries=>{const width=entries[0].contentRect.width;if(width!==previousWidth){previousWidth=width;schedule();}}).observe(document.documentElement);
 window.addEventListener('resize',schedule);
 document.addEventListener('toggle',schedule,true);
+document.addEventListener('begd:event-view-change',schedule);
 document.fonts?.ready.then(schedule);
 refresh();
 })();
