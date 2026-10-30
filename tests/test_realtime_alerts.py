@@ -7,6 +7,7 @@ import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import realtime_alerts as alerts
@@ -144,6 +145,26 @@ class AlertTests(unittest.TestCase):
         self.assertIn("+15.0%", body)
         self.assertIn("-1,500.0 MW", body)
         self.assertIn(alerts.DASHBOARD, body)
+
+    def test_smtp_errors_do_not_expose_server_response_or_addresses(self):
+        import traceback
+        self.add_reading()
+        _, events = alerts.evaluate(self.snapshot, self.state, self.now)
+        credentials = {"BEGD_SMTP_USER": "private-sender@example.org",
+                       "BEGD_SMTP_PASSWORD": "private-credential",
+                       "BEGD_ALERT_TO": "private-recipient@example.org"}
+        with patch.dict(alerts.os.environ, credentials), patch.object(alerts.smtplib, "SMTP_SSL") as smtp:
+            smtp.return_value.__enter__.return_value.send_message.side_effect = (
+                alerts.smtplib.SMTPRecipientsRefused({credentials["BEGD_ALERT_TO"]: (550, b"private response")}))
+            try:
+                alerts.send_email(events)
+                self.fail("Expected SMTP failure")
+            except RuntimeError:
+                output = traceback.format_exc()
+                for value in credentials.values():
+                    self.assertNotIn(value, output)
+                self.assertNotIn("private response", output)
+                self.assertIn("Email delivery failed", output)
 
     def test_pages_archive_reads_json_without_extracting(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -10,9 +10,11 @@ In repository **Settings → Secrets and variables → Actions**, configure:
 | --- | --- | --- |
 | Secret | `BEGD_SMTP_USER` | Gmail account sending the alerts |
 | Secret | `BEGD_SMTP_PASSWORD` | That account's Google app password, not its normal login password |
-| Variable | `BEGD_ALERT_TO` | Recipient email address |
+| Secret | `BEGD_ALERT_TO` | Recipient email address |
 
-For the requested setup the recipient is `satyaki.banik.bd@gmail.com`. Set the recipient as a repository variable rather than committing personal configuration in workflow YAML. Gmail app passwords require 2-Step Verification and may be unavailable for some accounts: https://support.google.com/accounts/answer/185833
+Store all three values as encrypted repository secrets. Do not put actual email addresses or credentials in source files, documentation, repository variables, screenshots or workflow output. Gmail app passwords require 2-Step Verification and may be unavailable for some accounts: https://support.google.com/accounts/answer/185833
+
+Secret names are public in workflow source; their configured values are not. The runner must receive the values to send email, and Gmail receives the sender, recipient and authentication data over TLS. The application does not deliberately print these values or store them in the site bundle, artifacts or numeric alert checkpoint. GitHub's automatic log masking is a fallback, not an absolute guarantee; anyone able to change privileged workflow code can potentially misuse available secrets. See https://docs.github.com/en/actions/concepts/security/secrets
 
 The workflow explicitly reports **not active** in its summary if configuration is missing. It does not advance its checkpoint in that case. The first configured run saves a baseline without sending old alerts. Subsequent successful site refreshes monitor new readings and corrections. No test email is sent automatically.
 

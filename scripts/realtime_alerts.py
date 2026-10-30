@@ -114,12 +114,16 @@ def send_email(events):
     user = os.environ["BEGD_SMTP_USER"]
     recipient = os.environ["BEGD_ALERT_TO"]
     msg = make_email(events, user, recipient)
-    with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30,
-                          context=ssl.create_default_context()) as smtp:
-        smtp.login(user, os.environ["BEGD_SMTP_PASSWORD"])
-        refused = smtp.send_message(msg)
-        if refused:
-            raise RuntimeError("SMTP recipient was refused")
+    try:
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465, timeout=30,
+                              context=ssl.create_default_context()) as smtp:
+            smtp.login(user, os.environ["BEGD_SMTP_PASSWORD"])
+            refused = smtp.send_message(msg)
+            if refused:
+                raise RuntimeError("SMTP recipient was refused")
+    except Exception:
+        # SMTP server responses can echo addresses. Do not print them into public logs.
+        raise RuntimeError("Email delivery failed; check sender configuration privately") from None
 
 
 class GitHubState:

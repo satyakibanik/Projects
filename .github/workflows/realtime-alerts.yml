@@ -25,10 +25,10 @@ jobs:
         env:
           BEGD_SMTP_USER: ${{ secrets.BEGD_SMTP_USER }}
           BEGD_SMTP_PASSWORD: ${{ secrets.BEGD_SMTP_PASSWORD }}
-          BEGD_ALERT_TO: ${{ vars.BEGD_ALERT_TO }}
+          BEGD_ALERT_TO: ${{ secrets.BEGD_ALERT_TO }}
         run: |
           if [ -z "$BEGD_SMTP_USER" ] || [ -z "$BEGD_SMTP_PASSWORD" ] || [ -z "$BEGD_ALERT_TO" ]; then
-            echo '::warning::Email alerts are not active. Set BEGD_SMTP_USER and BEGD_SMTP_PASSWORD secrets and the BEGD_ALERT_TO repository variable.'
+            echo '::warning::Email alerts are not active. Set BEGD_SMTP_USER, BEGD_SMTP_PASSWORD and BEGD_ALERT_TO as repository secrets.'
             echo 'Email alerts are not active: email configuration is missing. No alert checkpoint was advanced.' >> "$GITHUB_STEP_SUMMARY"
             echo 'ready=false' >> "$GITHUB_OUTPUT"
           else
@@ -52,5 +52,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           BEGD_SMTP_USER: ${{ secrets.BEGD_SMTP_USER }}
           BEGD_SMTP_PASSWORD: ${{ secrets.BEGD_SMTP_PASSWORD }}
-          BEGD_ALERT_TO: ${{ vars.BEGD_ALERT_TO }}
+          BEGD_ALERT_TO: ${{ secrets.BEGD_ALERT_TO }}
         run: python scripts/realtime_alerts.py --pages-archive .cache/alert-pages/artifact.tar
