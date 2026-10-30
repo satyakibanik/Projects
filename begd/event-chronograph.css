@@ -140,3 +140,26 @@
 .event-chronograph-panel .event-chronograph-list-item:hover,.event-chronograph-panel .event-chronograph-list-item:focus-visible{color:var(--ink);background:#69d5bc12}
 .event-chronograph-panel .event-plot-legend .demand-key,.event-chronograph-panel .event-density-legend .demand-key{color:var(--event-demand)!important}
 .event-chronograph-panel .event-plot-legend .generation-key,.event-chronograph-panel .event-density-legend .generation-key{color:var(--event-generation)!important}
+
+/* Compact event lanes keep the demand/generation chart visible while browsing events. */
+.event-chronograph-panel{--event-outage:#d74343;--event-restoration:#22966e}
+.event-context-wrap{overflow-x:auto;overflow-y:hidden}
+.event-context-svg{overflow:hidden}
+.event-lanes-scroll{max-height:280px;overflow-y:auto;overflow-x:hidden;scrollbar-gutter:stable;overscroll-behavior:contain}
+.event-chart-legend rect{fill:var(--bg);opacity:.94}
+.event-chart-legend text{fill:var(--ink);font:12px var(--mono)}
+.event-chart-legend line{stroke-width:3}
+.event-chart-legend .demand_mw{stroke:var(--event-demand)}
+.event-chart-legend .generation_mw{stroke:var(--event-generation)}
+.event-series-point:hover circle:last-child,.event-series-point:focus-visible circle:last-child,.event-linked-dot{stroke:#ffd92f;stroke-width:4;paint-order:stroke fill;filter:drop-shadow(0 0 2px #6f5700)}
+.event-series-highlight{filter:drop-shadow(0 2px 0 #ffd92f) drop-shadow(0 -2px 0 #ffd92f)}
+.event-time-marker.is-active .event-outage-point,.event-time-marker.is-active .event-restoration-point{stroke:#ffd92f;stroke-width:4;paint-order:stroke fill}
+.event-period-marker.is-active .event-duration{filter:drop-shadow(0 2px 0 #ffd92f) drop-shadow(0 -2px 0 #ffd92f)}
+.event-dial-event.is-selected .event-dial-span,.event-dial-event:hover .event-dial-span,.event-dial-event:focus-visible .event-dial-span{stroke-width:9;filter:drop-shadow(0 3px 0 #ffd92f) drop-shadow(0 -3px 0 #ffd92f);opacity:1}
+.event-dial-event.is-selected .event-dial-point,.event-dial-event.is-selected .event-dial-endpoint,.event-dial-event:hover .event-dial-point,.event-dial-event:hover .event-dial-endpoint,.event-dial-event:focus-visible .event-dial-point,.event-dial-event:focus-visible .event-dial-endpoint{stroke:#ffd92f;stroke-width:6;paint-order:stroke fill;filter:drop-shadow(0 0 2px #6f5700)}
+.event-density-legend .outage-key{color:var(--event-outage)!important}
+.event-density-legend .restoration-key{color:var(--event-restoration)!important}
+.event-chronograph-list-item.is-selected{background:#ffdc4230;box-shadow:inset 4px 0 #e4b900}
+@media(max-width:760px){.event-lanes-scroll{max-height:240px}.event-density-svg .event-chart-legend text{font-size:18px}}
+.event-chronograph-list-item .event-list-time{white-space:normal;overflow-wrap:anywhere;line-height:1.5}
+.event-chronograph-panel .event-chronograph-list-item.is-selected{background:#ffdc4226}

@@ -178,66 +178,53 @@
     const noTimeMarkup = unplaced.length ? `<div class="event-unplaced-list" aria-label="Events without a reported time"><span>No reported time</span>${unplaced.map(event => `<button type="button" class="event-unplaced-chip" data-event-index="${event.index}" title="${esc(eventSummary(event))}" aria-label="${esc(eventSummary(event))}">${esc(event.description || 'Event without a description')}</button>`).join('')}</div>` : '';
     const eventAxis = showEventLanes ? `<line class="event-axis-line" x1="${plotLeft}" x2="${plotRight}" y1="${eventAxisY}" y2="${eventAxisY}"/><text class="event-axis-label" x="${plotLeft - 12}" y="${eventAxisY + 3}" text-anchor="end">EVENTS</text>` : '';
     const ariaLabel = showEventLanes ? 'P4 hourly demand and generation with outage and restoration times on a shared 24-hour timeline' : 'P4 hourly demand and generation response on a 24-hour timeline';
-    return `${values.length ? '' : '<p class="event-plot-empty">P4 hourly demand and generation are unavailable for this report. Reported event times remain shown below.</p>'}<div class="event-context-group"><div class="event-context-wrap"><svg class="event-context-svg" viewBox="0 0 1120 ${height}" role="group" aria-label="${ariaLabel}"><title>Daily demand and generation response with grid events · P4 actual · MW</title>${ticks}${grid}${eventAxis}${line('demand_mw', 'event-demand-line')}${line('generation_mw', 'event-generation-line')}${links}${markers}</svg></div><div class="event-context-tooltip" role="tooltip" aria-live="polite" hidden></div></div>${noTimeMarkup}`;
+    return `${values.length ? '' : '<p class="event-plot-empty">P4 hourly demand and generation are unavailable for this report. Reported event times remain shown below.</p>'}<div class="event-context-group"><div class="event-context-wrap"><svg class="event-context-svg" viewBox="0 0 1120 190" role="group" aria-label="${ariaLabel}"><title>Daily demand and generation response with grid events · P4 actual · MW</title>${ticks}${grid}${line('demand_mw', 'event-demand-line')}${line('generation_mw', 'event-generation-line')}${links}${chartLegend(1120)}</svg>${showEventLanes ? `<div class="event-lanes-scroll" tabindex="0" role="region" aria-label="Scrollable event timeline"><svg class="event-context-svg event-lanes-svg" viewBox="0 185 1120 ${height - 185}" role="group" aria-label="Event times and outage periods">${grid}${eventAxis}${markers}</svg></div>` : ''}</div><div class="event-context-tooltip" role="tooltip" aria-live="polite" hidden></div></div>${noTimeMarkup}`;
   }
 
   function densityBins(events) {
     const bins = Array.from({ length: 48 }, (_, index) => ({
       index, start: index * 30, end: (index + 1) * 30,
-      outage: 0, restoration: 0, period: 0, active: 0, starts: [], overlapping: []
+      outage: 0, restoration: 0, entries: [], overlapping: []
     }));
-    const overlaps = (event, bin) => {
-      if (event.duration == null || event.duration <= 0) return false;
-      const end = Math.min(event.end, 1440);
-      return event.start < bin.end && end > bin.start;
+    const add = (event, minutes, kind) => {
+      if (minutes == null || minutes >= 1440) return;
+      const bin = bins[Math.floor(minutes / 30)];
+      bin[kind]++;
+      if (!bin.entries.includes(event)) bin.entries.push(event);
     };
     for (const event of events) {
-      if (event.unavailable) continue;
-      const start = event.outage ?? event.restoration;
-      const bin = bins[Math.min(47, Math.floor(start / 30))];
-      if (event.duration != null) bin.period++;
-      else if (event.outage != null) bin.outage++;
-      else bin.restoration++;
-      bin.starts.push(event);
-      for (const target of bins) {
-        if (overlaps(event, target)) {
-          target.active++;
-          target.overlapping.push(event);
-        }
+      add(event, event.outage, 'outage');
+      add(event, event.end ?? event.restoration, 'restoration');
+      if (event.duration > 0) for (const bin of bins) {
+        if (event.start < bin.end && Math.min(event.end, 1440) > bin.start) bin.overlapping.push(event);
       }
     }
     return bins;
   }
 
-  function densitySelectionMarkup(bin, readings) {
-    const mid = (bin.start + bin.end) / 2;
-    const related = new Map();
-    for (const event of bin.starts) related.set(event.index, { event, started: true });
-    for (const event of bin.overlapping) {
-      if (!related.has(event.index)) related.set(event.index, { event, started: false });
-    }
-    const events = [...related.values()].sort((a, b) => a.event.sortTime - b.event.sortTime || a.event.index - b.event.index);
-    const reading = minutes => seriesKeys.map(key => {
-      const value = valueAt(readings, key, minutes);
-      return `<span><i class="${key}">${key === 'demand_mw' ? 'D' : 'G'}</i> ${value == null ? '—' : Math.round(value).toLocaleString('en-US')}</span>`;
+  function densitySelectionMarkup(bin) {
+    const events = [...new Map([...bin.entries, ...bin.overlapping].map(event => [event.index, event])).values()]
+      .sort((a, b) => a.sortTime - b.sortTime || a.index - b.index);
+    const eventMarkup = events.map(event => {
+      const outageHere = event.outage != null && event.outage >= bin.start && event.outage < bin.end;
+      const restorationTime = event.end ?? event.restoration;
+      const restorationHere = restorationTime != null && restorationTime >= bin.start && restorationTime < bin.end;
+      const label = outageHere && restorationHere ? 'Outage and restoration in window' : outageHere ? 'Outage in window' : restorationHere ? 'Restoration in window' : 'Ongoing from earlier';
+      return `<li><div class="event-density-item-head"><span>${esc(eventLabel(event))}</span><small>${label}</small></div><strong>${esc(event.description || 'Event without a description')}</strong></li>`;
     }).join('');
-    const eventMarkup = events.map(({ event, started }) => {
-      const start = event.start ?? event.restoration;
-      const endpoints = event.duration != null
-        ? `<div class="event-density-endpoints"><span>Start ${formatClock(event.start)} ${reading(event.start)}</span><span>End ${formatClock(event.end)} ${reading(event.end)}</span></div>`
-        : `<div class="event-density-endpoints"><span>${event.outage != null ? 'Outage' : 'Restoration'} ${formatClock(start)} ${reading(start)}</span></div>`;
-      return `<li><div class="event-density-item-head"><span>${esc(eventLabel(event))}</span><small>${started ? 'Starts in window' : 'Active in window'}</small></div><strong>${esc(event.description || 'Event without a description')}</strong>${endpoints}</li>`;
-    }).join('');
-    return `<div class="event-density-selection-head"><div><h3>${formatClock(bin.start)}–${formatClock(bin.end)}</h3><span>${bin.starts.length} event starts · ${bin.active} outage periods active</span></div><div class="event-density-midpoint"><small>At ${formatClock(mid)} · P4 actual</small>${reading(mid)}<small>MW · interpolated where needed</small></div></div>${events.length ? `<ol class="event-density-list">${eventMarkup}</ol>` : '<p class="event-density-empty">No event starts or active outage periods in this window.</p>'}`;
+    return `<div class="event-density-selection-head"><div><h3>${formatClock(bin.start)}–${formatClock(bin.end)}</h3><span>${bin.outage} outages · ${bin.restoration} restorations</span></div></div>${events.length ? `<ol class="event-density-list">${eventMarkup}</ol>` : '<p class="event-density-empty">No reported events in this window.</p>'}`;
+  }
+
+  function chartLegend(width) {
+    return `<g class="event-chart-legend" transform="translate(${width - 350} 15)" aria-label="Demand (MW), Generation (MW)"><rect x="-8" y="-13" width="326" height="24" rx="3"/><line class="demand_mw" x1="0" x2="18" y1="0" y2="0"/><text x="24" y="4">Demand (MW)</text><line class="generation_mw" x1="155" x2="173" y1="0" y2="0"/><text x="179" y="4">Generation (MW)</text></g>`;
   }
 
   function densityView(rows, events) {
     const readings = readingsWithTime(rows), bins = densityBins(events);
     const values = readings.flatMap(point => [point.row.demand_mw, point.row.generation_mw]).filter(Number.isFinite);
-    const maxCount = Math.max(1, ...bins.map(bin => bin.outage + bin.restoration + bin.period));
-    const maxActive = Math.max(1, ...bins.map(bin => bin.active));
+    const maxCount = Math.max(1, ...bins.map(bin => bin.outage + bin.restoration));
     const busiest = bins.reduce((best, bin) =>
-      bin.outage + bin.restoration + bin.period > best.outage + best.restoration + best.period ? bin : best, bins[0]);
+      bin.outage + bin.restoration > best.outage + best.restoration ? bin : best, bins[0]);
     const x0 = 62, x1 = 982, width = x1 - x0, slot = width / 48;
     const top = 27, curveBottom = 170, barsTop = 226, barsBottom = 320, activeY = 333;
     const range = values.length ? Math.max(...values) - Math.min(...values) : 1;
@@ -264,25 +251,24 @@
     };
     const maxBarHeight = barsBottom - barsTop;
     const bars = bins.map(bin => {
-      const total = bin.outage + bin.restoration + bin.period;
+      const total = bin.outage + bin.restoration;
       const barHeight = total / maxCount * maxBarHeight;
       const barX = xAt(bin.start) + 1.2, barWidth = Math.max(2, slot - 2.4), base = barsBottom;
       let y = base;
-      const stack = [['outage', bin.outage], ['restoration', bin.restoration], ['period', bin.period]].map(([kind, count]) => {
+      const stack = [['outage', bin.outage], ['restoration', bin.restoration]].map(([kind, count]) => {
         if (!count) return '';
         const segmentHeight = count / maxCount * maxBarHeight;
         y -= segmentHeight;
         return `<rect class="event-density-bar ${kind}" x="${barX}" y="${y}" width="${barWidth}" height="${segmentHeight}"/>`;
       }).join('');
-      const activeOpacity = bin.active ? (.18 + .68 * bin.active / maxActive).toFixed(2) : '.04';
-      const aria = `${formatClock(bin.start)} to ${formatClock(bin.end)}: ${total} event starts, ${bin.active} active outage periods`;
-      return `<g class="event-density-bin${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" data-density-start="${bin.start}" tabindex="0" role="button" aria-pressed="${bin === busiest}" aria-label="${esc(aria)}"><rect class="event-density-hit" x="${xAt(bin.start)}" y="${barsTop - 5}" width="${slot}" height="${activeY + 15 - (barsTop - 5)}"/><rect class="event-density-active" x="${xAt(bin.start) + 1}" y="${activeY}" width="${Math.max(1, slot - 2)}" height="9" style="opacity:${activeOpacity}"/>${stack}</g>`;
+      const aria = `${formatClock(bin.start)} to ${formatClock(bin.end)}: ${bin.outage} outages, ${bin.restoration} restorations`;
+      return `<g class="event-density-bin${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" data-density-start="${bin.start}" tabindex="0" role="button" aria-pressed="${bin === busiest}" aria-label="${esc(aria)}"><rect class="event-density-hit" x="${xAt(bin.start)}" y="${barsTop - 5}" width="${slot}" height="${activeY + 15 - (barsTop - 5)}"/>${stack}</g>`;
     }).join('');
     const picker = bins.map(bin => {
-      const count = bin.outage + bin.restoration + bin.period;
-      return `<button type="button" class="event-density-bin-button${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" aria-pressed="${bin === busiest}" aria-label="Select ${formatClock(bin.start)} to ${formatClock(bin.end)}: ${count} event starts, ${bin.active} active periods"><span>${formatClock(bin.start)}</span><strong>${count}</strong></button>`;
+      const count = bin.outage + bin.restoration;
+      return `<button type="button" class="event-density-bin-button${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" aria-pressed="${bin === busiest}" aria-label="Select ${formatClock(bin.start)} to ${formatClock(bin.end)}: ${bin.outage} outages, ${bin.restoration} restorations"><span>${formatClock(bin.start)}</span><strong>${count}</strong></button>`;
     }).join('');
-    return `<div class="event-density-chart-wrap"><svg class="event-density-svg" viewBox="0 0 1000 390" role="group" aria-label="Demand and generation curves with a 30-minute event activity histogram"><title>Demand and generation with 30-minute outage activity · P4 actual · MW</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top - 6}" width="${selectedWidth}" height="${activeY + 19 - (top - 6)}"/>${curveGrid}${timeTicks}<line class="event-density-separator" x1="${x0}" x2="${x1}" y1="${barsTop - 9}" y2="${barsTop - 9}"/><text class="event-density-section-label" x="${x0}" y="${barsTop - 15}">EVENT STARTS · 30 MIN</text><text class="event-density-section-label" x="${x0}" y="${activeY + 8}">ACTIVE PERIODS</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${curve('demand_mw')}${curve('generation_mw')}${bars}</svg></div><div class="event-density-legend"><span class="demand-key">Demand</span><span class="generation-key">Generation</span><span class="outage-key">Outage starts</span><span class="restoration-key">Restoration starts</span><span class="period-key">Period starts</span><span class="active-key">Active periods</span></div><div class="event-density-mobile-picker" role="group" aria-label="Choose a 30-minute time window">${picker}</div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest, readings)}</section>`;
+    return `<div class="event-density-chart-wrap"><svg class="event-density-svg" viewBox="0 0 1000 390" role="group" aria-label="Demand and generation curves with a 30-minute event activity histogram"><title>Demand and generation with 30-minute outage activity · P4 actual · MW</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top - 6}" width="${selectedWidth}" height="${activeY + 19 - (top - 6)}"/>${curveGrid}${timeTicks}<line class="event-density-separator" x1="${x0}" x2="${x1}" y1="${barsTop - 9}" y2="${barsTop - 9}"/><text class="event-density-section-label" x="${x0}" y="${barsTop - 15}">EVENT COUNTS · 30 MIN</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${curve('demand_mw')}${curve('generation_mw')}${bars}${chartLegend(1000)}</svg></div><div class="event-density-legend"><span class="outage-key">Outage</span><span class="restoration-key">Restoration</span></div><div class="event-density-mobile-picker" role="group" aria-label="Choose a 30-minute time window">${picker}</div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest, readings)}</section>`;
   }
 
   function selectDensityBin(target) {
@@ -334,12 +320,6 @@
     return `<div class="event-dial-layout"><svg class="event-dial-svg" viewBox="0 0 440 440" role="group" aria-label="24-hour clock dial with outage spans and event markers"><title>24-hour event dial · each marked hour is Bangladesh time</title><circle class="event-dial-face" cx="${cx}" cy="${cy}" r="${face}"/><circle class="event-dial-ring" cx="${cx}" cy="${cy}" r="126"/><circle class="event-dial-ring" cx="${cx}" cy="${cy}" r="150"/>${ticks}${marks}<text class="event-dial-center" x="${cx}" y="${cy - 5}" text-anchor="middle">24 HOUR</text><text class="event-dial-center-note" x="${cx}" y="${cy + 14}" text-anchor="middle">BST</text></svg><div class="event-dial-list-wrap"><h3>Chronological event list</h3><ol class="event-dial-list">${list}</ol></div></div>`;
   }
 
-  const viewDescriptions = {
-    table: 'Outage, restoration, and operating notes from the report.',
-    lanes: 'Hover or focus an event dot or period to connect it to demand and generation. Start and end values are shown together.',
-    density: 'Event pulse pairs daily curves with 30-minute event-start counts. Choose a window to inspect its events and matching P4 values.',
-    dial: 'The 24-hour dial places times by angle. Outage and restoration pairs appear as arcs; the adjacent list keeps every description.'
-  };
   let selectedView = 'table';
 
   function render(rawEvents = [], hourly = [], tableMarkup = '') {
@@ -352,15 +332,16 @@
     // Keep the deployed table, including source notes and workbook ordering, inside the first view.
     const table = tableMarkup.replace(/^<section class="panel full">/, '<div>').replace(/<div class="panel-head">.*?<\/div><span class="tag">.*?<\/span><\/div>/s, '').replace(/<\/section>$/, '</div>');
     const legend = `<div class="event-mark-legend"><span><i class="event-mark-outage"></i>Outage/event time</span><span><i class="event-mark-period"></i>Outage–restoration period</span><span><i class="event-mark-restoration"></i>Restoration-only time</span><span><i class="event-mark-unplaced"></i>No reported time</span></div>`;
-    const heading = `<div class="event-plot-heading"><div><h3>Demand &amp; generation response</h3><span>P4 actual · MW · Bangladesh time</span></div><div class="event-plot-legend"><span class="demand-key">Demand</span><span class="generation-key">Generation</span></div></div>`;
-    return `<section class="panel full event-chronograph-panel"><div class="panel-head"><div><h2>Daily event log</h2><p>Outage, restoration, and operating notes from the report</p></div><span class="tag">${events.length} EVENTS · BST</span></div><div class="event-view-controls" role="group" aria-label="Choose an event log view">${controls}</div><div class="event-view-description" aria-live="polite">${viewDescriptions[selectedView]}</div>${view('table', table)}${view('lanes', heading + legend + demandPlot(hourly, events))}${view('density', densityView(hourly, events))}${view('dial', heading + legend + demandPlot(hourly, events, { showEventLanes: false }) + dialView(events))}<p class="event-view-note"${selectedView === 'table' ? ' hidden' : ''}>Bangladesh time · P1 events and P4 actuals. Values between hourly readings are interpolated; restoration values beyond this day’s profile are unavailable.</p></section>`;
+    return `<section class="panel full event-chronograph-panel"><div class="panel-head"><div><h2>Daily event log</h2><p>Outage, restoration, and operating notes from the report</p></div><span class="tag">${events.length} EVENTS · BST</span></div><div class="event-view-controls" role="group" aria-label="Choose an event log view">${controls}</div>${view('table', table)}${view('lanes', legend + demandPlot(hourly, events))}${view('density', densityView(hourly, events))}${view('dial', legend + demandPlot(hourly, events, { showEventLanes: false }) + dialView(events))}<p class="event-view-note"${selectedView === 'table' ? ' hidden' : ''}>Bangladesh time · P1 events and P4 actuals. Values between hourly readings are interpolated; restoration values beyond this day’s profile are unavailable.</p></section>`;
   }
 
-  function showTooltipFor(target) {
+  function showTooltipFor(target, pin = false) {
     const wrapper = target.closest?.('.event-context-group');
     const panel = target.closest?.('.event-chronograph-panel');
     const tooltip = wrapper?.querySelector('.event-context-tooltip');
     if (!wrapper || !panel || !tooltip) return;
+    if (!pin && wrapper.dataset.pinnedEvent) return;
+    if (pin) wrapper.dataset.pinnedEvent = target.dataset.eventIndex ?? 'series';
     let content = '';
     if (target.matches('.event-series-point')) content = seriesTooltipMarkup(target);
     else {
@@ -376,6 +357,7 @@
   }
 
   function hideTooltip(wrapper) {
+    if (wrapper?.dataset.pinnedEvent) return;
     const tooltip = wrapper?.querySelector('.event-context-tooltip');
     if (tooltip) tooltip.hidden = true;
     const panel = wrapper?.closest('.event-chronograph-panel');
@@ -445,8 +427,6 @@
       selectedView = selected;
       panel.querySelectorAll('[data-event-view-select]').forEach(button => button.setAttribute('aria-pressed', String(button === view)));
       panel.querySelectorAll('[data-event-view]').forEach(section => { section.hidden = section.dataset.eventView !== selected; });
-      const description = panel.querySelector('.event-view-description');
-      if (description) description.textContent = viewDescriptions[selected];
       const note = panel.querySelector('.event-view-note');
       if (note) note.hidden = selected === 'table';
       return;
@@ -454,7 +434,7 @@
     const item = event.target.closest?.('[data-event-index]');
     const panel = item?.closest('.event-chronograph-panel');
     if (!panel) return;
-    if (item.matches('.event-time-marker,.event-unplaced-chip')) showTooltipFor(item);
+    if (item.matches('.event-time-marker,.event-unplaced-chip')) showTooltipFor(item, true);
     selectEvent(panel, item);
   });
   document.addEventListener('focusin', event => {
@@ -479,6 +459,8 @@
       return;
     }
     if (event.key !== 'Escape') return;
+    const pinned = event.target.closest?.('.event-chronograph-panel');
+    pinned?.querySelectorAll('.event-context-group').forEach(node => { delete node.dataset.pinnedEvent; });
     event.target.closest?.('.event-chronograph-panel')?.querySelectorAll('[data-event-index].is-selected').forEach(node => node.classList.remove('is-selected'));
     event.target.closest?.('.event-context-group')?.querySelectorAll('.event-context-tooltip').forEach(node => { node.hidden = true; });
     event.target.closest?.('.event-chronograph-panel')?.querySelectorAll('.event-time-marker.is-active,.event-chart-link.is-active').forEach(node => node.classList.remove('is-active'));
