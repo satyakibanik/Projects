@@ -208,3 +208,8 @@
  .event-context-fixed .event-context-svg{width:100%;height:auto}
  .event-density-time-label,.event-density-y-label{font-size:13px}.event-density-section-label{font-size:12px}
 }
+
+/* Share the Explorer category wording across daily table and pulse details. */
+.event-log-scroll .event-category{min-width:150px}
+.event-density-list .event-category{display:block;margin:5px 0;color:var(--muted);font:500 11px/1.5 var(--body)}
+.event-density-item-head{flex-wrap:wrap}

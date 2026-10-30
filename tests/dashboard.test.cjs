@@ -260,3 +260,14 @@ test('realtime polling keeps chart update time on unchanged snapshots and retain
  assert.equal(vm.runInContext('currentDayData.snapshot_refresh_failed',c),true);
  assert.equal(vm.runInContext('currentDayChartUpdatedAt',c),'2026-10-28T17:00:00Z');
 });
+
+test('daily Operations table uses the same categories as the Trends Explorer',()=>{
+ const c=app();
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/operational-events.js'),'utf8'),c);
+ const html=vm.runInContext(`data={operations:{events:[{outage_time:'08:00',restoration_time:'—',description:'Grid Forced S/D Due to CB tripped <source>'},{description:'Unspecified note'}]}};operations()`,c);
+ assert.match(html,/<th>Category<\/th>/);
+ assert.match(html,/<td class="event-category">Forced Shutdown<\/td>/);
+ assert.match(html,/<td class="event-category">Unclassified \/ Source Fragment<\/td>/);
+ assert.match(html,/&lt;source&gt;/);assert.doesNotMatch(html,/<source>/);
+ assert.match(vm.runInContext('data={operations:{events:[]}};operations()',c),/colspan="4"/);
+});

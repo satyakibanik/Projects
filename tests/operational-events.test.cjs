@@ -34,3 +34,15 @@ test('explorer mounts after entity histories and its script loads before trend i
  assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),period,bundle\?\.end_date\)/);
  assert.ok(index.indexOf('src="operational-events.js')<index.indexOf('src="trends.js'));
 });
+
+test('60, 90 and 365-day logs include the entire selected history across year boundaries',()=>{
+ const api=load(),end=Date.parse('2026-10-29T00:00:00Z');
+ const days=Array.from({length:366},(_,i)=>({date:new Date(end-i*86400000).toISOString().slice(0,10),events:[{description:'Unit tripped',outage_time:'08:00'}]}));
+ for(const count of [30,60,90,365]){
+  const result=api.selectWindow({days},count,'2026-10-29');
+  assert.equal(result.available,count);assert.equal(result.rows.length,count);
+  assert.equal(result.rows.at(-1).date,days[count-1].date);
+  assert.equal(result.rows[0].date,'2026-10-29');
+ }
+ assert.equal(api.categoryLabel('Grid Forced S/D Due to CB tripped'),'Forced Shutdown');
+});

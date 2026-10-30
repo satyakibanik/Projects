@@ -3,7 +3,8 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function viewer(mobile=false){
  const listeners={},panels=[];
- const context=vm.createContext({window:{matchMedia(){return {matches:mobile}}},document:{querySelector(){return null},querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
+ const context=vm.createContext({window:{matchMedia(){return {matches:mobile,addEventListener(){}}}},document:{querySelector(){return null},querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
+ vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/operational-events.js'),'utf8'),context);
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/event-chronograph.js'),'utf8'),context);
  return {api:context.window.BEGDEventChronograph,listeners,panels};
 }
@@ -93,4 +94,13 @@ test('phone views use a wide pulse plot, a shared timeline canvas and a fitted d
  assert.match(html,/viewBox="0 0 640 280"/);
  assert.match(html,/event-dial-hit/);assert.match(html,/event-dial-point-hit/);
  assert.doesNotMatch(html,/NaN|Infinity/);
+});
+
+test('pulse details use the Explorer category and preserve escaped source descriptions',()=>{
+ const {api}=viewer();
+ for(const [description,label] of [['Grid Forced S/D Due to CB tripped','Forced Shutdown'],['Grid Scheduled S/D','Scheduled Shutdown (S/D)'],['Unspecified <source>','Unclassified / Source Fragment']]){
+  const html=api.render([{outage_time:'01:00',description}],[]);
+  assert.ok(html.includes('<span class="event-category">'+label+'</span>'));
+  assert.doesNotMatch(html,/<source>/);
+ }
 });
