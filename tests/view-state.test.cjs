@@ -184,3 +184,15 @@ test('cost averaging period and rate-chart layers survive shared view URLs witho
  assert.equal(new URL(url).searchParams.get('costAverageDays'),'90');assert.equal(restored.state.costAverageDays,'90');assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
  assert.equal(api.decode('https://example.test/?costAverageDays=999').state.costAverageDays,'30');
 });
+
+test('colliding date hashes get distinct comparison colors consistently across add order',()=>{
+ const {run}=comparisonApp();
+ run("customComparisons.set('2026-10-03',{});customComparisons.set('2026-10-27',{})");
+ const first=plain(run("['2026-10-03','2026-10-27'].map(comparisonStyle)"));
+ assert.notEqual(first[0].color,first[1].color);
+ run("customComparisons.clear();customComparisons.set('2026-10-27',{});customComparisons.set('2026-10-03',{})");
+ assert.deepEqual(plain(run("['2026-10-03','2026-10-27'].map(comparisonStyle)")),first);
+ run("for(let i=1;i<=20;i++)customComparisons.set('2026-09-'+String(i).padStart(2,'0'),{})");
+ const colors=plain(run("[...customComparisons.keys()].map(date=>comparisonStyle(date).color)"));
+ assert.equal(new Set(colors).size,colors.length);
+});

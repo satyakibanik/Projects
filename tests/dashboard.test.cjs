@@ -234,7 +234,7 @@ test('regional stacked comparisons have full-bar hatching, numbered dates and ma
  const html=vm.runInContext('regionalSnapshotChart()',c);
  assert.match(html,/class="regional-snapshot-date-outline"[^>]*fill="url\(#regional-dates-\d+-1\)"[^>]*pointer-events="none"/);
  assert.match(html,/class="regional-date-number"[^>]*>1<\/text>/);assert.match(html,/class="regional-date-number"[^>]*>2<\/text>/);
- assert.match(html,/2 · Yesterday · 25 Oct 2026/);assert.match(html,/regional-dates-\d+-legend-1/);
+ assert.match(html,/2 · 25 Oct 2026/);assert.match(html,/<small>Yesterday<\/small>/);assert.match(html,/regional-dates-\d+-legend-1/);
  const again=vm.runInContext('regionalSnapshotChart()',c);assert.notEqual(html.match(/pattern id="([^"]+)"/)[1],again.match(/pattern id="([^"]+)"/)[1]);
  const line=vm.runInContext("regionalSnapshotStyle='line';regionalSnapshotChart()",c);assert.doesNotMatch(line,/class="regional-date-number"/);
 });

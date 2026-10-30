@@ -59,6 +59,7 @@ jobs:
           node-version: '22'
       - run: npm install --no-save --package-lock=false playwright@1.62.1
       - run: npx playwright install --with-deps chromium
+      - run: node tests/browser/comparison-layout.cjs
       - run: node tests/browser/operational-events.cjs
       - run: node tests/browser/cost-water.cjs
       - run: node tests/browser/realtime-yesterday.cjs

@@ -37,3 +37,12 @@ test('rates include empty available days; percentages use category totals; unava
 test('heatmap loads before the explorer and remains part of numeric-window integration',()=>{
  const html=fs.readFileSync(path.join(__dirname,'../begd/index.html'),'utf8');assert.ok(html.indexOf('src="event-heatmap.js')<html.indexOf('src="operational-events.js'));
 });
+
+test('categories rank by descending timed row totals for every value setting',()=>{
+ const api=load();
+ for(const value of ['count','rate','share']){
+  const m=api.matrix(rows,4,{...api.defaults(),value},[['scheduled','Scheduled'],['restored','Restored'],['trip','Trip']]);
+  assert.deepEqual(Array.from(m.rows,r=>r.id),['trip','restored','scheduled']);
+  assert.deepEqual(Array.from(m.rows,r=>r.total),[2,1,0]);
+ }
+});
