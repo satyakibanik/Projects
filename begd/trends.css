@@ -52,3 +52,8 @@
 .event-explorer-filters[hidden],.event-explorer-filters [hidden]{display:none!important}
 
 @media(max-width:600px){[data-event-explorer-view="heatmap"]{display:none!important}}
+
+.system-loss-values{margin:16px 0 32px;padding:16px;border:1px solid var(--line);background:var(--surface)}
+.system-loss-values summary{cursor:pointer;font-weight:600}
+.system-loss-values .table-wrap{margin-top:14px;max-height:480px;overflow:auto}
+.system-loss-values td{font-variant-numeric:tabular-nums}

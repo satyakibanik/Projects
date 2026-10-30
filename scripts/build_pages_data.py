@@ -300,6 +300,14 @@ def write_data_bundle(output_dir):
         print(f"Skipped {len(failures)} report(s): {', '.join(failures)}")
 
 
+def write_system_loss_bundle(output_dir):
+    """Annual Power Division data uses a monthly cache, independent of ERP refreshes."""
+    from system_loss import collect
+    bundle = collect(ROOT / ".cache" / "system-loss")
+    (output_dir / "system-loss-data.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
 def write_news_bundle(output_dir):
     """News collection is independent of workbook and forecast calculations."""
     from grid_news import collect
@@ -320,6 +328,7 @@ def main():
     shutil.copytree(DASHBOARD, output / "begd")
     write_data_bundle(output / "begd")
     write_news_bundle(output / "begd")
+    write_system_loss_bundle(output / "begd")
 
 
 if __name__ == "__main__":

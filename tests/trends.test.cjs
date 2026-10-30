@@ -88,7 +88,7 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  }};
  const history={start_date:'2015-04-17',end_date:'2015-04-18',days:[{date:'2015-04-17',mean_mw:5000,observations:24},{date:'2015-04-18',mean_mw:5500,observations:24}],months:[{month:'2015-04',median_mw:5200,days:2,observations:48}],excluded_records:[],source:'https://data.mendeley.com/datasets/xx9dhmy9rj/2',attribution:'BengalGrid',doi:'10.17632/xx9dhmy9rj.2'};
  const data={end_date:'2026-01-01',days:[{date:'2026-01-01',generation_mwh:2400,temperature_c:25,report_id:'1'}]};
- const window={location:{hash:'#trends'},addEventListener(){}};
+ const window={location:{hash:'#trends'},addEventListener(){},BEGDSystemLoss:{async load(){},panels(){return '<section>Annual system loss</section>'}}};
  const document={querySelector:s=>s==='#content'?host:node(s),querySelectorAll:()=>[],getElementById:node};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,document,fetch:async url=>({ok:true,json:async()=>url==='trends-data.json'?data:history}),Date,Map,Set});
  await window.BEGDTrends.mount();
@@ -121,12 +121,12 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  host.units.find(control=>control.dataset.unitChart==='imports'&&control.dataset.trendUnit==='MW').handler();
  assert.match(host.innerHTML,/Imports \(MW\)/);
  host.buttons['10y'].handler();
- assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);
+ assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);assert.match(host.innerHTML,/Annual system loss/);
  assert.doesNotMatch(host.innerHTML,/Generation & demand|Total demand requirement/);
  assert.match(host.innerHTML,/data-trend-days="10y" aria-pressed="true"/);
  assert.match(host.innerHTML,/no reported observations/);
  host.buttons['60'].handler();
- assert.match(host.innerHTML,/Generation & demand/);assert.doesNotMatch(host.innerHTML,/A decade of generation|Seasonality & growth by month/);
+ assert.match(host.innerHTML,/Generation & demand/);assert.doesNotMatch(host.innerHTML,/A decade of generation|Seasonality & growth by month|Annual system loss/);
 });
 test('365-day charts label each month and identify a sparse subset for small containers',()=>{
  const api=load(),rows=api.windowDays({end_date:'2026-10-18',days:[]},365);
