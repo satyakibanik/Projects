@@ -15,3 +15,17 @@
 .temperature-subplot-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .temperature-subplot-heading h3 { font-size: 14px; color: var(--ink); font-weight: 500; }
 .temperature-subplot .trends-chart { margin-top: 8px; }
+
+/* A bounded log explorer below all recent-window charts. */
+.event-explorer-filters{display:flex;flex-wrap:wrap;gap:14px;margin:18px 0}
+.event-explorer-filters label{display:flex;flex-direction:column;gap:6px;font-size:12px;flex:1;min-width:200px}
+.event-explorer-filters input,.event-explorer-filters select{width:100%;min-height:42px}
+.event-explorer-scroll{max-height:560px;overflow:auto}
+.event-explorer-scroll th{position:sticky;top:0;z-index:1;background:var(--surface,#fff)}
+.event-explorer-scroll td{vertical-align:top}
+.event-explorer-scroll td.remarks{white-space:normal;min-width:240px;max-width:none}
+.event-explorer-time{white-space:nowrap;font-variant-numeric:tabular-nums}
+.event-explorer-pages{display:flex;align-items:center;justify-content:flex-end;gap:12px;margin-top:14px;font-size:12px}
+@media(max-width:600px){.event-explorer-filters{flex-direction:column}.event-explorer-filters label{min-width:0}.event-explorer-pages{justify-content:space-between}}
+
+.event-explorer-coverage{font-size:12px;color:var(--muted)}
