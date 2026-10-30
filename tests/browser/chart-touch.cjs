@@ -12,7 +12,9 @@ async function swipe(session,start,end){
 }
 async function inspect(page,wrap){
   const svg=wrap.locator('svg.chart').first(),tip=wrap.locator('.chart-tooltip,[role=tooltip]').first();
-  await svg.scrollIntoViewIfNeeded();
+  // scrollIntoViewIfNeeded considers the viewport, but not the sticky date bar.
+  // Center the chart so a preserved scroll position cannot put test taps behind it.
+  await svg.evaluate(node=>node.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));
   // A queued scroll event dismisses pinned values. Let the programmatic scroll
   // and layout settle before measuring the chart and sending the first tap.
   await svg.evaluate(async node=>{
@@ -35,7 +37,13 @@ async function inspect(page,wrap){
   let previous='';
   // Deliberately tap empty space below the data rather than a tiny marker.
   for(const fraction of [.25,.55,.85]){
-    await page.touchscreen.tap(bounds.x+bounds.width*fraction,bounds.y+bounds.height*.75);
+    const point={x:bounds.x+bounds.width*fraction,y:bounds.y+bounds.height*.75};
+    const target=await page.evaluate(({x,y})=>{
+      const node=document.elementFromPoint(x,y);
+      return {chart:Boolean(node?.closest('svg.chart')),tag:node?.tagName,className:node?.getAttribute('class')};
+    },point);
+    assert(target.chart,'Chart tap is obscured: '+JSON.stringify({point,target}));
+    await page.touchscreen.tap(point.x,point.y);
     await page.waitForTimeout(150);
     assert(await tip.isVisible(),'Tap did not open values');
     const text=await tip.innerText();assert(text&&text!==previous,'Tap did not select the nearest new timestamp');previous=text;
@@ -94,7 +102,9 @@ async function inspect(page,wrap){
     const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.route('**/*',serve);
     const page=await context.newPage();await page.goto('https://begd.test/begd/index.html#trends');await page.waitForSelector('[data-trend-layer]');
     const svg=page.locator('[data-trend-key="dependence-renewables"] svg'),tip=page.locator('[data-trend-key="dependence-renewables"] [role=tooltip]');
-    await svg.scrollIntoViewIfNeeded();const box=await svg.boundingBox();await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);assert(await tip.isVisible());
+    // scrollIntoViewIfNeeded considers the viewport, but not the sticky date bar.
+  // Center the chart so a preserved scroll position cannot put test taps behind it.
+  await svg.evaluate(node=>node.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'}));const box=await svg.boundingBox();await page.mouse.move(box.x+box.width*.5,box.y+box.height*.5);assert(await tip.isVisible());
     await svg.focus();await page.keyboard.press('Home');const first=await tip.innerText();await page.keyboard.press('End');assert.notEqual(await tip.innerText(),first);
     await page.keyboard.press('Escape');assert(!await tip.isVisible());await context.close();
   }finally{await browser.close();}
