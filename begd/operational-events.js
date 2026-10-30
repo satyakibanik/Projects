@@ -10,7 +10,8 @@
   ];
   const labels=Object.fromEntries(CATEGORIES),PAGE_SIZE=50;
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  let data=null,pending=null,error=null,query='',category='',page=0,windowKey='';
+  let data=null,pending=null,error=null,query='',category='',page=0,windowKey='',view='logs';
+  const heatSettings=root.BEGDEventHeatmap?.defaults();
   function classify(description){
     const text=String(description||'');
     const action=text.split(/\bdue to\b|\bshowing\b|\bwith remarks\b/i)[0];
@@ -58,7 +59,7 @@
     }).join('');
   }
   function shell(){
-    return `<section class="panel full operational-event-explorer" aria-labelledby="operational-event-heading"><div class="panel-head"><div><h2 id="operational-event-heading">Operational Event Explorer (logs)</h2><p>P1 event log · Bangladesh time (Asia/Dhaka)</p></div></div><p class="note">Dates identify the operating report; start and end retain the workbook’s outage/event and restoration fields. A dash means no time was reported. After-midnight entries can refer to the following day. Categories follow the wording; generic shutdowns stay unspecified.</p><div class="event-explorer-filters"><label for="operational-event-search">Search description<input id="operational-event-search" type="search" placeholder="Search full source descriptions" value="${escape(query)}"></label><label for="operational-event-category">Category<select id="operational-event-category"><option value="">All categories</option>${CATEGORIES.map(([id,label])=>`<option value="${id}"${category===id?' selected':''}>${escape(label)}</option>`).join('')}</select></label></div><p class="event-explorer-coverage" data-event-coverage></p><p class="note" role="status" aria-live="polite" data-event-result></p><div class="table-wrap event-explorer-scroll" tabindex="0" role="region" aria-label="Operational event log table"><table><thead><tr><th scope="col">Date / time (start–end)</th><th scope="col">Category</th><th scope="col">Full source description</th></tr></thead><tbody data-event-rows></tbody></table></div><div class="event-explorer-pages"><button type="button" data-event-prev>Previous</button><span data-event-page></span><button type="button" data-event-next>Next</button></div></section>`;
+    return `<section class="panel full operational-event-explorer" aria-labelledby="operational-event-heading"><div class="panel-head"><div><h2 id="operational-event-heading">Operational Event Explorer (logs)</h2><p>P1 event log · Bangladesh time (Asia/Dhaka)</p></div></div><div class="event-explorer-tabs" role="tablist" aria-label="Operational event explorer views"><button type="button" role="tab" data-event-explorer-view="logs" aria-controls="event-explorer-logs" aria-selected="${view==='logs'}">Logs</button><button type="button" role="tab" data-event-explorer-view="heatmap" aria-controls="event-explorer-heatmap" aria-selected="${view==='heatmap'}">Category × hour</button></div><p class="note">Dates identify the operating report; start and end retain the workbook’s outage/event and restoration fields. A dash means no time was reported. After-midnight entries can refer to the following day. Categories follow the wording; generic shutdowns stay unspecified.</p><div class="event-explorer-filters"><label for="operational-event-search" data-event-search-field>Search description<input id="operational-event-search" type="search" placeholder="Search full source descriptions" value="${escape(query)}"></label><label for="operational-event-category">Category<select id="operational-event-category"><option value="">All categories</option>${CATEGORIES.map(([id,label])=>`<option value="${id}"${category===id?' selected':''}>${escape(label)}</option>`).join('')}</select></label></div><p class="event-explorer-coverage" data-event-coverage></p><p class="note" role="status" aria-live="polite" data-event-result></p><div id="event-explorer-logs" role="tabpanel"><div class="table-wrap event-explorer-scroll" tabindex="0" role="region" aria-label="Operational event log table"><table><thead><tr><th scope="col">Date / time (start–end)</th><th scope="col">Category</th><th scope="col">Full source description</th></tr></thead><tbody data-event-rows></tbody></table></div><div class="event-explorer-pages"><button type="button" data-event-prev>Previous</button><span data-event-page></span><button type="button" data-event-next>Next</button></div></div><div id="event-explorer-heatmap" role="tabpanel" hidden></div></section>`;
   }
   async function load(){
     if(data)return data;
@@ -76,6 +77,10 @@
     const previous=host.querySelector('[data-event-prev]'),next=host.querySelector('[data-event-next]'),pageLabel=host.querySelector('[data-event-page]');
     function render(){
       if(!host.isConnected)return;
+      host.querySelector('#event-explorer-logs').hidden=view!=='logs';
+      host.querySelector('#event-explorer-heatmap').hidden=view!=='heatmap';
+      host.querySelector('[data-event-search-field]').hidden=view!=='logs';
+      host.querySelectorAll('[data-event-explorer-view]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.eventExplorerView===view)));
       if(!data){
         status.textContent=error?'Operational event logs could not be loaded.':'Loading operational event logs…';
         tbody.innerHTML='<tr><td colspan="3" class="empty">'+(error?'Event log data is unavailable.':'Loading…')+'</td></tr>';
@@ -91,7 +96,17 @@
       tbody.innerHTML=rowsHTML(visible)||(window.available?' <tr><td colspan="3" class="empty">No entries match these filters.</td></tr>':'<tr><td colspan="3" class="empty">No P1 event logs are available for this window.</td></tr>');
       previous.disabled=page===0;next.disabled=start+PAGE_SIZE>=matches.length;
       pageLabel.textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(matches.length/PAGE_SIZE))}`;
+      if(view==='heatmap'){
+        status.textContent='';
+        root.BEGDEventHeatmap?.render(host.querySelector('#event-explorer-heatmap'),filterRows(window.rows,'',category),window.available,heatSettings,CATEGORIES.filter(([id])=>!category||id===category),render);
+      }
     }
+    host.querySelectorAll('[data-event-explorer-view]').forEach(button=>button.addEventListener('click',()=>{view=button.dataset.eventExplorerView;render()}));
+    host.querySelector('[role="tablist"]').addEventListener('keydown',event=>{
+      if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+      event.preventDefault();view=event.key==='Home'?'logs':event.key==='End'?'heatmap':view==='logs'?'heatmap':'logs';render();
+      host.querySelector('[data-event-explorer-view="'+view+'"]').focus();
+    });
     host.addEventListener('click',async event=>{
       const button=event.target.closest('[data-operational-event-date]');if(!button)return;
       button.disabled=true;
