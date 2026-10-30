@@ -121,7 +121,7 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  host.units.find(control=>control.dataset.unitChart==='imports'&&control.dataset.trendUnit==='MW').handler();
  assert.match(host.innerHTML,/Imports \(MW\)/);
  host.buttons['10y'].handler();
- assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);assert.match(host.innerHTML,/Annual system loss/);
+ assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);assert.match(host.innerHTML,/Annual system loss/);assert.match(host.innerHTML,/>Really long-term!<\/button>/);assert.doesNotMatch(host.innerHTML,/BengalGrid historical view · full available record/);
  assert.doesNotMatch(host.innerHTML,/Generation & demand|Total demand requirement/);
  assert.match(host.innerHTML,/data-trend-days="10y" aria-pressed="true"/);
  assert.match(host.innerHTML,/no reported observations/);

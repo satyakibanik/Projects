@@ -207,13 +207,13 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'10y':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
   }
   function waterLevelRows(end,count) {
     return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
   function content() {
-    if(period==='10y')return controls()+`<p class="trends-coverage">BengalGrid historical view · full available record, ${history?dateLabel(history.start_date)+' – '+dateLabel(history.end_date):'2015–2026'} · annual system loss shown separately below</p>`+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
+    if(period==='10y')return controls()+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
