@@ -246,6 +246,7 @@ class BuildTests(unittest.TestCase):
         records = [dict(id='2', name='</script>&', published_date='2026-10-15'), dict(id='1', name='Older', published_date='2026-10-16')]
         def parsed(item):
             return dict(report_id=item['id'], published_date=item['published_date'], date='2026-10-14', name=item['name'],
+                        operations=dict(event_log_version=1, events=[dict(description=item['name'], outage_time='08:00', restoration_time='—')]),
                         plants=[dict(name='Test plant', installed_capacity_mw=100, present_capacity_mw=90, peak_mw=75)],
                         voltages=[dict(name='Test station', voltage_class='132 kV', min_kv=120, max_kv=135)])
         with tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', return_value=records), patch.object(build, 'parse_listing_item', side_effect=parsed), patch.object(server, 'get_highest_generation_day', side_effect=LookupError), patch.object(server, 'get_current_day', return_value={'today_date': '2026-10-15'}):
@@ -261,6 +262,10 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(trends['end_date'], '2026-10-14')
             self.assertEqual(len(trends['days']), 1)
             self.assertEqual(trends['days'][0]['report_id'], '2')
+            events = json.loads((output / 'operational-events.json').read_text())
+            self.assertEqual(events['end_date'], trends['end_date'])
+            self.assertEqual(events['days'][0]['report_id'], '2')
+            self.assertEqual(events['days'][0]['events'][0]['description'], '</script>&')
             history = json.loads((output / 'entity-history' / 'index.json').read_text())
             self.assertEqual(history['end_date'], trends['end_date'])
             self.assertEqual(history['sources']['2026-10-14']['report_id'], '2')

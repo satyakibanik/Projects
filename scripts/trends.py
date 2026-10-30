@@ -5,6 +5,7 @@ No hourly MW sums or inferred load shedding; missing fields stay null.
 import datetime as dt
 import math
 from water_level import extract_water_level, water_level_summary
+from operational_events import extract_event_log
 
 
 def number(value):
@@ -98,6 +99,7 @@ def extract_trend_workbook(content, item):
                 routes.append({'name':name, 'energy_mwh':round(kwh / 1000, 6) if kwh is not None else None})
     report = {'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],
               'water_level':extract_water_level(workbook),
+              'operations':extract_event_log(sheet),
               'source_url':item['download_url'], 'fuels':fuels, 'hourly':hourly, 'imports':routes,
               'summary':{'energy_mwh':energy(sheet['K8'].value), 'unserved_mwh':energy(sheet['K9'].value),
                          'import_mwh':energy(sheet['K26'].value), 'temperature_c':temperature(sheet['K11'].value)}}

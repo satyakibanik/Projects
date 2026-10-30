@@ -20,6 +20,7 @@ sys.path.insert(0, str(SCRIPTS))
 import server
 from import_report import parse_report
 from trends import build_trends, extract_trend_workbook
+from operational_events import build_event_log, event_cache_current
 from entity_history import write_entity_history
 
 
@@ -132,6 +133,7 @@ def write_data_bundle(output_dir):
         latest = max(dt.date.fromisoformat(item["published_date"]) for item in records)
         recent_start = latest - dt.timedelta(days=WINDOW_DAYS - 1)
     else:
+        latest = dt.date.today()
         recent_start = dt.date.today() - dt.timedelta(days=WINDOW_DAYS - 1)
     cache_dir = ROOT / ".cache" / "historical-reports"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -143,14 +145,14 @@ def write_data_bundle(output_dir):
         if not is_recent and cache_path.is_file():
             try:
                 cached = json.loads(cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"]:
+                if cached.get("report_id") == item["id"] and event_cache_current(cached, item["published_date"], latest):
                     return cached
             except (OSError, ValueError):
                 pass
         if not is_recent and trend_cache_path.is_file():
             try:
                 cached = json.loads(trend_cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"] and cached.get("_trends_only") and "temperature_c" in cached.get("summary", {}) and "water_level" in cached:
+                if cached.get("report_id") == item["id"] and cached.get("_trends_only") and "temperature_c" in cached.get("summary", {}) and "water_level" in cached and event_cache_current(cached, item["published_date"], latest):
                     return cached
             except (OSError, ValueError):
                 pass
@@ -253,6 +255,9 @@ def write_data_bundle(output_dir):
         json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
     trends = build_trends(trend_reports, built_at)
+    (output_dir / "operational-events.json").write_text(
+        json.dumps(build_event_log(trend_reports, built_at, trends["end_date"]), ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8")
     write_entity_history(trend_reports, output_dir / 'entity-history', built_at, trends['end_date'])
     (output_dir / "trends-data.json").write_text(
         json.dumps(trends, ensure_ascii=False,

@@ -9,6 +9,7 @@ import unicodedata
 
 import openpyxl
 from water_level import extract_water_level
+from operational_events import extract_event_log
 
 
 def parse_report(report_bytes, source_file):
@@ -321,22 +322,7 @@ def parse_report(report_bytes, source_file):
             planned_shutdowns.append(dict(name=str(planned_name).strip(), capacity_mw=float(planned_capacity)))
         if forced_name and isinstance(forced_capacity, (int, float)):
             forced_shutdowns.append(dict(name=str(forced_name).strip(), capacity_mw=float(forced_capacity)))
-    events = []
-    event_row = None
-    for row in range(85, summary_sheet.max_row + 1):
-        outage = summary_sheet.cell(row, 2).value
-        restoration = summary_sheet.cell(row, 3).value
-        description = summary_sheet.cell(row, 4).value
-        if description:
-            if outage or restoration or event_row is None:
-                event_row = dict(outage_time=str(outage or "—")[:5],
-                                 restoration_time=str(restoration or "—")[:5],
-                                 description=str(description).strip())
-                events.append(event_row)
-            else:
-                event_row["description"] += " " + str(description).strip()
-        elif outage or restoration:
-            event_row = None
+    event_log = extract_event_log(summary_sheet)
 
     # EWIC hourly active-power flows. Positive values are west-to-east and
     # negative values are east-to-west, as noted in the workbook itself.
@@ -458,7 +444,7 @@ def parse_report(report_bytes, source_file):
         substations=substations,
         voltages=voltages,
         operations=dict(planned_shutdowns=planned_shutdowns, forced_shutdowns=forced_shutdowns,
-                        events=events, ewic=ewic,
+                        **event_log, ewic=ewic,
                         east_west=dict(energy_east_to_west_kwh=number(summary_sheet["E53"].value),
                                        energy_west_to_east_kwh=number(summary_sheet["E54"].value),
                                        peak_west_to_east_mw=number(summary_sheet["E55"].value),

@@ -248,7 +248,7 @@
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
     html+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
-    return html+'<div id="entity-histories"></div>';
+    return html+'<div id="entity-histories"></div><div id="operational-event-explorer"></div>';
   }
   function tooltipRows(record,index) {
     const row=record.rows[index];
@@ -436,6 +436,7 @@
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
+    root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),period,bundle?.end_date);
     bindControls(host);
     document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
     document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
