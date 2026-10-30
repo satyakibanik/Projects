@@ -37,7 +37,7 @@ test('switching views updates visibility, pressed state and survives report rend
  const target={closest(s){return s==='[data-event-view-select]'?buttons[2]:null}};
  for(const fn of listeners.click)fn({target});
  assert.equal(buttons[2]['aria-pressed'],'true');assert.deepEqual(sections.map(s=>s.hidden),[true,true,false,true]);
- assert.match(description.textContent,/Event pulse/);assert.equal(note.hidden,false);
+ assert.equal(note.hidden,false);
  assert.match(api.render([],[]),/data-event-view-select="density" aria-pressed="true"/);
 });
 test('empty and partial reports produce finite charts and preserve untimed entries',()=>{
@@ -49,4 +49,16 @@ test('empty and partial reports produce finite charts and preserve untimed entri
  }
  assert.match(api.render([{description:'No time'}],[]),/No reported time/);
  assert.match(api.render([{outage_time:'12:00',description:'Timed event'}],[]),/event-time-marker event-single-marker/);
+});
+
+test('pulse counts outage and restoration endpoints separately without a period category',()=>{
+ const {api}=viewer();
+ const html=api.render([{outage_time:'01:00',restoration_time:'02:00',description:'Paired event'},{outage_time:'23:50',restoration_time:'00:10',description:'Next day restoration'}],[]);
+ assert.match(html,/01:00 to 01:30: 1 outages, 0 restorations/);
+ assert.match(html,/02:00 to 02:30: 0 outages, 1 restorations/);
+ assert.match(html,/00:00 to 00:30: 0 outages, 0 restorations/);
+ assert.doesNotMatch(html,/Period starts|Active periods|event-density-midpoint|event-density-endpoints|event-density-active/);
+ assert.match(html,/Demand \(MW\)/);assert.match(html,/Generation \(MW\)/);
+ assert.doesNotMatch(html,/event-view-description|Demand &amp; generation response/);
+ assert.match(html,/event-lanes-scroll/);
 });
