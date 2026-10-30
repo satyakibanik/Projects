@@ -177,3 +177,9 @@
  .event-context-tooltip{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px 14px}
  .event-context-tooltip .event-tooltip-endpoint{padding-top:8px}
 }
+
+/* Event details use the same theme surface and text palette as the dashboard. */
+.event-context-tooltip{background:var(--surface,#fff);color:var(--ink);border-color:var(--line)}
+.event-context-tooltip strong,.event-context-tooltip b{color:var(--ink)}
+.event-context-tooltip .event-tooltip-time{color:var(--green)}
+.event-context-tooltip small,.event-context-tooltip p{color:var(--muted)}
