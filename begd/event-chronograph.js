@@ -346,7 +346,7 @@
     return `<div class="event-dial-layout"><svg class="event-dial-svg" viewBox="0 0 440 440" role="group" aria-label="24-hour clock dial with outage spans and event markers"><title>24-hour event dial · each marked hour is Bangladesh time</title><circle class="event-dial-face" cx="${cx}" cy="${cy}" r="${face}"/><circle class="event-dial-ring" cx="${cx}" cy="${cy}" r="126"/><circle class="event-dial-ring" cx="${cx}" cy="${cy}" r="150"/>${ticks}${marks}<text class="event-dial-center" x="${cx}" y="${cy - 5}" text-anchor="middle">24 HOUR</text><text class="event-dial-center-note" x="${cx}" y="${cy + 14}" text-anchor="middle">BST</text></svg><div class="event-dial-list-wrap"><h3>Chronological event list</h3><ol class="event-dial-list">${list}</ol></div></div>`;
   }
 
-  let selectedView = 'table';
+  let selectedView = window.matchMedia?.('(max-width: 760px)').matches ? 'table' : 'lanes';
 
   function render(rawEvents = [], hourly = [], tableMarkup = '') {
     window.requestAnimationFrame?.(() => { if (selectedView === 'density') centerPulseWindow(); });

@@ -1,0 +1,99 @@
+{
+  "source_workbook": "Substation Coordinate Matches.xlsx",
+  "source_sha256": "ee6414a5c8c91cacbfc5acdff739d0005137772e4c8a55ed53e6f370b1fb283b",
+  "imported_at": "2026-10-19T03:35:07.525204+00:00",
+  "coordinate_reference": "WGS84",
+  "note": "User-approved endpoint sites. Voltage/site identity review notes retained. Connecting branches are schematic; surveyed circuit routes are unavailable.",
+  "circuits": [
+    {
+      "key": "ishwardi_ghorashal",
+      "name": "Ishwardi\u2013Ghorashal",
+      "west": {
+        "id": "ishurdi|230 kV",
+        "name": "Ishurdi",
+        "voltage_class": "230 kV",
+        "latitude": 24.0972663,
+        "longitude": 89.0844742,
+        "osm_id": "way/148155161",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 124,
+        "decision": "Use it",
+        "original_match_status": "Proposed site",
+        "match_evidence": "Normalized name"
+      },
+      "east": {
+        "id": "ghorashal|230 kV",
+        "name": "Ghorashal",
+        "voltage_class": "230 kV",
+        "latitude": 23.9787709,
+        "longitude": 90.6371689,
+        "osm_id": "way/147998606",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 104,
+        "decision": "Use it",
+        "original_match_status": "Proposed site",
+        "match_evidence": "Transliteration alias"
+      }
+    },
+    {
+      "key": "sirajganj_sreepur",
+      "name": "Sirajganj\u2013Sreepur",
+      "west": {
+        "id": "sirajgonj|230 kV",
+        "name": "Sirajgonj",
+        "voltage_class": "230 kV",
+        "latitude": 24.4476625,
+        "longitude": 89.6699273,
+        "osm_id": "way/210993438",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 269,
+        "decision": "Use it",
+        "original_match_status": "Review candidate",
+        "match_evidence": "Similar spelling only; Reported voltage class absent from OSM voltage tag"
+      },
+      "east": {
+        "id": "sreepur|230 kV",
+        "name": "Sreepur",
+        "voltage_class": "230 kV",
+        "latitude": 24.2219637,
+        "longitude": 90.3903969,
+        "osm_id": "way/1382322214",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 274,
+        "decision": "Use it",
+        "original_match_status": "Review candidate",
+        "match_evidence": "Transliteration alias; OSM voltage not tagged"
+      }
+    },
+    {
+      "key": "gopalganj_aminbazar",
+      "name": "Gopalganj\u2013Aminbazar",
+      "west": {
+        "id": "gopalganj|400 kV",
+        "name": "Gopalganj",
+        "voltage_class": "400 kV",
+        "latitude": 23.0300078,
+        "longitude": 89.8268809,
+        "osm_id": "way/354528965",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 110,
+        "decision": "Use it",
+        "original_match_status": "Review candidate",
+        "match_evidence": "Normalized name; Reported voltage class absent from OSM voltage tag"
+      },
+      "east": {
+        "id": "aminbazar|400 kV",
+        "name": "Aminbazar",
+        "voltage_class": "400 kV",
+        "latitude": 23.786202,
+        "longitude": 90.3151984,
+        "osm_id": "way/147998689",
+        "source": "User-approved workbook primary coordinate",
+        "workbook_row": 17,
+        "decision": "Use it",
+        "original_match_status": "Proposed site",
+        "match_evidence": "Normalized name"
+      }
+    }
+  ]
+}
