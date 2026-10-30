@@ -34,6 +34,8 @@
     ];
     return rules.find(([,pattern,source])=>pattern.test(source??action))?.[0]||'review';
   }
+  // Shared by the daily Operations views so category wording stays consistent.
+  const categoryLabel=description=>labels[classify(description)]||labels.review;
   function clockMinutes(value){
     const match=/^(\d{2}):(\d{2})$/.exec(String(value));
     if(!match)return null;
@@ -97,7 +99,7 @@
       const window=selectWindow(data,count,endDate),matches=filterRows(window.rows,query,category);
       page=Math.max(0,Math.min(page,Math.ceil(matches.length/PAGE_SIZE)-1));
       const start=page*PAGE_SIZE,visible=matches.slice(start,start+PAGE_SIZE);
-      status.textContent=`${matches.length.toLocaleString('en-US')} of ${window.rows.length.toLocaleString('en-US')} entries match · ${matches.length?start+1:0}–${Math.min(start+PAGE_SIZE,matches.length)} shown`;
+      status.textContent=`${matches.length.toLocaleString('en-US')} of ${window.rows.length.toLocaleString('en-US')} entries match · ${matches.length?start+1:0}–${Math.min(start+PAGE_SIZE,matches.length)} shown · ${window.available} / ${count} days with P1 logs`;
       tbody.innerHTML=rowsHTML(visible)||(window.available?' <tr><td colspan="3" class="empty">No entries match these filters.</td></tr>':'<tr><td colspan="3" class="empty">No P1 event logs are available for this window.</td></tr>');
       previous.disabled=page===0;next.disabled=start+PAGE_SIZE>=matches.length;
       pageLabel.textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(matches.length/PAGE_SIZE))}`;
@@ -120,5 +122,5 @@
     next.addEventListener('click',()=>{page++;render()});
     render();if(!data&&!error){await load();render()}
   }
-  root.BEGDOperationalEvents={mount,classify,selectWindow,filterRows,rowsHTML,clockMinutes};
+  root.BEGDOperationalEvents={mount,classify,categoryLabel,selectWindow,filterRows,rowsHTML,clockMinutes};
 })(window);
