@@ -29,6 +29,7 @@
       entries.forEach(row=>counts[row.hour]++);
       return {id,label,counts,total:entries.length,values:counts.map(count=>!available?null:settings.value==='rate'?count/available:settings.value==='share'?(entries.length?100*count/entries.length:0):count)};
     });
+    result.sort((a,b)=>b.total-a.total);
     return {rows:result,observations,missing:eligible.length-observations.length,available};
   }
   function options(items,value){return items.map(([id,label])=>`<option value="${escape(id)}"${id===value?' selected':''}>${escape(label)}</option>`).join('')}
