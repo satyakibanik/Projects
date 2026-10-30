@@ -45,6 +45,8 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    fail=false;await page.getByRole('button',{name:'Retry event logs'}).click();
    await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('65 of 65'));
    await page.locator('#operational-event-search').fill('Special');
+   assert.equal(await page.locator('[data-event-explorer-view="heatmap"]').isVisible(),width>600);
+   if(width>600){
    await page.getByRole('tab',{name:'Category × hour',exact:true}).click();
    assert.equal(await page.locator('#operational-event-search').isVisible(),false);
    const settings=page.locator('.event-heatmap-settings');assert.equal(await settings.getAttribute('open'),null);
@@ -55,6 +57,7 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    assert.equal(await page.locator('[data-heatmap-summary]').count(),0);
    assert.equal(await page.locator('#operational-event-category').isVisible(),false);
    assert.equal(await page.locator('.event-heatmap tbody tr').count(),13);
+   assert.equal(await page.locator('.event-heatmap tbody th').evaluateAll(cells=>cells.every(cell=>cell.scrollWidth<=cell.clientWidth)),true,'category labels must wrap inside their column');
    const heatCell=page.locator('[data-heatmap-category="scheduled"][data-heatmap-hour="8"]');
    assert.equal(await heatCell.innerText(),'64');await heatCell.click();
    assert.equal(await page.locator('[data-heatmap-evidence] tbody tr').count(),50);
@@ -66,13 +69,18 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    assert.equal(await page.locator('.event-heatmap-settings').getAttribute('open'),'');
    await page.locator('#event-heatmap-asset').selectOption('Generator');
    assert.equal(await page.locator('[data-heatmap-category="scheduled"][data-heatmap-hour="8"]').innerText(),'0.00');
-   await page.getByRole('tab',{name:'Logs',exact:true}).click();
+   await page.setViewportSize({width:390,height:900});
+   assert.equal(await page.locator('[data-event-explorer-view="heatmap"]').isVisible(),false);
+   await page.waitForFunction(()=>!document.querySelector('#event-explorer-logs').hidden&&document.querySelector('#event-explorer-heatmap').hidden);
+   await page.setViewportSize({width,height:900});
+   assert.equal(await page.getByRole('tab',{name:'Logs',exact:true}).getAttribute('aria-selected'),'true');
+   }
    await page.locator('#operational-event-category').selectOption('');
    await page.locator('#operational-event-search').fill('Special');
    assert.equal(await page.locator('#operational-event-explorer a[href], [data-operational-event-date]').count(),0);
    assert.match(await page.locator('[data-event-rows]').innerText(),/2026-10-29/);
    assert.deepEqual(errors,[]);
-   console.log('PASS operational event explorer',width,'heatmap defaults/settings/evidence, filters, all windows, pagination, plain dates, clean heatmap and isolated retry');
+   console.log('PASS operational event explorer',width,'heatmap defaults/settings/evidence, filters, all windows, pagination, plain dates, wrapped category labels, phone fallback and isolated retry');
    await context.close();
   }
  }finally{await browser.close()}

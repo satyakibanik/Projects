@@ -12,6 +12,9 @@
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   let data=null,pending=null,error=null,query='',category='',page=0,windowKey='',view='logs';
   const heatSettings=root.BEGDEventHeatmap?.defaults();
+  const phone=root.matchMedia?.('(max-width:600px)');
+  let renderCurrent=null;
+  phone?.addEventListener('change',()=>renderCurrent?.());
   function classify(description){
     const text=String(description||'');
     const action=text.split(/\bdue to\b|\bshowing\b|\bwith remarks\b/i)[0];
@@ -77,6 +80,7 @@
     const previous=host.querySelector('[data-event-prev]'),next=host.querySelector('[data-event-next]'),pageLabel=host.querySelector('[data-event-page]');
     function render(){
       if(!host.isConnected)return;
+      if(phone?.matches)view='logs';
       host.querySelector('#event-explorer-logs').hidden=view!=='logs';
       host.querySelector('#event-explorer-heatmap').hidden=view!=='heatmap';
       host.querySelector('.event-explorer-filters').hidden=view!=='logs';
@@ -102,8 +106,10 @@
         root.BEGDEventHeatmap?.render(host.querySelector('#event-explorer-heatmap'),window.rows,window.available,heatSettings,CATEGORIES,render);
       }
     }
+    renderCurrent=render;
     host.querySelectorAll('[data-event-explorer-view]').forEach(button=>button.addEventListener('click',()=>{view=button.dataset.eventExplorerView;render()}));
     host.querySelector('[role="tablist"]').addEventListener('keydown',event=>{
+      if(phone?.matches)return;
       if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
       event.preventDefault();view=event.key==='Home'?'logs':event.key==='End'?'heatmap':view==='logs'?'heatmap':'logs';render();
       host.querySelector('[data-event-explorer-view="'+view+'"]').focus();
