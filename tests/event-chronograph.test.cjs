@@ -16,8 +16,8 @@ test('normalisation handles midnight, missing times and zero-length periods',()=
  assert.equal(rows.find(e=>e.index===3).duration,0);
  assert.equal(rows.at(-1).unavailable,true);
 });
-test('table defaults preserve workbook content and expose exactly four choices',()=>{
- const {api}=viewer();
+test('phone table defaults preserve workbook content and expose exactly four choices',()=>{
+ const {api}=viewer(true);
  const table='<section class="panel full"><div class="panel-head"><div><h2>Daily event log</h2><p>Notes</p></div><span class="tag">1 EVENTS</span></div><table><tbody><tr><td>Original order</td></tr></tbody></table><p>Source P1</p></section>';
  const html=api.render([{outage_time:'12:00',description:'<script>unsafe</script>'}],[],table);
  assert.equal((html.match(/data-event-view-select=/g)||[]).length,4);
@@ -103,4 +103,11 @@ test('pulse details use the Explorer category and preserve escaped source descri
   assert.ok(html.includes('<span class="event-category">'+label+'</span>'));
   assert.doesNotMatch(html,/<source>/);
  }
+});
+
+test('desktop defaults to timeline and retains the table as a choice',()=>{
+ const {api}=viewer();const html=api.render([],[],'<table>Workbook rows</table>');
+ assert.match(html,/data-event-view-select="lanes" aria-pressed="true"/);
+ assert.match(html,/data-event-view="lanes">/);
+ assert.match(html,/data-event-view="table" hidden>/);
 });
