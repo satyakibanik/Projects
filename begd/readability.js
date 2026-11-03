@@ -4,6 +4,7 @@
  */
 (()=>{'use strict';
 function roleFor(el,doc,nativeSize){
+ if(el.closest('.ewic-map-readings'))return 'controls';
  if(el.matches('.plant-table-hint'))return 'controls';
  if(el.closest('.brand-acronym'))return 'brand-acronym';
  if(el.closest('.brand-title'))return 'brand';

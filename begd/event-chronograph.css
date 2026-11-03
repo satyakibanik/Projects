@@ -217,3 +217,15 @@
 .daily-event-category-filter{display:grid;gap:7px}
 .daily-event-category-filter select{max-width:250px;padding:7px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:12px var(--body);text-transform:none}
 .event-log-scroll tr[hidden]{display:none}
+
+/* One P4 response chart and type scale across Timeline, Event pulse and Dial. */
+.event-chronograph-panel .event-context-canvas{min-width:850px}
+.event-chronograph-panel .event-context-fixed .event-context-wrap{overflow-x:auto}
+.event-chronograph-panel .event-context-svg{width:100%;height:auto;min-width:850px}
+.event-chronograph-panel .event-density-svg{width:100%;height:auto;min-width:850px;max-width:none}
+.event-pulse-filter{display:flex;flex-wrap:wrap;align-items:end;gap:8px 18px;margin:12px 0}
+.event-pulse-filter label{display:grid;gap:5px;font:13px var(--mono)}
+.event-pulse-filter select{margin:0;max-width:100%;min-height:40px;font:13px var(--body)}
+.event-pulse-filter>span{font:12px/1.5 var(--body);color:var(--muted)}
+.event-chronograph-panel .event-density-time-label{font-size:10px}
+.event-chronograph-panel .event-density-section-label{font-size:10px}

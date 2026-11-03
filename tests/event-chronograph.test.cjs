@@ -83,15 +83,15 @@ test('pulse click locks selection against hover/focus until an outside click or 
  for(const fn of listeners.pointerover)fn({target:clicked});assert.match(selection.innerHTML,/01:00–01:30/);
 });
 
-test('phone views use a wide pulse plot, a shared timeline canvas and a fitted dial chart',()=>{
+test('phone views use a uniform response chart and aligned scrollable histogram',()=>{
  const {api}=viewer(true);
  const html=api.render([{outage_time:'08:00',restoration_time:'10:00'},{outage_time:'12:00'}],[{time:'08:00',demand_mw:100,generation_mw:90}]);
  assert.match(html,/event-context-canvas/);
- assert.match(html,/viewBox="0 0 2256 390"/);
- assert.match(html,/data-density-slot="44"/);
+ assert.match(html,/viewBox="0 0 1120 200"/);
+ assert.match(html,/data-density-left="150"/);
  assert.doesNotMatch(html,/event-density-mobile-picker|event-density-bin-button/);
  assert.match(html,/event-context-group event-context-fixed/);
- assert.match(html,/viewBox="0 0 640 280"/);
+ assert.match(html,/viewBox="0 0 1120 190"/);
  assert.match(html,/event-dial-hit/);assert.match(html,/event-dial-point-hit/);
  assert.doesNotMatch(html,/NaN|Infinity/);
 });
@@ -110,4 +110,31 @@ test('desktop defaults to timeline and retains the table as a choice',()=>{
  assert.match(html,/data-event-view-select="lanes" aria-pressed="true"/);
  assert.match(html,/data-event-view="lanes">/);
  assert.match(html,/data-event-view="table" hidden>/);
+});
+
+test('all three views share response-curve geometry, scales, ticks and legends on desktop and phone',()=>{
+ for(const mobile of [false,true]){
+  const {api}=viewer(mobile);const html=api.render([{outage_time:'08:00',description:'Unit tripped'}],[{time:'00:00',generation_mw:11000,demand_mw:12000},{time:'12:00',generation_mw:9000,demand_mw:10000},{time:'23:00',generation_mw:13000,demand_mw:14000}]);
+  const charts=[...html.matchAll(/<svg class="event-context-svg"([^]*?)<\/svg>/g)].map(m=>m[0]);assert.equal(charts.length,3);
+  const geometry=svg=>({viewBox:svg.match(/viewBox="([^"]+)"/)[1],curves:[...svg.matchAll(/<polyline class="event-(demand|generation)-line" points="([^"]+)"/g)].map(m=>m[0]),ticks:[...svg.matchAll(/<text class="event-plot-y-label"[^]*?<\/text>/g)].map(m=>m[0]),legend:svg.match(/<g class="event-chart-legend"[^]*?<\/g>/)?.[0]});
+  assert.deepEqual(geometry(charts[0]),geometry(charts[1]));assert.deepEqual(geometry(charts[1]),geometry(charts[2]));
+ }
+});
+test('pulse category changes filter histogram and inspected entries while preserving P4 curves and other views',()=>{
+ const {api,listeners}=viewer();
+ const events=[{outage_time:'01:00',description:'Unit A Scheduled S/D'},{outage_time:'01:00',description:'Unit B Tripped'},{outage_time:'01:00',description:'Unit C Forced S/D'}];
+ const hourly=[{time:'00:00',generation_mw:100},{time:'02:00',generation_mw:200}];
+ const before=api.render(events,hourly);
+ const pulse={innerHTML:'',querySelector(){return null}},selection={innerHTML:''};
+ const panel={dataset:{densityPinned:'2'},querySelector(s){return s==='[data-event-view="density"]'?pulse:s==='.event-density-selection'?selection:null},querySelectorAll(){return []}};
+ const control={value:'trip',closest(s){return s==='[data-pulse-category]'?this:s==='.event-chronograph-panel'?panel:null}};
+ for(const fn of listeners.change)fn({target:control});
+ assert.equal(panel.dataset.densityPinned,undefined);
+ assert.match(pulse.innerHTML,/1 of 3 log entries/);assert.match(pulse.innerHTML,/01:00 to 01:30: 1 outages, 0 restorations/);
+ assert.match(pulse.innerHTML,/Unit B Tripped/);assert.doesNotMatch(pulse.innerHTML,/Unit A Scheduled|Unit C Forced/);
+ const generation=html=>html.match(/<polyline class="event-generation-line" points="([^"]+)"/)[1];assert.equal(generation(before),generation(pulse.innerHTML));
+ const target={dataset:{densityIndex:'2'},closest(s){return s==='[data-density-index]'||s==='.event-density-bin'?this:s==='.event-chronograph-panel'?panel:null}};
+ for(const fn of listeners.click)fn({target});assert.match(selection.innerHTML,/Unit B Tripped/);assert.doesNotMatch(selection.innerHTML,/Unit A Scheduled/);
+ const after=api.render(events,hourly);assert.match(after,/3 EVENTS · BST/);assert.match(after,/value="trip" selected/);
+ const reset=api.render([{outage_time:'01:00',description:'Unit A Scheduled S/D'}],hourly);assert.match(reset,/1 of 1 log entries/);assert.doesNotMatch(reset,/value="trip" selected/);
 });

@@ -154,25 +154,24 @@
   }
 
   function demandPlot(rows, events = [], { showEventLanes = true } = {}) {
-    const compact = !showEventLanes && Boolean(window.matchMedia?.('(max-width: 760px)').matches);
-    const chartWidth = compact ? 640 : 1120, chartHeight = compact ? 280 : 190;
-    const left = compact ? 120 : plotLeft, right = compact ? 610 : plotRight;
+    const chartWidth = 1120, chartHeight = 190;
+    const left = plotLeft, right = plotRight;
     const xFor = minutes => left + Math.min(1440, Math.max(0, minutes)) / 1440 * (right - left);
     const readings = (rows || []).filter(row => clock(row.time) != null);
     const values = readings.flatMap(row => [row.demand_mw, row.generation_mw]).filter(Number.isFinite);
     const low = values.length ? Math.min(...values) : 0, high = values.length ? Math.max(...values) : 1, padding = Math.max((high - low) * .12, 100);
-    const min = low - padding, max = high + padding, top = compact ? 45 : 25, bottom = compact ? 225 : 142;
+    const min = low - padding, max = high + padding, top = 25, bottom = 142;
     const yAt = value => bottom - ((value - min) / (max - min || 1)) * (bottom - top);
     const timedReadings = readingsWithTime(rows);
     const laneInfo = showEventLanes ? lanePositions(events) : { count: 0, positions: new Map() };
     const height = showEventLanes ? 248 + laneInfo.count * eventLaneStep : 190;
-    const ticks = Array.from({ length: values.length ? (compact ? 3 : 5) : 0 }, (_, index) => {
-      const value = min + (max - min) * index / (compact ? 2 : 4), y = yAt(value);
+    const ticks = Array.from({ length: values.length ? 5 : 0 }, (_, index) => {
+      const value = min + (max - min) * index / 4, y = yAt(value);
       return `<line class="event-plot-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="event-plot-y-label" x="${left - 12}" y="${y + 3}" text-anchor="end">${Math.round(value).toLocaleString('en-US')}</text>`;
     }).join('');
-    const grid = (compact ? [0, 8, 16, 24] : [0, 4, 8, 12, 16, 20, 24]).map(hour => {
+    const grid = [0, 4, 8, 12, 16, 20, 24].map(hour => {
       const x = xFor(hour * 60);
-      return `<line class="event-time-grid" x1="${x}" x2="${x}" y1="${top}" y2="${showEventLanes ? height - 15 : chartHeight - 35}"/><text class="event-time-label" x="${x}" y="${compact ? 257 : 164}" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
+      return `<line class="event-time-grid" x1="${x}" x2="${x}" y1="${top}" y2="${chartHeight - 35}"/><text class="event-time-label" x="${x}" y="164" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
     }).join('');
     const line = (key, cssClass) => {
       const points = readings.filter(row => Number.isFinite(row[key])).map(row => `${xFor(clock(row.time))},${yAt(row[key])}`);
@@ -183,12 +182,13 @@
       return `${points.length > 1 ? `<polyline class="${cssClass}" points="${points.join(' ')}"/>` : ''}${dots}`;
     };
     const links = eventLinkMarkup(events, timedReadings, yAt, laneInfo, showEventLanes, xFor);
+    const laneGrid = [0,4,8,12,16,20,24].map(hour=>`<line class="event-time-grid" x1="${xFor(hour*60)}" x2="${xFor(hour*60)}" y1="${eventAxisY}" y2="${height-15}"/>`).join('');
     const markers = showEventLanes ? events.map(event => timelineMarkerMarkup(event, laneInfo)).join('') : '';
     const unplaced = events.filter(event => event.unavailable);
     const noTimeMarkup = unplaced.length ? `<div class="event-unplaced-list" aria-label="Events without a reported time"><span>No reported time</span>${unplaced.map(event => `<button type="button" class="event-unplaced-chip" data-event-index="${event.index}" title="${esc(eventSummary(event))}" aria-label="${esc(eventSummary(event))}">${esc(event.description || 'Event without a description')}</button>`).join('')}</div>` : '';
     const eventAxis = showEventLanes ? `<line class="event-axis-line" x1="${left}" x2="${right}" y1="${eventAxisY}" y2="${eventAxisY}"/><text class="event-axis-label" x="${left - 12}" y="${eventAxisY + 3}" text-anchor="end">EVENTS</text>` : '';
     const ariaLabel = showEventLanes ? 'P4 hourly demand and generation with outage and restoration times on a shared 24-hour timeline' : 'P4 hourly demand and generation response on a 24-hour timeline';
-    return `${values.length ? '' : '<p class="event-plot-empty">P4 hourly demand and generation are unavailable for this report. Reported event times remain shown below.</p>'}<div class="event-context-group${showEventLanes ? '' : ' event-context-fixed'}"><div class="event-context-wrap"><div class="event-context-canvas">${showEventLanes ? '' : fixedChartLegend()}<svg class="event-context-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" role="group" aria-label="${ariaLabel}"><title>Daily demand and generation response with grid events · P4 actual · MW</title>${ticks}${grid}${line('demand_mw', 'event-demand-line')}${line('generation_mw', 'event-generation-line')}${links}${showEventLanes ? chartLegend(1120) : ''}</svg>${showEventLanes ? `<div class="event-lanes-scroll" tabindex="0" role="region" aria-label="Scrollable event timeline"><svg class="event-context-svg event-lanes-svg" viewBox="0 185 1120 ${height - 185}" role="group" aria-label="Event times and outage periods">${grid}${eventAxis}${markers}</svg></div>` : ''}</div></div><div class="event-context-tooltip" role="tooltip" aria-live="polite" hidden></div></div>${noTimeMarkup}`;
+    return `${values.length ? '' : '<p class="event-plot-empty">P4 hourly demand and generation are unavailable for this report. Reported event times remain shown below.</p>'}<div class="event-context-group${showEventLanes ? '' : ' event-context-fixed'}"><div class="event-context-wrap"><div class="event-context-canvas"><svg class="event-context-svg" viewBox="0 0 ${chartWidth} ${chartHeight}" role="group" aria-label="${ariaLabel}"><title>Daily demand and generation response with grid events · P4 actual · MW</title>${ticks}${grid}${line('demand_mw', 'event-demand-line')}${line('generation_mw', 'event-generation-line')}${links}${chartLegend(1120)}</svg>${showEventLanes ? `<div class="event-lanes-scroll" tabindex="0" role="region" aria-label="Scrollable event timeline"><svg class="event-context-svg event-lanes-svg" viewBox="0 185 1120 ${height - 185}" role="group" aria-label="Event times and outage periods">${laneGrid}${eventAxis}${markers}</svg></div>` : ''}</div></div><div class="event-context-tooltip" role="tooltip" aria-live="polite" hidden></div></div>${noTimeMarkup}`;
   }
 
   function densityBins(events) {
@@ -225,10 +225,6 @@
     return `<div class="event-density-selection-head"><div><h3>${formatClock(bin.start)}–${formatClock(bin.end)}</h3><span>${bin.outage} outages · ${bin.restoration} restorations</span></div></div>${events.length ? `<ol class="event-density-list">${eventMarkup}</ol>` : '<p class="event-density-empty">No reported events in this window.</p>'}`;
   }
 
-  function fixedChartLegend() {
-    return '<div class="event-fixed-legend"><span class="demand-key">Demand (MW)</span><span class="generation-key">Generation (MW)</span></div>';
-  }
-
   function centerPulseWindow() {
     const wrap = document.querySelector('[data-event-view="density"] .event-density-chart-wrap');
     const chart = wrap?.querySelector('.event-density-svg');
@@ -243,42 +239,24 @@
     return `<g class="event-chart-legend" transform="translate(${width - 350} 15)" aria-label="Demand (MW), Generation (MW)"><rect x="-8" y="-13" width="326" height="24" rx="3"/><line class="demand_mw" x1="0" x2="18" y1="0" y2="0"/><text x="24" y="4">Demand (MW)</text><line class="generation_mw" x1="155" x2="173" y1="0" y2="0"/><text x="179" y="4">Generation (MW)</text></g>`;
   }
 
+  let pulseCategory = '';
+  const eventCategory = event => window.BEGDOperationalEvents?.classify(event.description) || event.category || 'review';
+  const pulseEvents = events => pulseCategory ? events.filter(event => eventCategory(event) === pulseCategory) : events;
   function densityView(rows, events) {
-    const readings = readingsWithTime(rows), bins = densityBins(events);
-    const values = readings.flatMap(point => [point.row.demand_mw, point.row.generation_mw]).filter(Number.isFinite);
-    const maxCount = Math.max(1, ...bins.map(bin => bin.outage + bin.restoration));
-    const busiest = bins.reduce((best, bin) =>
-      bin.outage + bin.restoration > best.outage + best.restoration ? bin : best, bins[0]);
-    const mobile = Boolean(window.matchMedia?.('(max-width: 760px)').matches);
-    const chartWidth = mobile ? 2256 : 1000;
-    const x0 = mobile ? 72 : 62, x1 = mobile ? 2184 : 982, width = x1 - x0, slot = width / 48;
-    const top = 27, curveBottom = 170, barsTop = 226, barsBottom = 320, activeY = 333;
-    const range = values.length ? Math.max(...values) - Math.min(...values) : 1;
-    const min = values.length ? Math.min(...values) - Math.max(80, range * .1) : 0;
-    const max = values.length ? Math.max(...values) + Math.max(80, range * .1) : 1;
-    const yAt = value => curveBottom - (value - min) / (max - min || 1) * (curveBottom - top);
-    const xAt = minutes => x0 + minutes / 1440 * width;
-    const mid = (busiest.start + busiest.end) / 2;
-    const selectedX = xAt(busiest.start), selectedWidth = xAt(busiest.end) - selectedX;
-    const curveGrid = [0, 1, 2].map(index => {
-      const y = top + (curveBottom - top) * index / 2;
-      const value = max - (max - min) * index / 2;
-      return `<line class="event-density-grid" x1="${x0}" x2="${x1}" y1="${y}" y2="${y}"/><text class="event-density-y-label" x="52" y="${y + 3}" text-anchor="end">${Math.round(value).toLocaleString('en-US')}</text>`;
+    const categories=[...new Map(events.map(event=>[eventCategory(event),window.BEGDOperationalEvents?.categoryLabel(event.description)||'Unclassified / Source Fragment'])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
+    if(pulseCategory&&!categories.some(([id])=>id===pulseCategory))pulseCategory='';
+    const filtered=pulseEvents(events), bins=densityBins(filtered);
+    const maxCount=Math.max(1,...bins.map(bin=>bin.outage+bin.restoration));
+    const busiest=bins.reduce((best,bin)=>bin.outage+bin.restoration>best.outage+best.restoration?bin:best,bins[0]);
+    const chartWidth=1120,x0=plotLeft,x1=plotRight,width=x1-x0,slot=width/48;
+    const top=26,barsTop=36,barsBottom=142,activeY=152;
+    const xAt=minutes=>x0+minutes/1440*width;
+    const selectedX=xAt(busiest.start),selectedWidth=slot;
+    const timeTicks=[0,4,8,12,16,20,24].map(hour=>{
+      const x=xAt(hour*60);return `<line class="event-density-time-grid" x1="${x}" x2="${x}" y1="${top}" y2="${activeY+12}"/><text class="event-density-time-label" x="${x}" y="${activeY+29}" text-anchor="${hour===0?'start':hour===24?'end':'middle'}">${String(hour).padStart(2,'0')}:00</text>`;
     }).join('');
-    const timeTicks = (mobile ? Array.from({ length: 25 }, (_, hour) => hour) : [0, 4, 8, 12, 16, 20, 24]).map(hour => {
-      const x = xAt(hour * 60);
-      return `<line class="event-density-time-grid" x1="${x}" x2="${x}" y1="${top}" y2="${activeY + 12}"/><text class="event-density-time-label" x="${x}" y="${activeY + 29}" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
-    }).join('');
-    const curve = key => {
-      const points = readings.filter(point => Number.isFinite(point.row[key]));
-      const polyline = points.map(point => `${xAt(point.minutes)},${yAt(point.row[key])}`).join(' ');
-      const circles = points.map(point => `<circle class="event-density-point ${key}" cx="${xAt(point.minutes)}" cy="${yAt(point.row[key])}" r="2.5"/>`).join('');
-      return `${points.length > 1 ? `<polyline class="event-density-line ${key}" points="${polyline}"/>` : ''}${circles}`;
-    };
     const maxBarHeight = barsBottom - barsTop;
     const bars = bins.map(bin => {
-      const total = bin.outage + bin.restoration;
-      const barHeight = total / maxCount * maxBarHeight;
       const barX = xAt(bin.start) + 1.2, barWidth = Math.max(2, slot - 2.4), base = barsBottom;
       let y = base;
       const stack = [['outage', bin.outage], ['restoration', bin.restoration]].map(([kind, count]) => {
@@ -290,13 +268,14 @@
       const aria = `${formatClock(bin.start)} to ${formatClock(bin.end)}: ${bin.outage} outages, ${bin.restoration} restorations`;
       return `<g class="event-density-bin${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" data-density-start="${bin.start}" tabindex="0" role="button" aria-pressed="${bin === busiest}" aria-label="${esc(aria)}"><rect class="event-density-hit" x="${xAt(bin.start)}" y="${barsTop - 5}" width="${slot}" height="${activeY + 15 - (barsTop - 5)}"/>${stack}</g>`;
     }).join('');
-    return `<div class="event-density-chart-wrap" tabindex="0" role="region" aria-label="Scrollable event pulse chart">${mobile ? fixedChartLegend() : ''}<svg class="event-density-svg" viewBox="0 0 ${chartWidth} 390" data-density-width="${chartWidth}" data-density-left="${x0}" data-density-slot="${slot}" role="group" aria-label="Demand and generation curves with a 30-minute event activity histogram"><title>Demand and generation with 30-minute outage activity · P4 actual · MW</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top - 6}" width="${selectedWidth}" height="${activeY + 19 - (top - 6)}"/>${curveGrid}${timeTicks}<line class="event-density-separator" x1="${x0}" x2="${x1}" y1="${barsTop - 9}" y2="${barsTop - 9}"/><text class="event-density-section-label" x="${x0}" y="${barsTop - 15}">EVENT COUNTS · 30 MIN</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${curve('demand_mw')}${curve('generation_mw')}${bars}${mobile ? '' : chartLegend(1000)}</svg></div><div class="event-density-legend"><span class="outage-key">Outage</span><span class="restoration-key">Restoration</span></div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest, readings)}</section>`;
+    const filter=`<div class="event-pulse-filter"><label for="event-pulse-category">Event category<select id="event-pulse-category" data-pulse-category><option value="">All categories</option>${categories.map(([id,label])=>`<option value="${esc(id)}"${id===pulseCategory?' selected':''}>${esc(label)}</option>`).join('')}</select></label><span role="status">${filtered.length} of ${events.length} log entries · category filters event counts and details only</span></div>`;
+    return filter+demandPlot(rows,filtered,{showEventLanes:false})+`<div class="event-density-chart-wrap" tabindex="0" role="region" aria-label="Scrollable event pulse chart"><svg class="event-density-svg" viewBox="0 0 ${chartWidth} 200" data-density-width="${chartWidth}" data-density-left="${x0}" data-density-slot="${slot}" role="group" aria-label="30-minute outage and restoration event counts"><title>30-minute event activity · Bangladesh time</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top-6}" width="${selectedWidth}" height="${activeY+19-(top-6)}"/>${timeTicks}<text class="event-density-section-label" x="${x0}" y="20">EVENT COUNTS · 30 MIN</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${bars}</svg></div><div class="event-density-legend"><span class="outage-key">Outage</span><span class="restoration-key">Restoration</span></div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest)}</section>`;
   }
 
   function selectDensityBin(target, pin = false) {
     const panel = target.closest('.event-chronograph-panel');
     const index = Number(target.dataset.densityIndex);
-    const bin = densityBins([...currentEventsByIndex.values()])[index];
+    const bin = densityBins(pulseEvents([...currentEventsByIndex.values()]))[index];
     if (!panel || !bin) return;
     if (!pin && panel.dataset.densityPinned != null) return;
     if (pin) panel.dataset.densityPinned = String(index);
@@ -308,8 +287,8 @@
     const windowRect = panel.querySelector('[data-density-selected-window]');
     if (windowRect) {
       const chart = panel.querySelector('.event-density-svg');
-      const width = Number(chart?.dataset.densitySlot) || 920 / 48;
-      const left = Number(chart?.dataset.densityLeft) || 62;
+      const width = Number(chart?.dataset.densitySlot) || plotWidth / 48;
+      const left = Number(chart?.dataset.densityLeft) || plotLeft;
       windowRect.setAttribute('x', left + index * width);
       windowRect.setAttribute('width', width);
     }
@@ -430,6 +409,15 @@
     if (document.activeElement === target) return;
     hideTooltip(target.closest('.event-context-group'));
   });
+  document.addEventListener('change', event => {
+    const control=event.target.closest?.('[data-pulse-category]');if(!control)return;
+    const panel=control.closest('.event-chronograph-panel'),pulse=panel?.querySelector('[data-event-view="density"]');if(!pulse)return;
+    pulseCategory=control.value;delete panel.dataset.densityPinned;
+    pulse.innerHTML=densityView(currentReadings.map(point=>point.row),[...currentEventsByIndex.values()]);
+    pulse.querySelector('[data-pulse-category]')?.focus({preventScroll:true});
+    document.dispatchEvent?.(new Event('begd:event-view-change'));
+    centerPulseWindow();
+  });
   document.addEventListener('focusin', event => {
     const target = event.target.closest?.(linkedTargets);
     if (target) showTooltipFor(target);
@@ -508,8 +496,6 @@
     if (pulse) pulse.innerHTML = densityView(rows, events);
     const target = pulse?.querySelector(`[data-density-index="${selected}"]`);
     if (target) selectDensityBin(target, wasPinned);
-    const fitted = panel.querySelector('.event-context-fixed');
-    if (fitted) fitted.outerHTML = demandPlot(rows, events, { showEventLanes: false });
     centerPulseWindow();
   });
 
