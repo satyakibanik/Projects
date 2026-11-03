@@ -288,3 +288,19 @@ test('daily event filter persists where available and resets for a report withou
  html=vm.runInContext(`data={operations:{events:[{description:'Grid Forced S/D'}]}};operations()`,c);
  assert.equal(vm.runInContext('dailyEventCategory',c),'');assert.match(html,/1 of 1 entries shown/);
 });
+
+test('fresh workbook fetches pass the latest EWIC readings and P1 logs into matching, including same-ID refreshes',async()=>{
+ const nodes=new Map();const document={addEventListener(){},querySelectorAll(){return []},querySelector(selector){
+  if(!nodes.has(selector))nodes.set(selector,{textContent:'',innerHTML:'',checked:false,hidden:false,value:'',addEventListener(){}});return nodes.get(selector);
+ }};
+ const context=app(document),calls=[];
+ context.location={hash:'#operations'};
+ context.window.BEGDEWICMap={mount:(flows,events)=>calls.push({flows,events})};
+ const payloads=[{report_id:'1',date:'2026-10-29',operations:{ewic:[{time:'01:00',ishwardi_ghorashal:10}],events:[{description:'Ishurdi-Ghorasal first entry'}]}},{report_id:'1',date:'2026-10-29',operations:{ewic:[{time:'02:00',ishwardi_ghorashal:-20}],events:[{description:'Sirajganj-Sreepur refreshed entry'}]}}];
+ context.fetch=async()=>({ok:true,json:async()=>payloads.shift()});
+ vm.runInContext("setupCharts=()=>{};operations=()=>'';reportSubtitle=()=>'';loadPreviousForecast=()=>{}",context);
+ assert.equal(await vm.runInContext("load('1')",context),true);
+ assert.equal(await vm.runInContext("load('1')",context),true);
+ assert.equal(calls.length,2);assert.equal(calls[0].flows[0].ishwardi_ghorashal,10);assert.equal(calls[1].flows[0].ishwardi_ghorashal,-20);
+ assert.match(calls[1].events[0].description,/refreshed entry/);
+});

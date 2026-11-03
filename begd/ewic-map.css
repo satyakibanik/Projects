@@ -8,3 +8,7 @@
 @media(max-width:760px){.ewic-map-layout{grid-template-columns:1fr;gap:8px}.ewic-map-frame{height:430px}.ewic-map-readings{display:grid;grid-template-columns:1fr}.ewic-map-readings article{padding:12px 0}.ewic-map-readings strong{font-size:27px}}
 
 [data-theme=dark] .ewic-map-frame{background:#182b3b}
+
+.ewic-flow-motion{animation:ewic-flow-travel 1.4s linear infinite}
+@keyframes ewic-flow-travel{from{stroke-dashoffset:0}to{stroke-dashoffset:-18}}
+@media(prefers-reduced-motion:reduce){.ewic-flow-motion{animation:none}}

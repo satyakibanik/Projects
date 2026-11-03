@@ -109,3 +109,30 @@ test('restoration-only and overnight entries respect the selected day and midnig
  assert.equal(result.moments.find(s=>s.time==='14:00').reasons[0].keys.length,3);
  assert.ok(result.moments.every(s=>s.row===null));
 });
+
+test('flow motion follows sign, reverses when the selected reading changes and omits zero/missing',async()=>{
+ const {api,node}=load();
+ await api.mount([{time:'00:00',ishwardi_ghorashal:200,sirajganj_sreepur:0,gopalganj_aminbazar:null},{time:'01:00',ishwardi_ghorashal:-100,sirajganj_sreepur:0}]);
+ let html=node('[data-ewic-branches]').innerHTML;
+ assert.equal((html.match(/class="ewic-flow-motion"/g)||[]).length,1);
+ assert.match(html,/data-ewic-flow-direction="west-to-east"/);assert.match(html,/class="ewic-flow-arrow"/);
+ node('[data-ewic-next]').handlers.click();html=node('[data-ewic-branches]').innerHTML;
+ assert.match(html,/data-ewic-flow-direction="east-to-west"/);assert.doesNotMatch(html,/data-ewic-flow-direction="west-to-east"/);
+ const positive=api.flowMotion(2,[1,2],[3,4],1),negative=api.flowMotion(-2,[1,2],[3,4],1);
+ assert.match(positive,/d="M1,2 L3,4"/);assert.match(negative,/d="M3,4 L1,2"/);
+ for(const value of [0,null,undefined,NaN,Infinity])assert.equal(api.flowMotion(value,[1,2],[3,4],1),'');
+ const css=fs.readFileSync(path.join(root,'begd/ewic-map.css'),'utf8');
+ assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.ewic-flow-motion\{animation:none\}\}/);
+});
+test('matching is rebuilt for newly loaded report payloads and removes obsolete events',async()=>{
+ const {api,node}=load(),rows=[{time:'00:00',ishwardi_ghorashal:50}];
+ await api.mount(rows,[{outage_time:'01:00',description:'Ishurdi-Ghorasal Ckt-1 tripped'}]);
+ assert.match(node('[data-ewic-moment]').innerHTML,/01:00/);
+ await api.mount(rows,[{outage_time:'02:00',description:'Sreepur-Sirajgonj Ckt-2 restored'}]);
+ assert.match(node('[data-ewic-moment]').innerHTML,/02:00/);
+ assert.doesNotMatch(node('[data-ewic-moment]').innerHTML,/01:00/);
+ assert.match(node('[data-ewic-coverage]').textContent,/1 matching P1 log entries/);
+ await api.mount(rows,[]);
+ assert.doesNotMatch(node('[data-ewic-moment]').innerHTML,/02:00/);
+ assert.match(node('[data-ewic-coverage]').textContent,/0 matching P1 log entries/);
+});
