@@ -32,7 +32,12 @@ async function inspect(page,wrap){
   });
   const bounds=await svg.boundingBox();
   assert(bounds.width>=240,'Phone plot is too narrow');
-  const viewBox=await svg.getAttribute('viewBox');assert.equal(Number(viewBox.split(' ')[2]),420,'Phone plot uses compressed desktop geometry');
+  const viewBox=(await svg.getAttribute('viewBox')).split(' ').map(Number);
+  if(await wrap.evaluate(node=>Boolean(node.closest('.ewic-chart-column')))){
+    // EWIC redraws at measured dimensions to keep text/markers undistorted.
+    assert(Math.abs(viewBox[2]-bounds.width)<=1,'EWIC viewBox width must match rendered pixels');
+    assert(Math.abs(viewBox[3]-bounds.height)<=1,'EWIC viewBox height must match rendered pixels');
+  }else assert.equal(viewBox[2],420,'Phone plot uses compressed desktop geometry');
   const originalScroll=await page.evaluate(()=>scrollY);
   let previous='';
   // Deliberately tap empty space below the data rather than a tiny marker.
