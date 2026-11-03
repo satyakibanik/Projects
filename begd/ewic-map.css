@@ -13,12 +13,12 @@
 @keyframes ewic-flow-travel{from{stroke-dashoffset:0}to{stroke-dashoffset:-18}}
 @media(prefers-reduced-motion:reduce){.ewic-flow-motion{animation:none}}
 
-/* Map and notable times share the left column; the chart spans their height. */
+/* Map and chart share one row; notable events span the full row beneath. */
 .ewic-workspace{display:grid;grid-template-columns:minmax(280px,.7fr) minmax(0,1.8fr);gap:24px;align-items:stretch}
 .ewic-map-primary,.ewic-chart-column{min-width:0}
 .ewic-map-primary>h3{margin:0 0 8px}.ewic-map-primary>.note{margin:0 0 12px}
 .ewic-map-primary .ewic-map-frame{height:520px}
-.ewic-map-time{height:330px;overflow:auto;padding:14px 0 0;margin-top:0;border-bottom:1px solid var(--line)}
+.ewic-map-time{grid-column:1/-1;height:auto;overflow:visible;padding:14px 0;margin-top:0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .ewic-chart-column{display:flex;flex-direction:column}
 .ewic-chart-column>.panel-head{flex:none}
 .ewic-chart-column>.interactive-chart{flex:1;display:flex;flex-direction:column;min-height:0}
@@ -32,3 +32,10 @@
 .ewic-event-cursor{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:5 5;vector-effect:non-scaling-stroke}
 .ewic-event-label{fill:var(--ink);font:12px var(--mono);paint-order:stroke;stroke:var(--bg);stroke-width:4px;stroke-linejoin:round}
 @media(max-width:900px){.ewic-workspace{grid-template-columns:1fr}.ewic-map-primary .ewic-map-frame{height:430px}.ewic-chart-column svg.chart{height:auto;min-height:300px;flex:none}.ewic-chart-column>.interactive-chart{flex:none}.ewic-map-time{height:auto;max-height:380px;min-height:120px;padding-bottom:14px}}
+
+.ewic-chart-column .legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:6px 0;align-content:start}
+.ewic-chart-column .legend label:has(>.series-swatch){grid-template-columns:13px 30px minmax(0,1fr);gap:5px;font-size:10px;line-height:1.25;min-height:22px}
+.ewic-chart-column .legend .series-swatch{width:30px;height:12px;flex-basis:30px}
+.ewic-map-time .ewic-map-readings:not([hidden]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 18px}
+.ewic-map-time .ewic-map-kicker{grid-column:1/-1;margin:4px 0}
+@media(max-width:900px){.ewic-map-time{max-height:none}.ewic-chart-column svg.chart{height:340px;min-height:0}.ewic-map-time .ewic-map-readings:not([hidden]){grid-template-columns:1fr}}

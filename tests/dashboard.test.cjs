@@ -305,7 +305,7 @@ test('fresh workbook fetches pass the latest EWIC readings and P1 logs into matc
  assert.match(calls[1].events[0].description,/refreshed entry/);
 });
 
-test('EWIC event focus highlights selected series and reading while marking the precise event time',()=>{
+test('EWIC event focus highlights the series and exact event time without emphasizing flow points',()=>{
  const selected=['ishwardi_ghorashal','sirajganj_sreepur','ishwardi_ghorashal_yesterday'].map(key=>{
   const classes=new Set();return {dataset:{series:key},style:{},classes,classList:{toggle(k,on){on?classes.add(k):classes.delete(k)}}};
  });
@@ -320,9 +320,24 @@ test('EWIC event focus highlights selected series and reading while marking the 
  assert.equal(selected[2].classes.has('ewic-series-muted'),true);
  const marks=layers.at(-1).children;
  assert.equal(marks.find(n=>n.tag==='line').attrs.x1,'1101');
- const circles=marks.filter(n=>n.tag==='circle');assert.equal(circles.length,1);
- assert.equal(circles[0].attrs.cx,'1110');assert.equal(circles[0].attrs.cy,'150');
- assert.equal(circles[0].attrs['data-ewic-focus-key'],'ishwardi_ghorashal');
+ assert.equal(marks.filter(n=>n.tag==='circle').length,0);
  vm.runInContext('highlightEWICMoment(null)',context);
  assert.equal(layers[0].removed,true);assert.ok(selected.every(g=>g.classes.size===0));
+});
+
+test('EWIC chart redraws at measured dimensions and skips redundant size notifications',()=>{
+ let callback;const updates=[];
+ const svg={clientWidth:612,clientHeight:388};
+ const wrapper={dataset:{chart:'resize-ewic'},isConnected:true,querySelector:()=>svg};
+ const column={querySelector:()=>wrapper};
+ const document={addEventListener(){},querySelector:s=>s==='.ewic-chart-column'?column:{addEventListener(){}}};
+ const c=app(document);
+ c.ResizeObserver=class{constructor(fn){callback=fn}observe(node){assert.equal(node,column)}};
+ c.recordResize=(node,view,dimensions)=>{assert.equal(node,wrapper);assert.equal(view,'operations');updates.push(dimensions);vm.runInContext(`chartData.set('resize-ewic',{width:${dimensions.width},height:${dimensions.height}})`,c)};
+ vm.runInContext("chartData.set('resize-ewic',{width:800,height:360});refreshChart=recordResize;setupEWICChartSize()",c);
+ callback();assert.equal(updates.length,1);assert.equal(updates[0].width,612);assert.equal(updates[0].height,388);
+ callback();assert.equal(updates.length,1);
+ svg.clientWidth=520;callback();assert.equal(updates.length,2);assert.equal(updates[1].width,520);
+ const html=vm.runInContext("chart([{time:'00:00',value:100}],[{key:'value',color:'#123456',name:'Flow'}],{width:612,height:388})",c);
+ assert.match(html,/viewBox="0 0 612 388"/);assert.doesNotMatch(html,/preserveAspectRatio="none"/);
 });

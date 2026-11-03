@@ -151,6 +151,7 @@ test('initial prompt, chronological next, cyclic wrapping and callback keep char
  node('[data-ewic-prev]').handlers.click();assert.equal(focus.at(-1).time,'01:00');
  const html=api.render('<div id="test-hourly-chart">Chart</div>');
  assert.ok(html.indexOf('ewic-map-frame')<html.indexOf('ewic-map-time'));
- assert.ok(html.indexOf('ewic-map-time')<html.indexOf('ewic-chart-column'));
+ assert.ok(html.indexOf('ewic-chart-column')<html.indexOf('ewic-map-time'));
+ assert.ok(html.indexOf('test-hourly-chart')<html.indexOf('ewic-map-time'));
  assert.match(html,/<div id="test-hourly-chart">Chart<\/div>/);
 });
