@@ -304,3 +304,25 @@ test('fresh workbook fetches pass the latest EWIC readings and P1 logs into matc
  assert.equal(calls.length,2);assert.equal(calls[0].flows[0].ishwardi_ghorashal,10);assert.equal(calls[1].flows[0].ishwardi_ghorashal,-20);
  assert.match(calls[1].events[0].description,/refreshed entry/);
 });
+
+test('EWIC event focus highlights selected series and reading while marking the precise event time',()=>{
+ const selected=['ishwardi_ghorashal','sirajganj_sreepur','ishwardi_ghorashal_yesterday'].map(key=>{
+  const classes=new Set();return {dataset:{series:key},style:{},classes,classList:{toggle(k,on){on?classes.add(k):classes.delete(k)}}};
+ });
+ const layers=[];const svg={append(node){layers.push(node)}};
+ const wrapper={dataset:{chart:'test-ewic'},querySelector:()=>svg,querySelectorAll(selector){return selector.includes('data-series')?selected:layers.filter(l=>!l.removed)}};
+ const document={addEventListener(){},querySelector:s=>s==='.ewic-chart-column .interactive-chart'?wrapper:{addEventListener(){}},createElementNS(_,tag){return {tag,attrs:{},children:[],setAttribute(k,v){this.attrs[k]=v},append(child){this.children.push(child)},remove(){this.removed=true}}}};
+ const context=app(document);
+ vm.runInContext("chartData.set('test-ewic',{rows:[{time:'18:30',ishwardi_ghorashal:50,sirajganj_sreepur:100}],series:[{key:'ishwardi_ghorashal',name:'Ishwardi–Ghorashal',color:'#123456'},{key:'sirajganj_sreepur',name:'Sirajganj–Sreepur',color:'#abcdef'}],x:row=>Number(row.time.slice(0,2))*60+Number(row.time.slice(3)),y:value=>200-value,plotBounds:{left:0,right:1440,top:10,bottom:200}})",context);
+ vm.runInContext("highlightEWICMoment({time:'18:21',row:{time:'18:30'},reasons:[{keys:['ishwardi_ghorashal']}]})",context);
+ assert.equal(selected[0].classes.has('ewic-series-focused'),true);
+ assert.equal(selected[1].classes.has('ewic-series-muted'),true);
+ assert.equal(selected[2].classes.has('ewic-series-muted'),true);
+ const marks=layers.at(-1).children;
+ assert.equal(marks.find(n=>n.tag==='line').attrs.x1,'1101');
+ const circles=marks.filter(n=>n.tag==='circle');assert.equal(circles.length,1);
+ assert.equal(circles[0].attrs.cx,'1110');assert.equal(circles[0].attrs.cy,'150');
+ assert.equal(circles[0].attrs['data-ewic-focus-key'],'ishwardi_ghorashal');
+ vm.runInContext('highlightEWICMoment(null)',context);
+ assert.equal(layers[0].removed,true);assert.ok(selected.every(g=>g.classes.size===0));
+});

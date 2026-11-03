@@ -18,8 +18,9 @@ test('notable-time arrows update all circuits, fixed-width direction, and missin
   {time:'12:00',ishwardi_ghorashal:-200,sirajganj_sreepur:null,gopalganj_aminbazar:0},
   {time:'00:00',ishwardi_ghorashal:100,sirajganj_sreepur:0,gopalganj_aminbazar:200}
  ]);
- assert.match(node('[data-ewic-time-label]').textContent,/00:00 BST/);
- assert.equal(node('[data-ewic-prev]').disabled,true);
+ assert.equal(node('[data-ewic-time-label]').textContent,'click arrow to show notable events');
+ assert.equal(node('[data-ewic-reasons]').innerHTML,'');
+ assert.equal(node('[data-ewic-prev]').disabled,false);
  assert.equal(node('[data-ewic-next]').disabled,false);
  assert.match(node('[data-ewic-moment]').innerHTML,/12:00/);
  let html=node('[data-ewic-branches]').innerHTML;
@@ -27,12 +28,14 @@ test('notable-time arrows update all circuits, fixed-width direction, and missin
  assert.match(html,/stroke="#267db3" stroke-width="5"/);
  assert.match(node('[data-ewic-readings]').innerHTML,/West → east/);
  node('[data-ewic-next]').handlers.click();
+ assert.match(node('[data-ewic-time-label]').textContent,/00:00 BST/);
+ node('[data-ewic-next]').handlers.click();
  html=node('[data-ewic-branches]').innerHTML;
  assert.match(html,/stroke="#d55e32" stroke-width="5"/);
  assert.match(html,/stroke-dasharray="5 5"/);
  assert.match(html,/0 MW zero flow/);
  assert.match(node('[data-ewic-time-label]').textContent,/12:00 BST/);
- assert.equal(node('[data-ewic-next]').disabled,true);
+ assert.equal(node('[data-ewic-next]').disabled,false);
  node('[data-ewic-moment]').value='0';node('[data-ewic-moment]').handlers.change();
  assert.match(node('[data-ewic-time-label]').textContent,/00:00 BST/);
  node('[data-ewic-next]').handlers.click();
@@ -116,7 +119,7 @@ test('flow motion follows sign, reverses when the selected reading changes and o
  let html=node('[data-ewic-branches]').innerHTML;
  assert.equal((html.match(/class="ewic-flow-motion"/g)||[]).length,1);
  assert.match(html,/data-ewic-flow-direction="west-to-east"/);assert.match(html,/class="ewic-flow-arrow"/);
- node('[data-ewic-next]').handlers.click();html=node('[data-ewic-branches]').innerHTML;
+ node('[data-ewic-next]').handlers.click();node('[data-ewic-next]').handlers.click();html=node('[data-ewic-branches]').innerHTML;
  assert.match(html,/data-ewic-flow-direction="east-to-west"/);assert.doesNotMatch(html,/data-ewic-flow-direction="west-to-east"/);
  const positive=api.flowMotion(2,[1,2],[3,4],1),negative=api.flowMotion(-2,[1,2],[3,4],1);
  assert.match(positive,/d="M1,2 L3,4"/);assert.match(negative,/d="M3,4 L1,2"/);
@@ -135,4 +138,19 @@ test('matching is rebuilt for newly loaded report payloads and removes obsolete 
  await api.mount(rows,[]);
  assert.doesNotMatch(node('[data-ewic-moment]').innerHTML,/02:00/);
  assert.match(node('[data-ewic-coverage]').textContent,/0 matching P1 log entries/);
+});
+
+test('initial prompt, chronological next, cyclic wrapping and callback keep chart focus in sync',async()=>{
+ const {api,node}=load(),focus=[];
+ await api.mount([{time:'00:00',ishwardi_ghorashal:100},{time:'01:00',ishwardi_ghorashal:200}],[],stop=>focus.push(stop));
+ assert.equal(focus[0],null);assert.equal(node('[data-ewic-reasons]').innerHTML,'');
+ assert.equal(node('[data-ewic-readings]').hidden,true);
+ node('[data-ewic-next]').handlers.click();assert.equal(focus.at(-1).time,'00:00');
+ node('[data-ewic-next]').handlers.click();assert.equal(focus.at(-1).time,'01:00');
+ node('[data-ewic-next]').handlers.click();assert.equal(focus.at(-1).time,'00:00');
+ node('[data-ewic-prev]').handlers.click();assert.equal(focus.at(-1).time,'01:00');
+ const html=api.render('<div id="test-hourly-chart">Chart</div>');
+ assert.ok(html.indexOf('ewic-map-frame')<html.indexOf('ewic-map-time'));
+ assert.ok(html.indexOf('ewic-map-time')<html.indexOf('ewic-chart-column'));
+ assert.match(html,/<div id="test-hourly-chart">Chart<\/div>/);
 });

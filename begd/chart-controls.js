@@ -17,6 +17,7 @@ function refreshChart(wrapper,view){
     input.checked=nextModel.series.find(series=>series.key===input.dataset.toggleSeries)?.defaultVisible!==false;
   });
   setupCharts(view,[wrapper]);
+  if(wrapper.closest('.ewic-chart-column'))highlightEWICMoment(wrapper.ewicMoment||null);
 }
 function setupCharts(view,wrappers=null) {
   if(!wrappers)setupRegionalSnapshotTooltips();
