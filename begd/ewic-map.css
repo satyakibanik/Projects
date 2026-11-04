@@ -42,3 +42,5 @@
 
 .ewic-map-time .ewic-map-readings :is(h4,strong,small,p){font-family:var(--body);font-size:13px;line-height:1.6}
 .ewic-map-time .ewic-map-readings h4{font-weight:600}
+
+.ewic-flow-panel>.metric-method{margin:0 0 16px}

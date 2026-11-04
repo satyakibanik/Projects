@@ -242,9 +242,19 @@
   let pulseCategory = '';
   const eventCategory = event => window.BEGDOperationalEvents?.classify(event.description) || event.category || 'review';
   const pulseEvents = events => pulseCategory ? events.filter(event => eventCategory(event) === pulseCategory) : events;
+  function categoryFilterMarkup(events, view) {
+    const categories = [...new Map(events.map(event => [eventCategory(event), window.BEGDOperationalEvents?.categoryLabel(event.description) || 'Unclassified / Source Fragment'])).entries()].sort((a,b) => a[1].localeCompare(b[1]));
+    if (pulseCategory && !categories.some(([id]) => id === pulseCategory)) pulseCategory = '';
+    const id = `event-${view}-category`;
+    return `<div class="event-pulse-filter"><label for="${id}">Event category<select id="${id}" data-event-category-filter${view === 'density' ? ' data-pulse-category' : ''}><option value="">All categories</option>${categories.map(([key,label]) => `<option value="${esc(key)}"${key === pulseCategory ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></label><span role="status">${pulseEvents(events).length} of ${events.length} log entries · category filters events only</span></div>`;
+  }
+  const eventLegend = `<div class="event-mark-legend"><span><i class="event-mark-outage"></i>Outage/event time</span><span><i class="event-mark-period"></i>Outage–restoration period</span><span><i class="event-mark-restoration"></i>Restoration-only time</span><span><i class="event-mark-unplaced"></i>No reported time</span></div>`;
+  function filteredEventView(view, rows, events) {
+    const filter = categoryFilterMarkup(events, view), filtered = pulseEvents(events);
+    return filter + eventLegend + demandPlot(rows, filtered, {showEventLanes: view === 'lanes'}) + (view === 'dial' ? dialView(filtered) : '');
+  }
   function densityView(rows, events) {
-    const categories=[...new Map(events.map(event=>[eventCategory(event),window.BEGDOperationalEvents?.categoryLabel(event.description)||'Unclassified / Source Fragment'])).entries()].sort((a,b)=>a[1].localeCompare(b[1]));
-    if(pulseCategory&&!categories.some(([id])=>id===pulseCategory))pulseCategory='';
+    const filter = categoryFilterMarkup(events, 'density');
     const filtered=pulseEvents(events), bins=densityBins(filtered);
     const maxCount=Math.max(1,...bins.map(bin=>bin.outage+bin.restoration));
     const busiest=bins.reduce((best,bin)=>bin.outage+bin.restoration>best.outage+best.restoration?bin:best,bins[0]);
@@ -268,7 +278,7 @@
       const aria = `${formatClock(bin.start)} to ${formatClock(bin.end)}: ${bin.outage} outages, ${bin.restoration} restorations`;
       return `<g class="event-density-bin${bin === busiest ? ' is-selected' : ''}" data-density-index="${bin.index}" data-density-start="${bin.start}" tabindex="0" role="button" aria-pressed="${bin === busiest}" aria-label="${esc(aria)}"><rect class="event-density-hit" x="${xAt(bin.start)}" y="${barsTop - 5}" width="${slot}" height="${activeY + 15 - (barsTop - 5)}"/>${stack}</g>`;
     }).join('');
-    const filter=`<div class="event-pulse-filter"><label for="event-pulse-category">Event category<select id="event-pulse-category" data-pulse-category><option value="">All categories</option>${categories.map(([id,label])=>`<option value="${esc(id)}"${id===pulseCategory?' selected':''}>${esc(label)}</option>`).join('')}</select></label><span role="status">${filtered.length} of ${events.length} log entries · category filters event counts and details only</span></div>`;
+
     return filter+demandPlot(rows,filtered,{showEventLanes:false})+`<div class="event-density-chart-wrap" tabindex="0" role="region" aria-label="Scrollable event pulse chart"><svg class="event-density-svg" viewBox="0 0 ${chartWidth} 200" data-density-width="${chartWidth}" data-density-left="${x0}" data-density-slot="${slot}" role="group" aria-label="30-minute outage and restoration event counts"><title>30-minute event activity · Bangladesh time</title><rect class="event-density-selected-window" data-density-selected-window="" x="${selectedX}" y="${top-6}" width="${selectedWidth}" height="${activeY+19-(top-6)}"/>${timeTicks}<text class="event-density-section-label" x="${x0}" y="20">EVENT COUNTS · 30 MIN</text><line class="event-density-baseline" x1="${x0}" x2="${x1}" y1="${barsBottom}" y2="${barsBottom}"/>${bars}</svg></div><div class="event-density-legend"><span class="outage-key">Outage</span><span class="restoration-key">Restoration</span></div><section class="event-density-selection" aria-live="polite" aria-label="Events and actual values for selected time window">${densitySelectionMarkup(busiest)}</section>`;
   }
 
@@ -337,8 +347,8 @@
     const view = (key, markup) => `<div class="event-view" data-event-view="${key}"${key === selectedView ? '' : ' hidden'}>${markup}</div>`;
     // Keep the deployed table, including source notes and workbook ordering, inside the first view.
     const table = tableMarkup.replace(/^<section class="panel full">/, '<div>').replace(/<div class="panel-head">.*?<\/div><span class="tag">.*?<\/span><\/div>/s, '').replace(/<\/section>$/, '</div>');
-    const legend = `<div class="event-mark-legend"><span><i class="event-mark-outage"></i>Outage/event time</span><span><i class="event-mark-period"></i>Outage–restoration period</span><span><i class="event-mark-restoration"></i>Restoration-only time</span><span><i class="event-mark-unplaced"></i>No reported time</span></div>`;
-    return `<section class="panel full event-chronograph-panel"><div class="panel-head"><div><h2>Daily event log</h2><p>Outage, restoration, and operating notes from the report</p></div><span class="tag">${events.length} EVENTS · BST</span></div><div class="event-view-controls" role="group" aria-label="Choose an event log view">${controls}</div>${view('table', table)}${view('lanes', legend + demandPlot(hourly, events))}${view('density', densityView(hourly, events))}${view('dial', legend + demandPlot(hourly, events, { showEventLanes: false }) + dialView(events))}<p class="event-view-note"${selectedView === 'table' ? ' hidden' : ''}>Bangladesh time · P1 events and P4 actuals. Values between hourly readings are interpolated; restoration values beyond this day’s profile are unavailable.</p></section>`;
+
+    return `<section class="panel full event-chronograph-panel"><div class="panel-head"><div><h2>Daily event log</h2><p>Outage, restoration, and operating notes from the report</p></div><span class="tag">${events.length} EVENTS · BST</span></div><div class="event-view-controls" role="group" aria-label="Choose an event log view">${controls}</div>${view('table', table)}${view('lanes', filteredEventView('lanes', hourly, events))}${view('density', densityView(hourly, events))}${view('dial', filteredEventView('dial', hourly, events))}<p class="event-view-note"${selectedView === 'table' ? ' hidden' : ''}>Bangladesh time · P1 events and P4 actuals. Values between hourly readings are interpolated; restoration values beyond this day’s profile are unavailable.</p></section>`;
   }
 
   function showTooltipFor(target, pin = false) {
@@ -410,11 +420,16 @@
     hideTooltip(target.closest('.event-context-group'));
   });
   document.addEventListener('change', event => {
-    const control=event.target.closest?.('[data-pulse-category]');if(!control)return;
-    const panel=control.closest('.event-chronograph-panel'),pulse=panel?.querySelector('[data-event-view="density"]');if(!pulse)return;
+    const control=event.target.closest?.('[data-event-category-filter]') || event.target.closest?.('[data-pulse-category]');if(!control)return;
+    const panel=control.closest('.event-chronograph-panel');if(!panel)return;
+    const activeView=control.closest?.('[data-event-view]')?.dataset.eventView || 'density';
     pulseCategory=control.value;delete panel.dataset.densityPinned;
-    pulse.innerHTML=densityView(currentReadings.map(point=>point.row),[...currentEventsByIndex.values()]);
-    pulse.querySelector('[data-pulse-category]')?.focus({preventScroll:true});
+    const events=[...currentEventsByIndex.values()], rows=currentReadings.map(point=>point.row);
+    for(const view of ['lanes','density','dial']){
+      const target=panel.querySelector(`[data-event-view="${view}"]`);
+      if(target) target.innerHTML=view==='density'?densityView(rows,events):filteredEventView(view,rows,events);
+    }
+    panel.querySelector(`[data-event-view="${activeView}"]`)?.querySelector('[data-event-category-filter]')?.focus({preventScroll:true});
     document.dispatchEvent?.(new Event('begd:event-view-change'));
     centerPulseWindow();
   });

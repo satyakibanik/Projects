@@ -138,3 +138,24 @@ test('pulse category changes filter histogram and inspected entries while preser
  const after=api.render(events,hourly);assert.match(after,/3 EVENTS · BST/);assert.match(after,/value="trip" selected/);
  const reset=api.render([{outage_time:'01:00',description:'Unit A Scheduled S/D'}],hourly);assert.match(reset,/1 of 1 log entries/);assert.doesNotMatch(reset,/value="trip" selected/);
 });
+
+test('timeline and dial filter event markers and lists with the pulse category while retaining actuals',()=>{
+ const {api,listeners}=viewer();
+ const events=[{outage_time:'01:00',description:'Unit A Scheduled S/D'},{outage_time:'02:00',description:'Unit B Tripped'}];
+ const hourly=[{time:'00:00',generation_mw:100},{time:'03:00',generation_mw:200}];
+ const before=api.render(events,hourly);
+ const views=Object.fromEntries(['lanes','density','dial'].map(key=>[key,{innerHTML:'',querySelector(){return null}}]));
+ const panel={dataset:{},querySelector(selector){const key=selector.match(/data-event-view="(.*?)"/)?.[1];return views[key]||null},querySelectorAll(){return []}};
+ const control={value:'trip',closest(selector){return selector==='[data-event-category-filter]'?this:selector==='.event-chronograph-panel'?panel:selector==='[data-event-view]'?{dataset:{eventView:'lanes'}}:null}};
+ for(const fn of listeners.change)fn({target:control});
+ for(const key of ['lanes','dial']){
+  assert.match(views[key].innerHTML,/1 of 2 log entries/);
+  assert.match(views[key].innerHTML,/Unit B Tripped/);
+  assert.doesNotMatch(views[key].innerHTML,/Unit A Scheduled/);
+  assert.match(views[key].innerHTML,/event-generation-line/);
+  assert.match(views[key].innerHTML,/value="trip" selected/);
+ }
+ const after=api.render(events,hourly);
+ for(const key of ['lanes','density','dial'])assert.match(after,new RegExp('id="event-'+key+'-category"'));
+ assert.equal((after.match(/value="trip" selected/g)||[]).length,3);
+});

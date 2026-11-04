@@ -25,13 +25,13 @@ test('notable-time arrows update all circuits, fixed-width direction, and missin
  assert.match(node('[data-ewic-moment]').innerHTML,/12:00/);
  let html=node('[data-ewic-branches]').innerHTML;
  assert.equal((html.match(/data-ewic-circuit=/g)||[]).length,3);
- assert.match(html,/stroke="#267db3" stroke-width="5"/);
+ assert.match(html,/stroke="#1976b9" stroke-width="5"/);
  assert.match(node('[data-ewic-readings]').innerHTML,/West → east/);
  node('[data-ewic-next]').handlers.click();
  assert.match(node('[data-ewic-time-label]').textContent,/00:00 BST/);
  node('[data-ewic-next]').handlers.click();
  html=node('[data-ewic-branches]').innerHTML;
- assert.match(html,/stroke="#d55e32" stroke-width="5"/);
+ assert.match(html,/stroke="#1976b9" stroke-width="5"/);
  assert.match(html,/stroke-dasharray="5 5"/);
  assert.match(html,/0 MW zero flow/);
  assert.match(node('[data-ewic-time-label]').textContent,/12:00 BST/);
@@ -154,4 +154,20 @@ test('initial prompt, chronological next, cyclic wrapping and callback keep char
  assert.ok(html.indexOf('ewic-chart-column')<html.indexOf('ewic-map-time'));
  assert.ok(html.indexOf('test-hourly-chart')<html.indexOf('ewic-map-time'));
  assert.match(html,/<div id="test-hourly-chart">Chart<\/div>/);
+});
+
+test('map colors identify circuits for both directions and the shared heading precedes the workspace',()=>{
+ const {api}=load();
+ for(const [key,color] of Object.entries(api.circuitColors)){
+  assert.equal(api.flowStyle(100,key).color,color);
+  assert.equal(api.flowStyle(-100,key).color,color);
+  assert.equal(api.flowStyle(null,key).color,color);
+  assert.equal(api.flowStyle(null,key).dash,'5 5');
+  assert.equal(api.flowStyle(0,key).dash,'5 5');
+ }
+ const html=api.render('CHART','CALCULATION DETAILS');
+ assert.equal((html.match(/East–west interconnector flows/g)||[]).length,1);
+ assert.ok(html.indexOf('East–west interconnector flows')<html.indexOf('ewic-workspace'));
+ assert.ok(html.indexOf('CALCULATION DETAILS')<html.indexOf('ewic-workspace'));
+ assert.doesNotMatch(html,/Interconnector flow map|Blue: west/);
 });
