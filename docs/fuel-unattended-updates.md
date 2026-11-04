@@ -2,7 +2,13 @@
 
 On 4 November 2026 the same trusted-HTTPS requests succeeded on the development Mac but timed out after 35 seconds on a GitHub-hosted Ubuntu runner. The exact network cause is unknown. Moving parsing code or increasing the report limit alone does not solve that connectivity problem.
 
-## Recommended arrangement
+## Existing automatic collection
+
+A Mac is not required by the dashboard. `.github/workflows/pages.yml` already schedules the Pages build at minutes 11, 26, 41 and 56 of every hour. During each build, `scripts/fuel.py` attempts the latest ten report entries per gas publisher, merges saved observations and refreshes coal. When the runner can reach the source websites, new daily reports are collected automatically. The schedule and job completion times are best effort; a successful website deployment does not prove each upstream fetch succeeded. Inspect `source_status` and the latest reporting date.
+
+The 4 November diagnostic found connection timeouts from one GitHub-hosted runner. This is the reason to consider a fallback collector, not evidence that GitHub Actions cannot perform collection in general. Keep the existing automatic path; a separate machine is only a workaround if that access problem persists.
+
+## Fallback if GitHub source access remains unavailable
 
 Use a dedicated checkout on an always-on machine whose network has passed a real listing + PDF download + parsing test. This Mac is a proven starting point. An always-on Mac, Linux computer, or server can do the same job, but test its network before paying for hosting.
 
@@ -37,13 +43,13 @@ print('Gas:', len(bundle['gas']), bundle['gas'][0]['date'], bundle['gas'][-1]['d
 PY
 ```
 
-For a one-time larger backfill, the existing CLI supports up to 1,000 listing entries per publisher:
+For a one-time complete walk of the advertised PDF/spreadsheet archives, run the separate resumable command:
 
 ```sh
-.venv/bin/python scripts/fuel.py --page-size 1000 --cache .cache/fuel --output begd/fuel-data.json
+.venv/bin/python scripts/backfill_fuel.py --cache .cache/fuel --audit docs/fuel-backfill-2026-11-04.json
 ```
 
-The CLI currently reads one listing page per publisher. A limit of 1,000 is not the full Petrobangla archive: its listing reported 2,412 entries when checked. Old layouts may fail parsing and must be inspected before accepting them. Never invent records to fill missing dates. Keep the backfill's downloaded PDFs and rejection log for investigation.
+It follows pagination, stores original PDFs/spreadsheets and parser-versioned results locally, preserves original reporting dates, records failures and conflicts, and writes the dataset on completion. `--max-pages 1` limits a trial run. Backfill is intentionally separate from frequent Pages builds. Missing links, unsupported files and conflicting dates remain documented gaps; no values are estimated.
 
 ## Scheduling on macOS
 
@@ -91,3 +97,17 @@ Stop and remove the scheduled job with:
 ```sh
 launchctl bootout "gui/$(id -u)" "$HOME/Library/LaunchAgents/org.begd.fuel-collector.plist"
 ```
+
+
+## Optional OCR for historical GTCL scans
+
+Normal daily updates do not need OCR or macOS. The optional archive path can use the local Vision helper for older scanned reports. It accepts only one unambiguous date and a unique nine-component reconciliation; it does not turn uncertain OCR into observations. OCR national totals are labelled in the dashboard and audit, with power-sector values left missing. Original PDFs, hashes, OCR observations and rejection reasons remain available for review.
+
+Build the helper with a compatible installed macOS SDK. On the development Mac, the installed 15.4 SDK works with the command-line compiler:
+
+```sh
+clang -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk -fobjc-arc -fmodules -framework Foundation -framework Vision scripts/fuel_vision_ocr.m -o /tmp/begd-fuel-ocr
+.venv/bin/python scripts/backfill_fuel.py --ocr-program /tmp/begd-fuel-ocr --cache .cache/fuel --audit docs/fuel-backfill-2026-11-04.json
+```
+
+Use `--retry-failed` to reparse prior failed records. Parsed results are invalidated when parser code or their cached source-file hash changes. The compiled helper is optional and is never invoked by the regular Pages build or its tests. Uncertain scans still need manual source review; they are not filled from Petrobangla or estimated.
