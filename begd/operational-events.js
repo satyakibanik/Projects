@@ -43,7 +43,7 @@
     return minute<60&&(hour<24||(hour===24&&minute===0))?hour*60+minute:null;
   }
   function selectWindow(bundle,count,endDate){
-    if(!endDate||![30,60,90,365].includes(Number(count)))return {rows:[],available:0};
+    if(!endDate||![7,30,60,90,365].includes(Number(count)))return {rows:[],available:0};
     const end=Date.parse(endDate+'T00:00:00Z'),start=end-(count-1)*86400000;
     const days=bundle.days.filter(day=>{
       const time=Date.parse(day.date+'T00:00:00Z');return time>=start&&time<=end;
@@ -74,7 +74,7 @@
     return pending;
   }
   async function mount(host,count,endDate){
-    if(!host||![30,60,90,365].includes(Number(count))||!endDate)return;
+    if(!host||![7,30,60,90,365].includes(Number(count))||!endDate)return;
     const key=String(count)+'|'+endDate;if(key!==windowKey){page=0;windowKey=key}
     host.innerHTML=shell();
     const search=host.querySelector('#operational-event-search'),select=host.querySelector('#operational-event-category');

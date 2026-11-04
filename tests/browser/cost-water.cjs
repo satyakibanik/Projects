@@ -45,9 +45,14 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    await page.getByRole('heading',{name:'Average cost per kWh by fuel type',exact:true}).hover();
    assert.equal(await chart.locator('.is-highlighted,.is-dimmed').count(),0);
    await gas.focus();assert.equal(await chart.locator('[data-trend-series="Gas"].is-highlighted').count(),1);
-   await page.locator('[data-cost-average-days="90"]').click();
-   assert.equal(await page.locator('[data-cost-average-days="90"]').getAttribute('aria-pressed'),'true');
-   await page.waitForFunction(()=>new URL(location.href).searchParams.get('costAverageDays')==='90');
+   assert.equal(await page.locator('[data-cost-average-days]').count(),0);
+   await page.locator('[data-trend-days="90"]').click();
+   assert.equal(await page.locator('[data-trend-days="90"]').getAttribute('aria-pressed'),'true');
+   await page.waitForFunction(()=>new URL(location.href).searchParams.get('days')==='90');
+   assert.match(await page.locator('.bpdb-cost-trend > .more-information').textContent(),/preceding 90 calendar days/);
+   await page.locator('[data-trend-days="7"]').click();
+   assert.equal(await page.locator('[data-trend-days="7"]').getAttribute('aria-pressed'),'true');
+   assert.match(await page.locator('.bpdb-cost-trend > .more-information').textContent(),/preceding 7 calendar days/);
    await page.locator('nav a[href="#plants"]').click();
    await page.locator('[data-filter="name"]').fill('Karnaphuli Hydro');await page.locator('.plant-row').click();
    const axis=page.locator('.chart-secondary-axis'),water=page.locator('[data-toggle-series="water_level_ft_msl"]');

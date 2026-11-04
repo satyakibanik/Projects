@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import pathlib
+import os
 import re
 import subprocess
 import time
@@ -21,7 +22,7 @@ VERSION = 2
 NUMBER = r'\d[\d,]*(?:\.\d+)?'
 DATE = r'\d{1,2}[.\-/]\d{1,2}[.\-/](?:\d{4}|\d{2})\b'
 LABEL = r'Cost\s+of\s+the\s+Consumed\s+Fuel(?:\s*\([^)]*\))?|Fuel\s+cost\s*:?|Production\s+Cost\s*\(\s*Tk\.?\s*\)'
-CATEGORIES = r'Renewable|Imports?|Hydro|Solar|Wind|Coal|Gas|HFO|HSD|Oil'
+CATEGORIES = r'Nuclear|Renewable|Imports?|Hydro|Solar|Wind|Coal|Gas|HFO|HSD|Oil'
 
 
 def number(value):
@@ -82,15 +83,17 @@ def parse_cost_text(text, source_url='', archive_date=None):
     if production:
         # The national Total row follows this source-specific header. Never use
         # a regional row, peak MW, or a different day's workbook as denominator.
-        header = re.search(r'Gas\s+Coal\s+HFO\s+HSD\s+Hydro\s+Solar\s+Import\s+Wind(?:[ \t]+Total)?', text)
+        header = re.search(r'(Gas\s+Coal\s+HFO\s+HSD\s+Hydro\s+Solar\s+Import\s+Wind(?:[ \t]+Nuclear)?)(?:[ \t]+Total)?', text)
         if header and re.search(r'Zone-wise\s+Generation\s+Summary\s*\(\s*MKWH', text, re.I):
             table = text[header.end():heading.start()]
-            totals = re.search(r'^Total[ \t]+((?:' + NUMBER + r'[ \t]+){7}' + NUMBER + r'(?:[ \t]+' + NUMBER + r')?)[ \t]*$', table, re.M)
+            names = ['Imports' if name == 'Import' else name for name in header.group(1).split()]
+            count = len(names)
+            totals = re.search(r'^Total[ \t]+((?:' + NUMBER + r'[ \t]+){' + str(count-1) + '}' + NUMBER + r'(?:[ \t]+' + NUMBER + r')?)[ \t]*$', table, re.M)
             if totals:
                 parts = [number(value) for value in totals.group(1).split()]
                 # Source energy fields round to 0.01 MKWh per category.
-                if (len(parts)==8 or abs(sum(parts[:8])-parts[8]) <= .06) and (energy_kwh is None or abs(sum(parts[:8])*1e6-energy_kwh) <= 60000):
-                    generation_kwh = dict(zip(['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind'], [int(round(value*1e6)) for value in parts[:8]]))
+                if (len(parts)==count or abs(sum(parts[:count])-parts[count]) <= .06) and (energy_kwh is None or abs(sum(parts[:count])*1e6-energy_kwh) <= 60000):
+                    generation_kwh = dict(zip(names, [int(round(value*1e6)) for value in parts[:count]]))
     return dict(date=operating.isoformat(), archive_date=archive_date, source_url=source_url,
                 source_label=heading.group().strip().rstrip(':'),
                 scope='production' if production else 'consumed_fuel',
@@ -142,7 +145,8 @@ class ArchiveParser(HTMLParser):
 
 
 def fetch(url):
-    result = subprocess.run(['curl', '--fail', '--location', '--silent', '--show-error',
+    ca_bundle = os.environ.get('BEGD_BPDB_CA_BUNDLE')
+    result = subprocess.run(['curl', *(['--cacert', ca_bundle] if ca_bundle else []), '--fail', '--location', '--silent', '--show-error',
                              '--retry', '2', '--max-time', '30', '--proto', '=https', url],
                             check=True, capture_output=True)
     if len(result.stdout) > 20*1024*1024: raise ValueError('Oversized BPDB response')
@@ -202,7 +206,8 @@ def collect(cache_dir, days=365, max_pages=40, workers=4, refresh_hours=6):
     output = dict(parser_version=VERSION, generated_at=now.isoformat(), refreshed_at=now.timestamp(),
                   source=ARCHIVE, days=sorted(by_date.values(), key=lambda row:row['date']), errors=errors)
     # Retry an unavailable/partial archive on the next build instead of caching an outage for six hours.
-    if not entries or any('page=' in e['source_url'] for e in errors): output['refreshed_at'] = 0
+    if not entries or any('page=' in e['source_url'] or e.get('archive_date', '') >= (today-dt.timedelta(days=14)).isoformat() for e in errors):
+        output['refreshed_at'] = 0
     manifest.write_text(json.dumps(output, allow_nan=False, separators=(',', ':')))
     return output
 

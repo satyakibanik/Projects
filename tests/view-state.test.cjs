@@ -178,11 +178,11 @@ test('explicit overview archive links still restore their exact operating date',
  context.fetch=async()=>new Response(JSON.stringify({report_id:'5175',date:'2026-10-24',published_date:'2026-10-25'}));
  await context.window.BEGDView.start();assert.equal(run('data.date'),'2026-10-24');assert.equal(location.searchParams.get('date'),'2026-10-24');
 });
-test('cost averaging period and rate-chart layers survive shared view URLs without changing other cost layers',()=>{
- const api=codec(),state={...api.defaults,costAverageDays:'90',trendLayers:[['bpdb-unit-cost|gas',false],['bpdb-cost|coal',true]]};
- const url=api.encode('https://example.test/begd/#trends',state),restored=plain(api.decode(url));
- assert.equal(new URL(url).searchParams.get('costAverageDays'),'90');assert.equal(restored.state.costAverageDays,'90');assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
- assert.equal(api.decode('https://example.test/?costAverageDays=999').state.costAverageDays,'30');
+test('the main trend period controls cost averaging and rate-chart layers in shared URLs',()=>{
+ const api=codec(),state={...api.defaults,days:'7',trendLayers:[['bpdb-unit-cost|gas',false],['bpdb-cost|coal',true]]};
+ const url=api.encode('https://example.test/begd/#trends?costAverageDays=90',state),restored=plain(api.decode(url));
+ assert.equal(restored.state.days,'7');assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
+ assert.equal(restored.state.costAverageDays,undefined);assert.equal(new URL(url).searchParams.has('costAverageDays'),false);
 });
 
 test('colliding date hashes get distinct comparison colors consistently across add order',()=>{

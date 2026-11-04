@@ -1,0 +1,74 @@
+QF-LDC-08(Sheet-1)
+page 1 of 3
+Power Grid Bangladesh PLC
+National Load Dispatch Center (NLDC)
+System Summary Report
+Date : 02-11-2026
+Power Supply Scenario
+Day Peak Generation 14489.47 MW 12:00 Hr. Energy Generated 344.98418 MKWHr.
+Day Peak Demand 14489.47 MW 12:00 Hr. Energy Unserverd 1.16100 MKWHr.
+Evening Peak Generation 15843.35 MW 19:30 Hr. Energy Demand 346.14518 MKWHr.
+Evening Peak Demand 16183.5 MW 19:00 Hr. Maximum Temperature 33.20 °C
+Minimum Generation of the Day 12543.92 MW 06:00 Hr. Total Gas Supplied 861.44 MMCFD
+Maximum Generation of the Day 15843.35 MW 19:30 Hr. Production Cost per KWHr 8.06607 Tk.
+Zone-wise Generation Summary (MKWHr.)
+Gas Coal HFO HSD Hydro Solar Import Wind Nuclear Total
+Dhaka Zone 37.45 0.00 19.12 0.00 0.00 0.16 0.00 0.00 0.00 56.73
+Chattogram Zone 3.43 39.89 12.78 0.00 3.54 0.13 0.00 0.06 0.00 59.83
+Cumila Zone 30.48 0.00 8.73 0.00 0.00 0.41 1.63 0.00 0.00 41.24
+Mymensingh Zone 0.00 0.00 4.51 0.00 0.00 0.31 0.00 0.00 0.00 4.82
+Sylhet Zone 38.14 0.00 0.00 0.00 0.00 0.05 0.00 0.00 0.00 38.20
+Khulna Zone 0.03 28.74 1.61 0.00 0.00 0.46 22.43 0.00 0.00 53.27
+Barishal Zone 2.70 47.72 1.42 0.00 0.00 0.00 0.00 0.00 0.00 51.84
+Rajshahi Zone 10.02 0.00 4.56 0.00 0.00 1.08 18.96 0.00 0.00 34.63
+Rangpur Zone 0.00 0.00 3.11 0.00 0.00 1.32 0.00 0.00 0.00 4.42
+Total 122.25 116.35 55.83 0.00 3.54 3.93 43.01 0.06 0.00 344.98
+Fuel-Wise Generation Summary Cost-Wise Generation Summary
+Gas Gas
+Coal Coal
+HFO HFO
+HSD HSD
+Hydro Hydro
+Solar Solar
+Import Import
+Wind Wind
+Nuclear Nuclear
+Production Cost (Tk.)
+Fuel Tk. Fuel Tk.
+Gas 426628048.5 Hydro 354433.5
+Coal 892984659 Solar 63341979.82
+HFO 1134508453 Import 263932218.2
+HSD 0 Wind 917654.4
+Nuclear 0
+Total: 278,26,67,446 Tk.
+E-W Interconnector & Import Scenario
+Energy Flow from East to West: KWHr: 0 Import through HVDC C/B Interconnector: MKWHr: 21.513455 Peak Hr Flow 893.00 MW at 19:30 hrs.
+Energy Flow from West to East: KWHr: 45199472.73 Import through Adani C/B Interconnector: MKWHr: 18.96 Peak Hr Flow 756.07 MW at 19:30 hrs.
+Power Flow during Peak Demand (W-E): MW: 1680 Import through Cumila C/B Interconnector: MKWHr: 1.62624 Peak Hr Flow 76.00 MW at 19:30 hrs.
+Maximum Power Flow (W-E): MW: 2454 Total Import through C/B Interconnector: MKWHr: 42.099695 Peak Hr Flow 1725.07 MW at 19:30 hrs.
+Zone-wise Load-shed and Demand Summary (MW) at evening peak Hour (19:30 Hr.)
+Zone Load-Shed Demand
+Dhaka 2 5910
+Chattogram 0 1520
+Cumila 94 1601
+Mymensingh 0 1216
+Sylhet 0 679
+Khulna 139 1923
+Barishal 4 508
+Rajshahi 0 1395
+Rangpur 0 801
+Total 239 15553
+Status of unavailable Power Plant
+Planned S/D Forced S/D
+Sl Plant Name Capacity Sl Plant Name Capacity
+1 Baghabari 100 MW GTPP 100 1 Fenchugonj CCPP Phase-1 ST 33
+2 Barapukuria TPP Unit-2 85 2 Fenchugonj CCPP Phase-2 GT-3 35
+3 Khulna 330 MW CCPP GT 220 3 Fenchugonj CCPP Phase-2 ST 35
+4 Khulna 330 MW CCPP ST 110 4 Sylhet 225 MW CCPP ST 89
+5 Siddhirgonj 210 MW TPP 115
+Total 630 Total 192
+Total Unavailable Capacity 822
+Event Summary
+Outage Time Restoration Time Description of Event Description of Event
+08:09 16:37 Niamatpur 132/33kV S/S Transformer-1(407T) LT Scheduled S/D Due to Annual Maintenance
+08:09 16:37 Niamatpur 132/33kV S/S Transformer-1(407T) HT Scheduled S/D Due to Annual Maintenance

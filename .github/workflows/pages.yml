@@ -115,6 +115,11 @@ jobs:
                   print("Verified ERP TLS peer:", secure.getpeercert()["issuer"])
           PY
           echo "BEGD_ERP_INTERMEDIATE_CERT=/tmp/erp-issuer.pem" >> "$GITHUB_ENV"
+      - name: Verify BPDB TLS certificate chain
+        continue-on-error: true
+        run: |
+          python scripts/verify_bpdb_tls.py --output /tmp/begd-bpdb-ca-bundle.pem
+          echo "BEGD_BPDB_CA_BUNDLE=/tmp/begd-bpdb-ca-bundle.pem" >> "$GITHUB_ENV"
       - name: Build static site, ERP snapshot and frozen daily forecasts
         env:
           BEGD_PUBLISHED_FORECAST_BASE_URL: https://satyakibanik.github.io/Projects/begd/daily-forecasts

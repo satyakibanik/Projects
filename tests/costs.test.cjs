@@ -111,11 +111,16 @@ test('reported costs override calculation when published, cache invalidates, and
  assert.equal(api.calculatedCosts(report),reported);assert.equal(api.averageCosts('2026-10-25',30).fuels.Gas.days,1);assert.equal(api.averageCosts('2026-10-25',30).fuels.Gas.rate,10);
  assert.match(api.dayPanel(report.date,undefined,report),/Reported daily cost/);assert.doesNotMatch(api.dayPanel(report.date,undefined,report),/CALCULATED · 30D RATES/);
 });
-test('second cost chart uses independently keyed per-fuel rates and selectable averaging periods',()=>{
+test('second cost chart uses independently keyed per-fuel rates with the main trend averaging period',()=>{
  const api=load(),calls=[];api.setData({days:[rateRow('2026-10-24',10,2),rateRow('2026-10-25',30,3)]});
  const html=api.trendPanel([{date:'2026-10-25'},{date:'2026-10-26'}],(...args)=>{calls.push(args);return '<svg/>'},{averageDays:7});
  assert.equal(calls.length,2);assert.equal(calls[0][5].key,'bpdb-cost');assert.equal(calls[1][5].key,'bpdb-unit-cost');assert.equal(calls[1][3],'BDT/kWh');
  const [rows,layers]=calls[1];assert.equal(layers.find(s=>s.name==='Gas').value(rows[1]),8);assert.equal(rows[1].cost_rates.end,'2026-10-25');
- for(const days of [7,30,60,90,365])assert.match(html,new RegExp(`data-cost-average-days="${days}"`));
- assert.match(html,/data-cost-average-days="7" aria-pressed="true"/);assert.match(html,/Average cost per kWh by fuel type/);
+ assert.doesNotMatch(html,/data-cost-average-days/);assert.match(html,/preceding 7 calendar days/);assert.match(html,/Average cost per kWh by fuel type/);
+});
+
+test('stale BPDB coverage remains visible when a source refresh fails',()=>{
+ const api=load();api.setData({days:[rateRow('2026-10-25',10,2)],errors:[{source_url:'archive',error:'download failed'}]});
+ const html=api.trendPanel([{date:'2026-10-25'},{date:'2026-10-26'}],()=>'<svg/>');
+ assert.match(html,/class="note bpdb-cost-freshness" role="status"/);assert.match(html,/BPDB refresh incomplete/);assert.match(html,/25 Oct 2026/);
 });

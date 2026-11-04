@@ -5,7 +5,7 @@
   const format = value => value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits:2});
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
-  let chartSerial=0,costTrendline=false,costAverageDays=30;
+  let chartSerial=0,costTrendline=false;
   const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
   // IDs form part of the shared-link contract. Keep these mappings stable.
@@ -17,11 +17,10 @@
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
     // Include settings for charts not mounted in this session yet.
     for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
-    return {costAverageDays:String(costAverageDays),costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+    return {costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
   }
   function setViewState(state){
     costTrendline=state.costTrend==='linear';
-    costAverageDays=[7,30,60,90,365].includes(Number(state.costAverageDays))?Number(state.costAverageDays):30;
     period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
@@ -207,7 +206,7 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
   }
   function waterLevelRows(end,count) {
     return windowDays({end_date:end,days:bundle?.days||[]},count);
@@ -247,7 +246,7 @@
     const shedSeries=[{name:'Reported load shedding',color:'#e15759',width:3,value:r=>r.shed_peak_mw},...regionNames.map((name,i)=>({name,color:regionColors[i%regionColors.length],dash:true,value:r=>r.regional_shed_mw?.[name]}))];
     html+=panel('Reported load shedding','National: P4 daily maximum · Regions: P1 evening snapshots · MW',plot(rows,shedSeries,'Reported load shedding','MW',false,{selectAll:true})+'<p class="note">Regional evening snapshots and the national daily maximum cover different times. Missing regional readings remain gaps.</p>');
     html+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
-    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:costAverageDays})||'';
+    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:period})||'';
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
     html+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
@@ -372,10 +371,6 @@
         hiddenLayers.set(key,hidden);refreshLayerChart(control);
       });
     });
-    unbound(host,'[data-cost-average-days]').forEach(control=>control.addEventListener('click',()=>{
-      costAverageDays=Number(control.dataset.costAverageDays);draw();
-      host.querySelector(`[data-cost-average-days="${costAverageDays}"]`)?.focus({preventScroll:true});
-    }));
     unbound(host,'[data-cost-trendline]').forEach(control=>control.addEventListener('change',()=>{costTrendline=control.checked;refreshLayerChart(control)}));
     unbound(host,'[data-trend-layer]').forEach(control=>{
       const label=control.closest?.('label'),wrap=control.closest?.('.trends-chart');
@@ -473,7 +468,7 @@
     await pending;
   }
   function releaseCharts(host){host.querySelectorAll('[data-trend-chart]').forEach(wrap=>hoverCharts.delete(wrap.dataset.trendChart));}
-  function setPeriod(days){if(![30,60,90,365].includes(Number(days)))return;period=Number(days);draw()}
+  function setPeriod(days){if(![7,30,60,90,365].includes(Number(days)))return;period=Number(days);draw()}
   root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,setPeriod,mount,windowDays,total,plot,linearTrend,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows,waterLevelRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
   let narrowViewport=root.innerWidth<600;

@@ -1,3 +1,4 @@
+import datetime as dt
 """BPDB date, units and reconciliation are financial-data correctness checks."""
 import json
 import pathlib
@@ -6,7 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]/'scripts'))
-from bpdb_costs import parse_pdf, parse_cost_text, ArchiveParser, collect
+from bpdb_costs import VERSION, parse_pdf, parse_cost_text, ArchiveParser, collect
 
 SOURCE = 'https://misc.bpdb.gov.bd/storage/daily_archive/page_1_20261026_20261027094839.pdf'
 
@@ -25,6 +26,33 @@ class CostsTests(unittest.TestCase):
         self.assertIn('0.01 MKWh', row['generation_basis'])
         self.assertEqual(row['currency'], 'BDT')
         self.assertEqual(row['source_url'], SOURCE)
+
+    def test_new_nuclear_column_preserves_all_cost_and_energy_fields(self):
+        text = (pathlib.Path(__file__).parent/'fixtures/bpdb/page_1_20261103.txt').read_text()
+        row = parse_cost_text(text, archive_date='2026-11-03')
+        self.assertEqual(row['date'], '2026-11-02')
+        self.assertEqual(row['total_bdt'], 2782667446)
+        self.assertEqual(row['costs_bdt']['Nuclear'], 0)
+        self.assertEqual(row['generation_kwh']['Nuclear'], 0)
+        self.assertEqual(row['generation_kwh']['Gas'], 122250000)
+        self.assertEqual(row['generation_kwh']['Imports'], 43010000)
+        self.assertEqual(len(row['generation_kwh']), 9)
+        # A later nonzero nuclear source must not be lost or folded into Total.
+        text = text.replace('0.00 344.98', '1.00 345.98').replace('344.98418 MKWHr.', '345.98418 MKWHr.').replace('Nuclear 0', 'Nuclear 100').replace('278,26,67,446', '278,26,67,546')
+        text = text.replace('Production Cost per KWHr 8.06607 Tk.', '')
+        row = parse_cost_text(text)
+        self.assertEqual(row['costs_bdt']['Nuclear'], 100)
+        self.assertEqual(row['generation_kwh']['Nuclear'], 1000000)
+
+    def test_fetch_uses_verified_ca_bundle_without_disabling_tls(self):
+        with patch.dict('os.environ', {'BEGD_BPDB_CA_BUNDLE': '/tmp/trusted-bpdb.pem'}), patch('bpdb_costs.subprocess.run') as run:
+            run.return_value.stdout = b'archive'
+            from bpdb_costs import fetch
+            self.assertEqual(fetch('https://misc.bpdb.gov.bd/daily-generation-archive'), b'archive')
+            arguments = run.call_args.args[0]
+            self.assertEqual(arguments[arguments.index('--cacert')+1], '/tmp/trusted-bpdb.pem')
+            self.assertNotIn('--insecure', arguments)
+            self.assertNotIn('-k', arguments)
 
     def test_overprinted_pdf_characters_are_deduplicated_before_parsing(self):
         # The source draws the HFO and import text twice at the same coordinates.
@@ -65,6 +93,19 @@ class CostsTests(unittest.TestCase):
         parser=ArchiveParser()
         parser.feed('<tr><td>1</td><td>26/10/2026</td><td><a href="/storage/daily_archive/a.pdf">Download</a></td><td><a href="/storage/daily_archive/page2.pdf">Download</a></td></tr>')
         self.assertEqual(parser.rows, [dict(archive_date='2026-10-26', source_url='https://misc.bpdb.gov.bd/storage/daily_archive/a.pdf')])
+
+    def test_recent_pdf_failure_retries_without_replacing_validated_costs(self):
+        today = dt.datetime.now(dt.timezone.utc).date().isoformat()
+        entry = dict(archive_date=today, source_url=SOURCE)
+        with tempfile.TemporaryDirectory() as tmp:
+            previous = dict(days=[dict(date=today,total_bdt=10)],parser_version=VERSION,refreshed_at=0)
+            pathlib.Path(tmp,'costs.json').write_text(json.dumps(previous))
+            with patch('bpdb_costs.ArchiveParser') as parser, patch('bpdb_costs.fetch',return_value=b'pdf'), patch('bpdb_costs.parse_pdf',side_effect=ValueError('Incomplete cost breakdown')):
+                parser.return_value.rows=[entry]
+                result=collect(tmp,max_pages=1)
+            self.assertEqual(result['days'],previous['days'])
+            self.assertEqual(result['refreshed_at'],0)
+            self.assertEqual(len(result['errors']),1)
 
     def test_archive_outage_preserves_validated_costs_and_retries(self):
         with tempfile.TemporaryDirectory() as tmp:

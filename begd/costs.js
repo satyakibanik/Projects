@@ -1,6 +1,6 @@
 /* Dated BPDB costs and explicitly calculated estimates from preceding fuel rates. */
 (function(root){
- const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Oil:'#e58b38',Hydro:'#59a14f',Solar:'#c59d1c',Imports:'#b07aa1',Wind:'#76b7b2',Renewable:'#59a14f'};
+ const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Oil:'#e58b38',Hydro:'#59a14f',Solar:'#c59d1c',Imports:'#b07aa1',Wind:'#76b7b2',Nuclear:'#8b5bc7',Renewable:'#59a14f'};
  const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const finite=value=>typeof value==='number'&&Number.isFinite(value)&&value>=0;
  const amount=value=>value.toLocaleString('en-BD',{maximumFractionDigits:2});
@@ -14,7 +14,7 @@
   return pending;
  }
  function forDate(date){return bundle?.days.find(row=>row.date===date)||null;}
- const averageWindows=[7,30,60,90,365],averageCache=new Map();
+ const averageCache=new Map();
  const shiftDate=(date,offset)=>new Date(Date.parse(date+'T00:00:00Z')+offset*86400000).toISOString().slice(0,10);
  function averageCosts(endDate,days=30){
   const key=endDate+':'+days;if(averageCache.has(key))return averageCache.get(key);
@@ -36,7 +36,7 @@
   const reported=forDate(report.date);if(reported)return reported;
   // Strictly preceding calendar days: never use the target day or future costs.
   const basis=averageCosts(shiftDate(report.date,-1),30),costs_bdt={},generation_kwh={},missing=[];
-  for(const name of ['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind']){
+  for(const name of ['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind',...(Object.hasOwn(report.fuels||{},'Nuclear')?['Nuclear']:[])]){
    const energy=report.fuels?.[name];
    if(!finite(energy)){missing.push(name+' (generation unavailable)');continue;}
    generation_kwh[name]=energy*1000;
@@ -59,14 +59,16 @@
    formatValue:(value,row)=>`BDT ${value.toFixed(4)}/kWh · ${row.cost_rates.fuels[name].days}/${days} reported days`}));
   const last=rateRows.at(-1).cost_rates;
   const table=`<div class="table-wrap"><table class="bpdb-average-table"><caption>Average rates ending ${esc(dateLabel(last.end))}</caption><thead><tr><th>Fuel type</th><th>Average BDT/kWh</th><th>Matched days</th></tr></thead><tbody>${names.map(name=>{const value=last.fuels[name];return `<tr><th scope="row">${fuelIcon(name)}${esc(name)}</th><td>${value?value.rate.toFixed(4):'—'}</td><td>${value?value.days:0}/${days}</td></tr>`}).join('')}</tbody></table></div>`;
-  return `<div class="bpdb-average-panel"><div class="panel-head"><div><h3>Average cost per kWh by fuel type</h3><p>Energy-weighted averages · BDT/kWh</p></div><div class="trends-unit-control" role="group" aria-label="Fuel cost averaging window">${averageWindows.map(count=>`<button type="button" data-cost-average-days="${count}" aria-pressed="${count===days}">${count}d</button>`).join('')}</div></div>${plot(rateRows,layers,'Average cost per kWh by fuel type','BDT/kWh',false,{key:'bpdb-unit-cost',nonNegative:true,tickDecimals:2})}${table}<p class="note">Each point = total reported cost ÷ matching reported generation (kWh) for that fuel in the preceding ${days} calendar days, ending the day before the point's operating date. Only dates with both a valid cost and positive matching generation are included; coverage is shown per fuel. Missing rates remain gaps. For calculated daily costs, the fixed 30-day window ends the day before the selected operating date. Rates describe the categories published by BPDB.</p></div>`;
+  return `<div class="bpdb-average-panel"><div class="panel-head"><div><h3>Average cost per kWh by fuel type</h3><p>Energy-weighted averages · BDT/kWh</p></div></div>${plot(rateRows,layers,'Average cost per kWh by fuel type','BDT/kWh',false,{key:'bpdb-unit-cost',nonNegative:true,tickDecimals:2})}${table}<p class="note">Each point = total reported cost ÷ matching reported generation (kWh) for that fuel in the preceding ${days} calendar days, ending the day before the point's operating date. Only dates with both a valid cost and positive matching generation are included; coverage is shown per fuel. Missing rates remain gaps. For calculated daily costs, the fixed 30-day window ends the day before the selected operating date. Rates describe the categories published by BPDB.</p></div>`;
  }
  function series(){return [{name:'Reported total',color:'#427f81',width:2.6,value:row=>{const value=forDate(row.date)?.total_bdt;return finite(value)?value/1e7:null},formatValue:value=>'BDT '+amount(value*1e7)},...Object.entries(colors).map(([name,color])=>({name,color,defaultVisible:false,value:row=>{const value=forDate(row.date)?.costs_bdt[name];return finite(value)?value/1e7:null},formatValue:value=>'BDT '+amount(value*1e7)}))];}
  function trendPanel(rows,plot,options={}){
   const reported=rows.map(row=>forDate(row.date)).filter(Boolean),total=reported.reduce((sum,row)=>sum+row.total_bdt,0);
   const last=reported.at(-1),scopes=new Set(reported.map(row=>row.scope));
+  const missingLatest=!last||last.date<rows.at(-1)?.date;
+  const freshness=missingLatest?`<p class="note bpdb-cost-freshness" role="status">${bundle?.errors?.length?'BPDB refresh incomplete. ':''}${last?'Latest validated reported costs: '+esc(dateLabel(last.date))+'.':'No validated reported costs in this window.'} Missing dates remain gaps.</p>`:'';
   const summary=reported.length?`<strong>BDT ${amount(total/1e7)} crore</strong> across ${reported.length} / ${rows.length} days · latest cost: ${esc(dateLabel(last.date))}`:`0 / ${rows.length} days with validated BPDB costs`;
-  return `<section class="panel full bpdb-cost-trend"><div class="panel-head"><div><h2>Cost of consumed fuel</h2><p>${summary}</p></div><div class="bpdb-trend-controls"><span class="tag">BDT · DAILY</span><label><input type="checkbox" data-cost-trendline ${options.trendline?'checked':''}>Linear trendline</label><small>Shown for one selected layer</small></div></div>${plot(rows,series().filter(series=>series.name==='Reported total'||reported.some(row=>Object.hasOwn(row.costs_bdt,series.name))),'Cost of consumed fuel','BDT crore',false,{key:'bpdb-cost',nonNegative:true,groupLayers:true,fitTrend:options.trendline})}<p class="note">Bangladeshi taka · 1 crore = 10,000,000 BDT. Hover or focus for exact BDT amounts; select a generation type in the legend. Source: <a href="https://misc.bpdb.gov.bd/daily-generation-archive" target="_blank" rel="noopener">BPDB Page 1 PDFs</a>. Published as “Cost of the Consumed Fuel”, “Fuel cost”, or “Production Cost (Tk.)”. Production-cost totals can include imports and renewables. Categories follow each source: Oil and Renewable are not split into inferred components. ${scopes.size>1?'This window spans consumed-fuel and production-cost definitions; totals are not necessarily like-for-like. ':''}Totals cover reported days only; missing dates remain gaps. BPDB PDFs may arrive 1–2 days late; dates come from the printed report.</p>${averagePanel(rows,plot,options.averageDays||30)}</section>`;
+  return `<section class="panel full bpdb-cost-trend"><div class="panel-head"><div><h2>Cost of consumed fuel</h2><p>${summary}</p></div><div class="bpdb-trend-controls"><span class="tag">BDT · DAILY</span><label><input type="checkbox" data-cost-trendline ${options.trendline?'checked':''}>Linear trendline</label><small>Shown for one selected layer</small></div></div>${freshness}${plot(rows,series().filter(series=>series.name==='Reported total'||reported.some(row=>Object.hasOwn(row.costs_bdt,series.name))),'Cost of consumed fuel','BDT crore',false,{key:'bpdb-cost',nonNegative:true,groupLayers:true,fitTrend:options.trendline})}<p class="note">Bangladeshi taka · 1 crore = 10,000,000 BDT. Hover or focus for exact BDT amounts; select a generation type in the legend. Source: <a href="https://misc.bpdb.gov.bd/daily-generation-archive" target="_blank" rel="noopener">BPDB Page 1 PDFs</a>. Published as “Cost of the Consumed Fuel”, “Fuel cost”, or “Production Cost (Tk.)”. Production-cost totals can include imports and renewables. Categories follow each source: Oil and Renewable are not split into inferred components. ${scopes.size>1?'This window spans consumed-fuel and production-cost definitions; totals are not necessarily like-for-like. ':''}Totals cover reported days only; missing dates remain gaps. BPDB PDFs may arrive 1–2 days late; dates come from the printed report.</p>${averagePanel(rows,plot,options.averageDays||30)}</section>`;
  }
  const icons={Coal:'coal.png',Gas:'gas-factory.png',HFO:'HFO.png',HSD:'HSD.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png'};
  let tableSort={key:'share',direction:'desc'};
