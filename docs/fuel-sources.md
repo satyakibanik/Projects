@@ -32,6 +32,14 @@ Coal contains annual Barapukuria production and a separate initially collapsed a
 
 Every chart includes individual layer checkboxes. Both gas history charts also include labelled All / None controls; the distribution chart keeps All / None without the extra heading. The daily source and annual coal charts omit the All / None toolbar. The daily breakdowns select individual supply sources or distribution sectors; time-series plots select individual gas series; Coal selects the annual mine-production series. Hidden layers are omitted from chart geometry, axis scaling and tooltips. An empty selection keeps its controls available and shows an explicit empty state. Selections are independent across charts and persist in the `fuelHide` URL parameter across dates, windows, fuel tabs and reloads. Tables and coverage statistics always describe the underlying published data.
 
+The complete 4 November archive walk expands the committed data to **2,353 distinct Petrobangla daily observations**, spanning **12 January 2020–4 November 2026**. All 2,379 available Petrobangla PDFs on all three archive pages were examined; 33 other listing entries had no supported report link. Eleven conflicting reporting dates are excluded from new data, and all original 100 observations are unchanged. The latest 365-day window has 359 reports and 6 missing dates; the full 2,489-day span has 136 missing dates. Missing observations are never estimated.
+
+Three incomplete date headings were completed only using information inside their original PDFs: explicit workbook month/year titles and matching creation dates. The affected dates are 30–31 October 2020 and 1 July 2025. Their rows retain `date_basis` and `date_evidence`, and the dashboard source details explain the method. One reordered but fully explicit heading (`29 - 30 2021 April`) is also recognized. Removing exactly overlapping duplicate glyphs recovers older overprinted tables without changing expected columns or supply reconciliation. Four nine-page PDFs were checked; the additional pages are supporting sheets for the same reporting day.
+
+The separate GTCL comparison series now contains **339 reporting dates**, spanning 5 January 2022–2 November 2026. All 540 PDF links and 30 spreadsheet links were examined. Text extraction and cached spreadsheet values provided 258 parsed reports; conservative OCR recovered 82 additional scans, for 340 files and 339 distinct dates. OCR requires one unambiguous reporting date and a unique set of nine production components that sum to the published national total within 0.0005 MMSCF. OCR values are labelled in the source details, and no power-sector values are inferred from scans. A further 230 scans remain rejected; their URLs and reasons are retained. Older text PDFs' extra instantaneous-flow columns are separated from their 24-hour supply values. Four truncated text reports retain their national total with missing power-sector values, shown as unavailable.
+
+The [full backfill audit](fuel-backfill-2026-11-04.json) records archive pages and hashes, missing report links, rejected scans, date evidence, production reconciliation evidence, conflicts and coverage. The committed bundle keeps its original PDF/spreadsheet links and hashes. Coal remains the 21 published fiscal years; no daily coal series is invented.
+
 The initial bundle contains 100 actual daily Petrobangla reports ending 27 July–3 November 2026, ten GTCL checks ending 24 October–2 November, and 21 fiscal years of BCMCL production (2005–2006 through 2025–2026). No synthetic daily history is generated. The requested Daily / 7 / 30 / 60 / 90 / 365 day / Long term controls select calendar windows ending on the chosen gas report date. Longer windows explicitly show missing coverage. Annual coal stays separate from these gas controls.
 
 Report dates come from PDF headings, not upload dates or filenames; cross-month headings are supported. A date of 3 November means the period **2 November 08:00 through 3 November 08:00 Bangladesh time**. Gas is not an hourly electricity series. Power-sector gas-demand gaps are not electricity load shedding. Production and distribution totals are preserved separately and are not presented as a calculated system loss. Domestic production sums published state and IOC subtotals, so a 0.1 rounding difference from the grand total less LNG can remain.
@@ -45,7 +53,7 @@ Rows retain original PDF URLs and SHA-256 hashes. SVG charts have corresponding 
 The Actions cache retains `.cache/fuel`, so historical reports accumulate across builds. The committed seed provides a baseline after cache eviction. Older accumulated rows beyond the committed seed depend on cache retention; backfill explicitly when needed:
 
 ```sh
-python scripts/fuel.py --page-size 100 --output begd/fuel-data.json
+python scripts/backfill_fuel.py --cache .cache/fuel --audit docs/fuel-backfill-2026-11-04.json
 ```
 
 The existing local application server serves the new files:
@@ -57,4 +65,10 @@ python scripts/server.py --port 8790
 
 The Fuel view loads independently of ERP report availability. For an isolated static review, `python -m http.server 8790` also serves the Fuel tab; other dashboard tabs need the normal ERP server or a published static data bundle.
 
-Validation: the full JavaScript and Python suites, real PDF parsing of the 100+10 report seed, supplied-PDF comparisons, month-boundary dates, invalid layouts, preserved history on collection failure, calendar ranges, chart gaps, and browser checks of local range/date controls and navigation. Six existing Python tests skip optional integrations in this environment.
+Validation: the complete archive walk and source-hash checks; all original supplied-PDF comparisons; historical/date-layout/OCR rejection tests; preserved seed data on collection failure; 165 Python tests (6 optional integration skips); 266 JavaScript tests; and phone/desktop checks of the expanded data, date controls, multi-year axes, hover/focus tooltips and initially collapsed tables.
+
+For scheduled collection on a reachable network, see [Unattended fuel updates](fuel-unattended-updates.md). Conflicting same-date publisher versions are rejected during collection; if a saved observation exists it is retained and the source is marked partial. Otherwise that date remains missing until the conflict is reviewed.
+
+The regular Pages workflow already attempts collection at minutes 11, 26, 41 and 56 each hour. GitHub Actions collects new daily reports automatically when it can reach the publishers. A Mac is a fallback for the observed runner connectivity failures, not a normal requirement. Full archive backfill and optional OCR are separate from those frequent refreshes.
+
+All 339 saved GTCL dates remain visible in the comparison table, including dates without a Petrobangla report. Missing primary values stay blank, and every GTCL date links to its original source file. The sources are not spliced into a single production series.
