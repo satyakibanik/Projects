@@ -4,7 +4,7 @@
  */
 (()=>{'use strict';
 function roleFor(el,doc,nativeSize){
- if(el.closest('.legend,.trends-legend,.event-chart-legend,.event-mark-legend,.event-density-legend,.daylight-key,.regional-snapshot-legend,.composition-key,.vb-legend,.region-map-key,.chart-legend,.forecast-layer>legend'))return el.namespaceURI==='http://www.w3.org/2000/svg'?'legend-chart':'legend';
+ if(el.closest('.legend,.fuel-legend,.trends-legend,.event-chart-legend,.event-mark-legend,.event-density-legend,.daylight-key,.regional-snapshot-legend,.composition-key,.vb-legend,.region-map-key,.chart-legend,.forecast-layer>legend'))return el.namespaceURI==='http://www.w3.org/2000/svg'?'legend-chart':'legend';
  if(el.closest('.ewic-map-readings'))return 'controls';
  if(el.matches('.plant-table-hint'))return 'controls';
  if(el.closest('.brand-acronym'))return 'brand-acronym';
@@ -32,8 +32,8 @@ function roleFor(el,doc,nativeSize){
 function textElements(doc){return [...doc.querySelectorAll('body *')].filter(el=>!el.closest('script,style,noscript,svg defs,.mark,.chart-tooltip,.trends-tooltip,.plant-tooltip')&&(el.matches('input,select,textarea')||[...el.childNodes].some(n=>n.nodeType===3&&n.textContent.trim())));}
 function svgScale(el){try{const m=el.getScreenCTM();return m?Math.hypot(m.c,m.d)||1:1;}catch{return 1;}}
 
-const noteSelector='.ewic-coordinate-notes,.forecast-study-info,.model-description,.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
-const informationPanel='.forecast-subplot,.vb-combined,.plant-detail,.panel,.dispatch-main,.energy-band';
+const noteSelector='.fuel-note,.fuel-history-note,.fuel-chart-help,.ewic-coordinate-notes,.forecast-study-info,.model-description,.note,.information-note,.chart-help,.vb-method,.bpdb-fit-note,.trends-coverage,.plant-metric-date,.plant-slide-note,.plant-map-attribution,.dispatch-bottom,.panel-head p,.vb-chart-heading p,.mae-caption,figcaption';
+const informationPanel='.fuel-panel,.forecast-subplot,.vb-combined,.plant-detail,.panel,.dispatch-main,.energy-band';
 function collapseNotes(){
  const groups=new Map();
  // A slide re-renders its own content; replace the previous slide explanation.
