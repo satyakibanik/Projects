@@ -328,6 +328,13 @@ def write_news_bundle(output_dir):
     (output_dir / "news-data.json").write_text(json.dumps(news, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
 
 
+def write_fuel_bundle(output_dir):
+    from fuel import collect
+    bundle = collect(DASHBOARD / "fuel-data.json", ROOT / ".cache" / "fuel")
+    (output_dir / "fuel-data.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default="_site")
@@ -341,6 +348,7 @@ def main():
     shutil.copytree(DASHBOARD, output / "begd")
     write_data_bundle(output / "begd")
     write_news_bundle(output / "begd")
+    write_fuel_bundle(output / "begd")
     write_system_loss_bundle(output / "begd")
 
 
