@@ -1,0 +1,5 @@
+.daylight-day{fill:#fff3bd;background:#fff3bd}.daylight-night{fill:#e2efff;background:#e2efff}
+[data-theme=dark] .daylight-background{opacity:.13}
+.daylight-key{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 12px;color:var(--muted);font:11px/1.5 var(--mono)}
+.daylight-key>span{display:inline-flex;align-items:center;gap:5px}.daylight-key i{display:inline-block;width:12px;height:10px;border:1px solid #8a98a955;border-radius:2px}
+@media(max-width:600px){.daylight-key{font-size:10px}}

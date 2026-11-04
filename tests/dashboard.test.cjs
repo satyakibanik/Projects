@@ -341,3 +341,14 @@ test('EWIC chart redraws at measured dimensions and skips redundant size notific
  const html=vm.runInContext("chart([{time:'00:00',value:100}],[{key:'value',color:'#123456',name:'Flow'}],{width:612,height:388})",c);
  assert.match(html,/viewBox="0 0 612 388"/);assert.doesNotMatch(html,/preserveAspectRatio="none"/);
 });
+test('hourly shading follows selected, explicit forecast, and real-time dates across midnight',()=>{
+ const c=app();c.window.BEGDDaylight=require('../begd/daylight.js');c.location={hash:'#overview'};
+ vm.runInContext("data={date:'2026-11-02'};currentDayData={today_date:'2026-11-04'}",c);
+ const draw=options=>vm.runInContext(`chart([{time:'00:00',mw:100},{time:'23:00',mw:200}],[{key:'mw',name:'Power',color:'#123456'}],${JSON.stringify(options)})`,c);
+ const selected=draw({});assert.match(selected,/data-daylight-date="2026-11-02"/);
+ assert.ok(selected.indexOf('daylight-background')<selected.indexOf('class="axis"'));
+ assert.match(draw({date:'2026-06-21'}),/data-daylight-date="2026-06-21"/);
+ c.location.hash='#realtime';assert.match(draw({}),/data-daylight-date="2026-11-04"/);
+ const two=vm.runInContext("realtimeYesterday=true;realtimePlot([{time:'23:00',mw:100}],[{key:'mw',name:'Power',color:'#123456'}],[{time:'00:00',mw:90}])",c);
+ assert.match(two,/data-daylight-date="2026-11-03"/);assert.match(two,/data-daylight-date="2026-11-04"/);
+});

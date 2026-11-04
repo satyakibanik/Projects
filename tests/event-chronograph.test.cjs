@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 function viewer(mobile=false){
  const listeners={},panels=[];
- const context=vm.createContext({window:{matchMedia(){return {matches:mobile,addEventListener(){}}}},document:{querySelector(){return null},querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
+ const context=vm.createContext({window:{BEGDDaylight:require('../begd/daylight.js'),matchMedia(){return {matches:mobile,addEventListener(){}}}},document:{querySelector(){return null},querySelectorAll(){return panels},addEventListener(type,fn){(listeners[type]??=[]).push(fn)}}});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/operational-events.js'),'utf8'),context);
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../begd/event-chronograph.js'),'utf8'),context);
  return {api:context.window.BEGDEventChronograph,listeners,panels};
@@ -158,4 +158,16 @@ test('timeline and dial filter event markers and lists with the pulse category w
  const after=api.render(events,hourly);
  for(const key of ['lanes','density','dial'])assert.match(after,new RegExp('id="event-'+key+'-category"'));
  assert.equal((after.match(/value="trip" selected/g)||[]).length,3);
+});
+
+test('Operations curves, event lanes, pulse, and clock dial shade the report operating date',()=>{
+ const {api}=viewer();
+ const html=api.render([{outage_time:'07:00',restoration_time:'18:00',description:'Test event'}],[{time:'00:00',generation_mw:100}], '', '2026-11-02');
+ assert.equal((html.match(/class="daylight-background"/g)||[]).length,6);
+ assert.match(html,/data-daylight-date="2026-11-02"/);
+ assert.match(html,/A178,178 0 0 1/);
+ assert.match(html,/sunrise 06:04 · sunset 17:20/);
+ const next=api.render([],[], '', '2026-06-21');
+ assert.match(next,/A178,178 0 1 1/);
+ assert.doesNotMatch(next,/2026-11-02/);
 });
