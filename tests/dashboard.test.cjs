@@ -368,3 +368,10 @@ test('missing Energy Curve totals preserve readings instead of scaling all energ
  const zero=draw({energy_generated_mwh:0,energy_not_served_mwh:0});
  assert.doesNotMatch(zero,/<td>100<\/td>/);
 });
+
+test('unreported interconnector energy stays unavailable rather than becoming zero',()=>{
+ const c=app();
+ const html=vm.runInContext(`data={date:'2026-11-02',operations:{east_west:{energy_east_to_west_kwh:null,energy_west_to_east_kwh:45199472.73}},hourly:[]};operations()`,c);
+ assert.match(html,/East → west energy[^]*?class="value">—/);
+ assert.match(html,/45,199.47/);
+});

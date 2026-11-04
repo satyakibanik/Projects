@@ -46,3 +46,9 @@ test('curve provenance follows the parsed coordinates after inserted source colu
  assert.match(methods().render('Energy not served',{report:shifted,curve:true}),/En-Curve!V8/);
  assert.match(methods().render('Total energy requirement',{report:shifted,curve:true}),/En-Curve!V9/);
 });
+
+test('transfer provenance follows moved P1 labels rather than fixed row numbers',()=>{
+ const shifted={...report,operations:{east_west:{cells:{energy_east_to_west_kwh:'E54',energy_west_to_east_kwh:'E55'}}}};
+ assert.match(methods().render('East → west energy',{report:shifted}),/P1!E54/);
+ assert.match(methods().render('West → east energy',{report:shifted}),/P1!E55/);
+});

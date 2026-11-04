@@ -3,7 +3,7 @@
 'use strict';
 const base=root.BEGDPlantMap;if(!base)return;
 const NS='http://www.w3.org/2000/svg',BLUE='#2374e8',YELLOW='#ffe04b',RED='#ed3c35',GRAY='#89939e',MISSING='#9b7baf';
-const fuelColors={Coal:'#586574',Gas:'#2878cd',HFO:'#e67e28',HSD:'#df527b',Hydro:'#159d9c',Solar:'#e0b91d',Wind:'#4c9e48',Nuclear:'#8b5bc7','Not reported':MISSING};
+const fuelColors={Imports:'#b07aa1',Coal:'#586574',Gas:'#2878cd',HFO:'#e67e28',HSD:'#df527b',Hydro:'#159d9c',Solar:'#e0b91d',Wind:'#4c9e48',Nuclear:'#8b5bc7','Not reported':MISSING};
 const slides=[
  {id:'fuel',title:'Fuel type',description:'Color and icons identify generation type. Hover a fuel icon below to preview matching units; click it to keep the selection.'},
  {id:'energy',title:'Daily energy',unit:'MWh',description:'Reported energy generated across the operating day.',heat:true},
@@ -100,7 +100,7 @@ async function create(options){
   const catColor=c=>c==='Not reported'?MISSING:slide.id==='fuel'?fuelColors[c]||MISSING:slide.id==='status'?(c==='Online'?BLUE:GRAY):catMap.get(c)||MISSING;
   let legend='';
   if(numeric)legend=`<div class="plant-gradient-key"><button type="button" data-legend-filter="zero"><i style="background:${GRAY}"></i>0 ${slide.unit}</button><button type="button" class="plant-positive-label" data-legend-filter="positive">&gt;0 ${slide.unit}</button><div class="plant-gradient"><span>${fmt(maximum/2)} ${slide.unit}</span></div><span><i style="background:${RED}"></i>${fmt(maximum)} ${slide.unit} · highest</span><button type="button" data-legend-filter="missing"><i style="background:${MISSING}"></i>Not reported</button></div>`;
-  else {const categories=slide.id==='fuel'?[...new Set(mappedRows.flatMap(p=>types(p,options)))].sort():slide.id==='status'?['Online','Offline','Not reported']:[...catMap.keys()];legend=`<div class="plant-category-key">${categories.map(c=>`<button type="button" data-legend-filter="${esc(c)}" aria-pressed="${activeFilter?.id===slide.id&&activeFilter.value===c}"><i style="background:${catColor(c)}"></i>${esc(c)}</button>`).join('')}</div>`;}
+  else if(slide.id!=='fuel'){const categories=slide.id==='fuel'?[...new Set(mappedRows.flatMap(p=>types(p,options)))].sort():slide.id==='status'?['Online','Offline','Not reported']:[...catMap.keys()];legend=`<div class="plant-category-key">${categories.map(c=>`<button type="button" data-legend-filter="${esc(c)}" aria-pressed="${activeFilter?.id===slide.id&&activeFilter.value===c}"><i style="background:${catColor(c)}"></i>${esc(c)}</button>`).join('')}</div>`;}
   if(numeric&&maximum===0)legend=`<div class="plant-gradient-key"><button type="button" data-legend-filter="zero"><i style="background:${GRAY}"></i>0 ${slide.unit}</button><span>No positive reported values</span><button type="button" data-legend-filter="missing"><i style="background:${MISSING}"></i>Not reported</button></div>`;
   const partial=values.filter(v=>v.some(n=>n===null)&&v.some(n=>n!==null)).length;
   const note=slide.heat?`Marker size, color and halo show combined ${slide.unit} for grouped units; scale follows the filtered map and zoom.${slide.id==='peak'?' Grouped values sum individual daily peaks, which may occur at different times.':''}${partial?' '+partial+' group(s) have incomplete readings.':''}`:slide.id==='capacity'?'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity; shared capacities are not added together.':slide.id==='fuel'?'Split rings and multiple icons identify mixed-fuel groups. Hover a fuel icon below to preview matching units; click it to keep the selection.':'Split rings show each category’s share of the units in a group.';
@@ -143,7 +143,7 @@ async function create(options){
     const ratio=maximum>0?sums[i]/maximum:0;heat.append(make(doc,'circle',{cx:g.point[0],cy:g.point[1],r:(radius+24*Math.sqrt(ratio))/scale,'data-screen-radius':radius+24*Math.sqrt(ratio),fill:`url(#${id})`}));}
   });
   const fuels=[...new Set(groups.flatMap(g=>g.items.flatMap(i=>types(i.plant,options))))].sort();
-  iconKey.innerHTML='<strong>Generation type</strong>'+fuels.map(f=>`<button type="button" data-highlight-fuel="${f}" aria-label="Highlight ${f} plants"><img src="plant-icons/${icons[f]}" alt="">${f} (${groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(f)).length,0)})</button>`).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>';
+  iconKey.innerHTML='<strong'+(slide.id==='fuel'?' hidden':'')+'>Generation type</strong>'+fuels.map(f=>`<button type="button" data-highlight-fuel="${f}" aria-label="Highlight ${f} plants"><i style="background:${fuelColors[f]||MISSING}" aria-hidden="true"></i><img src="plant-icons/${icons[f]}" alt="">${esc(f)} (${groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(f)).length,0)})</button>`).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>';
   applyHighlight(highlightedFuel);decorateSidebar();
  }
  function applyHighlight(fuel){

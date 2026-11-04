@@ -124,3 +124,11 @@ test('stale BPDB coverage remains visible when a source refresh fails',()=>{
  const html=api.trendPanel([{date:'2026-10-25'},{date:'2026-10-26'}],()=>'<svg/>');
  assert.match(html,/class="note bpdb-cost-freshness" role="status"/);assert.match(html,/BPDB refresh incomplete/);assert.match(html,/25 Oct 2026/);
 });
+
+test('fuel logos include Imports and Nuclear and average fuel layers have an all/none group',()=>{
+ const api=load();
+ for(const [name,file] of [['Imports','import-export.png'],['Nuclear','nuclear-plant.png'],['Gas','gas-factory.png'],['Coal','coal.png'],['HFO','HFO.png'],['HSD','HSD.png'],['Hydro','hydroelectricity.png'],['Solar','solar.png'],['Wind','wind-energy.png']])assert.ok(api.legendIcon(name).includes(file),name);
+ assert.equal(api.legendIcon('Reported total'),'');
+ const calls=[];api.setData({days:[rateRow('2026-10-25',10,2)]});api.averagePanel([{date:'2026-10-26'}],(...args)=>{calls.push(args);return '<svg/>'});
+ assert.equal(calls[0][5].groupLayers,true);
+});

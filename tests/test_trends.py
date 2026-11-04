@@ -84,6 +84,8 @@ class NationalRecoveryTests(unittest.TestCase):
         p['E26']=240
         for col in [6,7,8,9,10,11,12]:p.cell(26,col,0)
         book['P4']['E9']=125
+        p['E59']='Zone';p['G59']='Load-Shed';p['I59']='Demand'
+        p['E60']='Dhaka';p['E61']='Chattogram'
         p['B17']='Dhaka Zone';p['G60']=0
         p['B18']='Chattogram Zone';p['G61']=25
         book['En-Curve']['B2']='bad ancillary date'

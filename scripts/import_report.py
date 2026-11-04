@@ -11,6 +11,7 @@ import openpyxl
 from water_level import extract_water_level
 from operational_events import extract_event_log
 from energy_curve import extract_energy_curve
+from p1_sections import regional_snapshot, east_west_totals, key as region_key
 
 
 DEFAULT_FUELS = ("Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind")
@@ -79,6 +80,7 @@ def parse_report(report_bytes, source_file):
 
     columns = fuel_columns(summary_sheet) if not legacy_layout else dict.fromkeys(DEFAULT_FUELS)
     fuels = list(columns)
+    region_snapshot = regional_snapshot(summary_sheet) if not legacy_layout else dict(readings={}, time=None, header_row=None)
     regions = []
     quality_notes = []
     if not legacy_layout:
@@ -93,8 +95,7 @@ def parse_report(report_bytes, source_file):
                 energy_mwh=energy * 1000,
                 fuels={fuel: (number(summary_sheet.cell(row, col).value) or 0) * 1000
                        for fuel, col in columns.items()},
-                shed_mw=number(summary_sheet.cell(60 + i, 7).value),
-                demand_mw=number(summary_sheet.cell(60 + i, 9).value),
+                **region_snapshot['readings'].get(region_key(name), dict(shed_mw=None, demand_mw=None)),
             ))
         # Some new workbooks publish zero regional totals while retaining all
         # fuel cells. Derive totals only when every fuel column independently
@@ -417,6 +418,8 @@ def parse_report(report_bytes, source_file):
         source_file=source_file,
         quality_notes=quality_notes,
         timezone="Asia/Dhaka",
+        p1_sections_version=2,
+        regional_snapshot={key:value for key,value in region_snapshot.items() if key != "readings"},
         summary=dict(
             peak_demand_mw=(number(summary_sheet["D10"].value) if legacy_layout else summary_sheet["E11"].value),
             peak_generation_mw=(number(summary_sheet["D9"].value) if legacy_layout else summary_sheet["E13"].value),
@@ -441,10 +444,7 @@ def parse_report(report_bytes, source_file):
         voltages=voltages,
         operations=dict(planned_shutdowns=planned_shutdowns, forced_shutdowns=forced_shutdowns,
                         **event_log, ewic=ewic,
-                        east_west=dict(energy_east_to_west_kwh=number(summary_sheet["E53"].value),
-                                       energy_west_to_east_kwh=number(summary_sheet["E54"].value),
-                                       peak_west_to_east_mw=number(summary_sheet["E55"].value),
-                                       max_west_to_east_mw=number(summary_sheet["E56"].value))),
+                        east_west=east_west_totals(summary_sheet)),
         forecast=dict(date=forecast_date, scenario_date=scenario_date, plants=forecast_plants, totals=system_forecast,
                       demand_hourly=forecast_demand_hourly),
     )

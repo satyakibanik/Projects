@@ -55,7 +55,7 @@ const parseNumber=text=>Number(text.replace(/,/g,''));
    await page.goto('https://begd.test/begd/index.html?v=2#trends');
    const selected=page.locator('#substations-history [data-history-metric-choice="voltage_range"]');await selected.waitFor();
    assert.equal(await selected.getAttribute('aria-pressed'),'true','Substation history starts on voltage range');
-   assert.equal(await page.locator('.trends-legend img[src$="import-export.png"]').count(),0,'Imports legends have no logo');
+   assert(await page.locator('.trends-legend img[src$="import-export.png"]').count()>0,'Imports fuel legends include their logo');
    assert.deepEqual(errors,[],`${width} ${theme} browser errors`);
    console.log('PASS energy data and notes',width,theme,dates.join(', '));
    await context.close();

@@ -5,6 +5,7 @@ No hourly MW sums or inferred load shedding; missing fields stay null.
 import datetime as dt
 import math
 from import_report import fuel_columns
+from p1_sections import regional_snapshot, key as region_key
 from water_level import extract_water_level, water_level_summary
 from operational_events import extract_event_log
 
@@ -98,10 +99,11 @@ def extract_trend_workbook(content, item):
             if any(token in name.lower() for token in ['hvdc','tripura','adani','nepal']):
                 kwh = number(log.cell(38, col).value)
                 routes.append({'name':name, 'energy_mwh':round(kwh / 1000, 6) if kwh is not None else None})
-    report = {'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],
+    snapshot = regional_snapshot(sheet)
+    report = {'p1_sections_version':2, 'regional_snapshot':{key:value for key,value in snapshot.items() if key != 'readings'}, 'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],
               'water_level':extract_water_level(workbook),
               'regions':[{'name':str(sheet.cell(row,2).value).replace(' Zone',''),
-                          'shed_mw':number(sheet.cell(60+row-17,7).value)}
+                          **snapshot['readings'].get(region_key(sheet.cell(row,2).value), {'shed_mw':None,'demand_mw':None})}
                          for row in range(17,26) if sheet.cell(row,2).value],
               'operations':extract_event_log(sheet),
               'source_url':item['download_url'], 'fuels':fuels, 'hourly':hourly, 'imports':routes,

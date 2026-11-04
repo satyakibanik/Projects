@@ -51,6 +51,8 @@
    const coordinate=report.en_curve?.total_cells?.[key];
    if(key)cells=coordinate?`En-Curve!${coordinate}`:`En-Curve labelled ${label}`;
   }
+  const transferKey={'East → west energy':'energy_east_to_west_kwh','West → east energy':'energy_west_to_east_kwh'}[label];
+  if(transferKey)cells=report.operations?.east_west?.cells?.[transferKey]?`P1!${report.operations.east_west.cells[transferKey]}`:'P1 labelled '+(label==='East → west energy'?'Energy Flow from East to West':'Energy Flow from West to East');
   // Pre-P4 reports have different summary coordinates. Do not assert modern cells.
   const legacy=report.workbook_layout==='legacy'||(!rows&&report.summary?.unserved_mwh==null&&report.hourly?.length&&report.hourly.every(r=>r.demand_mw==null));
   if(legacy)cells={'Evening peak demand':'P1!D10','Peak generation':'P1!D9','Energy generated':'P1!D12'}[label]||'Unavailable in this legacy workbook layout';
