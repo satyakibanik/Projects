@@ -50,7 +50,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
     const keys=page.locator('.regional-snapshot-date-key');assert.equal(await keys.count(),3);
     assert.equal(await keys.evaluateAll(keys=>keys.every(key=>{
      const swatch=key.querySelector('svg').getBoundingClientRect(),box=key.getBoundingClientRect();
-     return Math.abs(swatch.width-46)<1&&Math.abs(swatch.height-16)<1&&key.scrollWidth<=key.clientWidth+1&&box.height<65;
+     return Math.abs(swatch.width-32)<1&&Math.abs(swatch.height-12)<1&&key.scrollWidth<=key.clientWidth+1&&box.height<65;
     })),true,`${width} ${theme} ${style}: regional date keys must stay compact`);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    }

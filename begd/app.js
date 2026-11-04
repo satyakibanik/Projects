@@ -109,7 +109,7 @@ function chart(rows,series,options={}){
  const selectedStyle=options.styleSetting==='dispatch'?dispatchChartStyle:options.styleSetting==='shed'?shedChartStyle:options.styleSetting==='en-curve'?enCurveChartStyle:null;
  const plotSeries=series.map(item=>({...item,hatch:false,bar:selectedStyle?(!item.pointsOnly&&!item.fixedLine&&selectedStyle==='bar'):item.bar}));
  const hasSecondary=plotSeries.some(item=>item.axis==='right');
- const W=options.width||(window.innerWidth<600?420:800),H=options.height||250,L=58,R=hasSecondary?76:15,T=hasSecondary?26:14,B=32,visibleForScale=plotSeries.filter(item=>item.defaultVisible!==false),scale=chartScale(rows,visibleForScale.filter(item=>item.axis!=='right'));
+ const W=options.width||(window.innerWidth<600?420:800),H=options.height||250,L=window.innerWidth<600?96:58,R=hasSecondary?76:window.innerWidth<600?28:15,T=hasSecondary?26:14,B=32,visibleForScale=plotSeries.filter(item=>item.defaultVisible!==false),scale=chartScale(rows,visibleForScale.filter(item=>item.axis!=='right'));
  const secondary=visibleForScale.filter(item=>item.axis==='right'),secondaryValues=rows.flatMap(row=>secondary.map(item=>row[item.key])).filter(Number.isFinite);
  const waterMin=secondaryValues.length?Math.min(...secondaryValues):0,waterMax=secondaryValues.length?Math.max(...secondaryValues):1;
  const waterPadding=Math.max((waterMax-waterMin)*.1,.02),rightMin=Math.max(0,waterMin-waterPadding),rightMax=waterMax+waterPadding;
@@ -126,7 +126,7 @@ function chart(rows,series,options={}){
   body+='</g>';
  }
  for(const tick of options.xTicks||[]){body+=`<text x="${x(tick)}" y="${H-7}" text-anchor="middle">${esc(tick.label)}</text>`;}
- if(!options.xTicks)for(const h of [0,6,12,18,23])body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
+ if(!options.xTicks)for(const h of (window.innerWidth<600?[0,8,16,23]:[0,6,12,18,23]))body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
  for(const item of plotSeries){
   const seriesY=item.axis==='right'?rightY:y,seriesUnit=item.unit||unit;
@@ -693,7 +693,7 @@ function stackedAreaChart(rows,series){
  const measuredScale=chartScale(scaleRows,[{key:'stack_total'}]);
  const areaStep=1000;
  const scale={...measuredScale,min:0,max:Math.ceil(measuredScale.max/areaStep)*areaStep,step:areaStep};
- const W=window.innerWidth<600?420:800,H=500,L=58,R=15,T=14,B=82;
+ const W=window.innerWidth<600?420:800,H=500,L=window.innerWidth<600?96:58,R=15,T=14,B=window.innerWidth<600?42:82;
  const x=row=>L+(parseInt(row.time)*60+parseInt(row.time.slice(3)))/1380*(W-L-R);
  const y=value=>H-B-(value-scale.min)/(scale.max-scale.min)*(H-T-B);
  const id='plot-'+(++chartId);
@@ -706,10 +706,13 @@ function stackedAreaChart(rows,series){
   const position=y(value);
   body+='<line class="axis" data-tick-line="'+tick+'" x1="'+L+'" x2="'+(W-R)+'" y1="'+position+'" y2="'+position+'"/><text data-tick-label="'+tick+'" x="'+(L-8)+'" y="'+(position+4)+'" text-anchor="end">'+fmt(value)+'</text>';
  }
- for(let hour=0;hour<24;hour++){
+ const tickHours=window.innerWidth<600?[0,8,16,23]:Array.from({length:24},(_,hour)=>hour);
+ for(const hour of tickHours){
   const time=String(hour).padStart(2,'0')+':00',position=x({time}),labelY=H-8;
-  body+='<text x="'+position+'" y="'+labelY+'" text-anchor="end" transform="rotate(-45 '+position+' '+labelY+')">'+time+'</text>';
+  const placement=window.innerWidth<600?`text-anchor="${hour===0?'start':hour===23?'end':'middle'}"`:`text-anchor="end" transform="rotate(-45 ${position} ${labelY})"`;
+  body+=`<text x="${position}" y="${labelY}" ${placement}>${time}</text>`;
  }
+
  const cumulative=rows.map(()=>0);
  for(const seriesItem of stackSeries){
   const isVisible=seriesItem.defaultVisible!==false;

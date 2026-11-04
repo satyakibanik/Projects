@@ -23,7 +23,7 @@
  function chart(groups,unit,id){
   const pu=unit==='pu',nonempty=groups.filter(g=>g.length),envelope=extent(nonempty,unit);
   if(!envelope)return '<p class="vb-empty">No voltage records match the current station and class selection.</p>';
-  const W=1000,H=330,L=70,R=24,T=22,B=65,pw=W-L-R,ph=H-T-B;
+  const W=1000,H=330,L=typeof window!=='undefined'&&window.innerWidth<750?110:70,R=24,T=22,B=65,pw=W-L-R,ph=H-T-B;
   const ref=pu?1:nonempty[0][0].nominal_kv;
   const span=Math.max(envelope[1]-envelope[0],pu?.025:ref*.025),pad=span*.12;
   const low=Math.min(envelope[0],ref)-pad,high=Math.max(envelope[1],ref)+pad;
