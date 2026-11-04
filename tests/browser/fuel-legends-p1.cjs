@@ -10,6 +10,7 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{for(const width of [390,1210])for(const theme of ['light','dark']){
   const context=await browser.newContext({viewport:{width,height:858},isMobile:width<800,hasTouch:width<800});
+  await context.addInitScript(value=>localStorage.setItem('begd-theme',value),theme);
   await context.route('**/*',route=>{
    const u=new URL(route.request().url());
    if(u.pathname==='/api/report')return route.fulfill({json:report});
