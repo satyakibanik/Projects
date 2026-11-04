@@ -4,6 +4,7 @@ No hourly MW sums or inferred load shedding; missing fields stay null.
 """
 import datetime as dt
 import math
+from import_report import fuel_columns
 from water_level import extract_water_level, water_level_summary
 from operational_events import extract_event_log
 
@@ -85,8 +86,7 @@ def extract_trend_workbook(content, item):
     def energy(value):
         value = number(value)
         return round(value * 1000, 6) if value is not None else None
-    fuels = {fuel:energy(sheet.cell(26, col).value) for col, fuel in enumerate(
-        ['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind'], 5)}
+    fuels = {fuel:energy(sheet.cell(26, col).value) for fuel, col in fuel_columns(sheet).items()}
     hourly = [{'time':str(row[1].value)[:5], 'generation_mw':number(row[2].value),
                'shed_mw':number(row[4].value), 'demand_mw':number(row[6].value)}
               for row in workbook['P4'].iter_rows(min_row=9, max_row=33, max_col=7)]
@@ -106,7 +106,7 @@ def extract_trend_workbook(content, item):
               'operations':extract_event_log(sheet),
               'source_url':item['download_url'], 'fuels':fuels, 'hourly':hourly, 'imports':routes,
               'summary':{'energy_mwh':energy(sheet['K8'].value), 'unserved_mwh':energy(sheet['K9'].value),
-                         'import_mwh':energy(sheet['K26'].value), 'temperature_c':temperature(sheet['K11'].value)}}
+                         'import_mwh':energy(sheet.cell(26, fuel_columns(sheet)['Imports']).value), 'temperature_c':temperature(sheet['K11'].value)}}
     notes = ['National totals extracted separately; full workbook parser rejected this report.']
     generated = report['summary']['energy_mwh']
     if generated is None:

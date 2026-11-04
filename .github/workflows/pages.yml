@@ -64,6 +64,8 @@ jobs:
             begd-erp-independent-top3-v3-
       - name: Install parser and independent forecasting dependencies
         run: python -m pip install -r requirements-forecast.txt
+      - name: Check report parsing and publication safeguards
+        run: python -m unittest discover -s tests -p 'test_*.py'
       - name: Verify Power Grid TLS certificate chain
         run: |
           openssl s_client -connect erp.powergrid.gov.bd:443 -servername erp.powergrid.gov.bd -showcerts </dev/null 2>/dev/null | awk '/BEGIN CERTIFICATE/ { count++ } count == 1 { print } /END CERTIFICATE/ && count == 1 { exit }' > /tmp/erp-leaf.pem

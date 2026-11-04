@@ -12,6 +12,30 @@ from water_level import extract_water_level
 from operational_events import extract_event_log
 
 
+DEFAULT_FUELS = ("Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind")
+
+
+def fuel_columns(sheet):
+    """Resolve both published P1 layouts by labels, including new fuel types."""
+    aliases = {fuel.lower(): fuel for fuel in (*DEFAULT_FUELS, "Nuclear")}
+    aliases["import"] = "Imports"
+    columns = {}
+    for cell in sheet[16]:
+        label = str(cell.value or "").strip().lower()
+        if label in aliases:
+            fuel = aliases[label]
+            if fuel in columns:
+                raise ValueError(f"Duplicate P1 fuel header: {fuel}")
+            columns[fuel] = cell.column
+    if columns:
+        missing = set(DEFAULT_FUELS) - columns.keys()
+        if missing:
+            raise ValueError(f"Missing P1 fuel headers: {', '.join(sorted(missing))}")
+        return columns
+    # Older supported workbooks and minimal fixtures have no fuel header row.
+    return dict(zip(DEFAULT_FUELS, range(5, 13)))
+
+
 def parse_report(report_bytes, source_file):
     """Return dashboard data from workbook bytes and the source filename."""
     workbook = openpyxl.load_workbook(io.BytesIO(report_bytes), data_only=True)
@@ -52,7 +76,8 @@ def parse_report(report_bytes, source_file):
         base = re.sub(r"\s*\((?:gas|hsd|hfo|diesel|coal)\)\s*$", "", str(name or ""), flags=re.I).strip()
         return mapping.get(plant_key(base))
 
-    fuels = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind"]
+    columns = fuel_columns(summary_sheet) if not legacy_layout else dict.fromkeys(DEFAULT_FUELS)
+    fuels = list(columns)
     regions = []
     quality_notes = []
     if not legacy_layout:
@@ -66,7 +91,7 @@ def parse_report(report_bytes, source_file):
                 name=str(name).replace(" Zone", ""),
                 energy_mwh=energy * 1000,
                 fuels={fuel: (number(summary_sheet.cell(row, col).value) or 0) * 1000
-                       for col, fuel in enumerate(fuels, 5)},
+                       for fuel, col in columns.items()},
                 shed_mw=number(summary_sheet.cell(60 + i, 7).value),
                 demand_mw=number(summary_sheet.cell(60 + i, 9).value),
             ))
@@ -75,11 +100,11 @@ def parse_report(report_bytes, source_file):
         # reconciles to its national subtotal; never mask a real discrepancy.
         if regions and all(region['energy_mwh'] == 0 for region in regions):
             complete = all(number(summary_sheet.cell(row, col).value) is not None
-                           for row in range(17, 26) for col in range(5, 13))
+                           for row in range(17, 26) for col in columns.values())
             reconciled = all(number(summary_sheet.cell(26, col).value) is not None and
                              abs(sum(region['fuels'][fuel] for region in regions) -
                                  number(summary_sheet.cell(26, col).value) * 1000) < 0.1
-                             for col, fuel in enumerate(fuels, 5))
+                             for fuel, col in columns.items())
             if complete and reconciled and sum(sum(region['fuels'].values()) for region in regions) > 0:
                 for region in regions:
                     region['reported_energy_mwh'] = region['energy_mwh']
@@ -164,8 +189,16 @@ def parse_report(report_bytes, source_file):
             for point in dispatch_hourly
             if point["time"] in curve_by_time and number(point["generation_mw"]) is not None
         ]
-        assert generation_deltas and max(generation_deltas) < 0.01, \
-            "L-Curve total generation does not reconcile with P4 generation"
+        if not generation_deltas or max(generation_deltas) >= 0.01:
+            # P4 remains the source for national hourly actuals. A disagreement
+            # in an ancillary curve must not hide the entire operating day.
+            detail = (f"maximum difference {max(generation_deltas):.2f} MW"
+                      if generation_deltas else "no matching hourly readings")
+            quality_notes.append(
+                f"L-Curve omitted: totals do not reconcile with P4 generation ({detail}). "
+                "Hourly actuals use the published P4 readings."
+            )
+            grid_curve = []
 
     p2_by_name = {plant_key(plant["name"]): plant for plant in plants}
     forecast_sheet = workbook["Forecast"]
@@ -428,11 +461,11 @@ def parse_report(report_bytes, source_file):
             energy_mwh=(number(summary_sheet["D12"].value) * 1000 if legacy_layout else summary_sheet["K8"].value * 1000),
             unserved_mwh=(None if legacy_layout else summary_sheet["K9"].value * 1000),
             temperature_c=(None if legacy_layout else summary_sheet["K11"].value),
-            import_mwh=(None if legacy_layout else summary_sheet["K26"].value * 1000),
+            import_mwh=(None if legacy_layout else summary_sheet.cell(26, columns["Imports"]).value * 1000),
         ),
         fuels=({fuel: None for fuel in fuels} if legacy_layout else
                {fuel: (number(summary_sheet.cell(26, col).value) or 0) * 1000
-                for col, fuel in enumerate(fuels, 5)}),
+                for fuel, col in columns.items()}),
         hourly=dispatch_hourly,
         grid_generation=grid_curve,
         en_curve=en_curve,

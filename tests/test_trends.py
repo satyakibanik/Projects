@@ -134,7 +134,7 @@ class FallbackBuildTests(unittest.TestCase):
         costs.start()
         self.addCleanup(costs.stop)
 
-    def test_recovered_totals_are_published_without_exposing_partial_full_reports(self):
+    def test_recent_trends_fallback_is_cached_but_blocks_incomplete_deployment(self):
         import tempfile
         import json
         from unittest.mock import patch
@@ -144,10 +144,10 @@ class FallbackBuildTests(unittest.TestCase):
         partial={'date':'2026-09-11','report_id':'91234','published_date':'2026-09-12',
                  '_trends_only':True,'summary':{'energy_mwh':240000},'quality_notes':['National totals only']}
         with tempfile.TemporaryDirectory() as directory, patch.object(build,'ROOT',Path(directory)), patch.object(build,'available_reports',return_value=[item]), patch.object(build,'parse_listing_item',side_effect=AssertionError('Plant mismatch')), patch.object(server,'fetch_bytes',return_value=b'workbook'), patch.object(build,'extract_trend_workbook',return_value=partial), patch.object(server,'get_highest_generation_day',side_effect=LookupError), patch.object(server,'get_current_day',return_value={}):
-            output=Path(directory)/'output';build.write_data_bundle(output)
-            trends=json.loads((output/'trends-data.json').read_text())
-            self.assertEqual(trends['days'][0]['generation_mwh'],240000)
-            self.assertTrue(trends['days'][0]['quality_notes'])
-            bundle=json.loads((output/'live-data.js').read_text().split('=',1)[1].rstrip(';\n'))
-            self.assertEqual(bundle['reports'],[])
-            self.assertEqual(bundle['reports_by_id'],{})
+            output=Path(directory)/'output'
+            with self.assertRaisesRegex(RuntimeError, 'recent reports missing'):
+                build.write_data_bundle(output)
+            cached = json.loads((Path(directory)/'.cache/historical-reports/91234-trends.json').read_text())
+            self.assertEqual(cached['summary']['energy_mwh'],240000)
+            self.assertTrue(cached['quality_notes'])
+            self.assertFalse((output/'live-data.js').exists())

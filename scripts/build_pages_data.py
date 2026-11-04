@@ -124,8 +124,7 @@ def write_data_bundle(output_dir):
         records = available_reports()
     except Exception as error:
         print(f"Report archive unavailable: {type(error).__name__}: {error}")
-        records = []
-        failures.append(f"archive: {type(error).__name__}")
+        raise RuntimeError("Cannot publish: ERP archive is unavailable; retaining the deployed site") from error
 
     reports_by_id = {}
     trend_reports = []
@@ -179,7 +178,19 @@ def write_data_bundle(output_dir):
                 if not report.get("_trends_only"):
                     reports_by_id[report["report_id"]] = report
             except Exception as error:
-                failures.append(f"{item['published_date']}: {type(error).__name__}")
+                failures.append(f"{item['published_date']} report {item['id']}: {type(error).__name__}: {error}")
+
+    # A successful deployment must not silently retreat to an older date when
+    # fresh workbooks fail parsing (including a trends-only fallback).
+    missing_recent = [item for item in records
+                      if dt.date.fromisoformat(item["published_date"]) >= recent_start
+                      and item["id"] not in reports_by_id]
+    if missing_recent:
+        details = "; ".join(f"{item['published_date']} (report {item['id']})" for item in missing_recent)
+        for report in trend_reports:
+            if report.get("_trends_only"):
+                print(f"::warning::Report {report['report_id']}: {report.get('quality_notes', [])}")
+        raise RuntimeError(f"Cannot publish: recent reports missing from dashboard: {details}. {'; '.join(failures)}")
 
     reports = [{key: item[key] for key in ("id", "name", "published_date")}
                for item in records if item["id"] in reports_by_id]
