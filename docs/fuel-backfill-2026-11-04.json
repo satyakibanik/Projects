@@ -1,0 +1,143 @@
+{
+  "checked_at": "2026-11-04T22:37:23.232303+00:00",
+  "publisher": "petrobangla",
+  "listing_url": "https://petrobangla.org.bd/pages/reports?filters=%7B%22reports_type%22%3A%20%226922d2b181fc96cef9e99f16%22%7D&page_size=1000",
+  "listing_sha256": "42c115ccae1fca803fdbaa1fb1fbe6b3a6a80c10aac5e65896a460702f3f1cf2",
+  "scope": "First 500 distinct PDF links in listing order; not the complete archive.",
+  "listed_archive_entries": 2412,
+  "examined_pdf_urls": 500,
+  "accepted_daily_records": 492,
+  "original_seed_records_preserved": 100,
+  "rejected_pdf_count": 4,
+  "rejected_pdfs": [
+    {
+      "url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/4/cd40c327-d399-4c36-8b7b-7b65dc409731.pdf",
+      "error": "Unrecognized Petrobangla reporting period"
+    },
+    {
+      "url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/0/65390318-fd8e-4673-ac6c-f4b9ce637ed5.pdf",
+      "error": "Missing expected report row: ^Total\\s*:\\s*(.+)$"
+    },
+    {
+      "url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2024/12/b9483e21e36c415786763d27e2784fda.pdf",
+      "error": "Unrecognized Petrobangla reporting period"
+    },
+    {
+      "url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2024/12/b4ae28af1b3846eaaeb40bccd697ee38.pdf",
+      "error": "Unrecognized Petrobangla reporting period"
+    }
+  ],
+  "conflicting_reporting_dates": [
+    {
+      "date": "2026-07-12",
+      "urls": [
+        "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/6/0a167eb8-b6d2-4454-b94b-230d35333d25.pdf",
+        "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/6/27657d70-ca5d-480a-8666-eb353c5eb8d3.pdf"
+      ],
+      "value_differences": {
+        "total": [
+          2654.8,
+          2645.4
+        ],
+        "lng": [
+          1033.5,
+          1016.6
+        ],
+        "domestic": [
+          1621.3,
+          1628.7
+        ],
+        "state": [
+          696.9,
+          702.8
+        ],
+        "ioc": [
+          924.4,
+          925.9
+        ],
+        "power_supply": [
+          939.7,
+          980.2
+        ],
+        "fertilizer_supply": [
+          117.1,
+          117.5
+        ],
+        "others": [
+          1402.5,
+          1475.6
+        ],
+        "distribution_total": [
+          2459.3,
+          2573.3
+        ]
+      },
+      "resolution": "Exclude this reporting date; no authoritative version established."
+    },
+    {
+      "date": "2026-06-20",
+      "urls": [
+        "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/5/775ced6e-530f-4f8d-8520-24dc9aab7900.pdf",
+        "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2026/5/de90c193-a310-49e8-9897-9dfa3a67a7ab.pdf"
+      ],
+      "value_differences": {
+        "total": [
+          2703.8,
+          2702.5
+        ],
+        "lng": [
+          1050.5,
+          1051.4
+        ],
+        "domestic": [
+          1653.2,
+          1651.0
+        ],
+        "state": [
+          711.0,
+          707.0
+        ],
+        "ioc": [
+          942.2,
+          944.0
+        ],
+        "power_supply": [
+          931.4,
+          893.4
+        ],
+        "fertilizer_supply": [
+          152.1,
+          152.5
+        ],
+        "others": [
+          1438.5,
+          1501.5
+        ],
+        "distribution_total": [
+          2522.0,
+          2547.3
+        ]
+      },
+      "resolution": "Exclude this reporting date; no authoritative version established."
+    }
+  ],
+  "earliest_period_end": "2024-08-01",
+  "latest_period_end": "2026-11-04",
+  "recent_history_start": "2025-06-21",
+  "last_365_days": {
+    "reports": 356,
+    "missing": 9
+  },
+  "out_of_order_pdf": {
+    "date": "2024-08-01",
+    "url": "https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/n/axvjbnqprylg/b/V2Ministry/o/office-petrobangla/2024/12/90197088db3e40e2bbaff0ef0bb1f685.pdf",
+    "sha256": "cb395508aebd734b8edbf3cbb31d7ae5ada9a096b09be8393a8dc113efecb053",
+    "note": "PDF heading explicitly says 31 Jul - 01 Aug 2024; retained as printed, not reassigned from website listing order."
+  },
+  "notes": [
+    "Each accepted row has an original PDF URL and SHA-256 hash.",
+    "One initially empty download succeeded on retry and parsed as the period ending 12 May 2026.",
+    "No missing or conflicting observations were interpolated.",
+    "GTCL remains a separate ten-report check series; annual coal remains 21 records."
+  ]
+}

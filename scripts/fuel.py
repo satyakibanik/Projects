@@ -99,6 +99,25 @@ def parse_coal(html):
     return list({r['year']: r for r in rows}.values())
 
 
+def merge_reports(saved, incoming):
+    """Keep saved observations; quarantine conflicting publisher versions."""
+    merged = {r['date']: r for r in saved}
+    groups = {}
+    for row in incoming:
+        groups.setdefault(row['date'], []).append(row)
+    conflicts = []
+    def values(row):
+        return {k: v for k, v in row.items() if k not in {'url', 'sha256'}}
+    for date, versions in groups.items():
+        candidates = ([merged[date]] if date in merged else []) + versions
+        if any(values(row) != values(candidates[0]) for row in candidates[1:]):
+            conflicts.append({'date': date, 'urls': list(dict.fromkeys(r['url'] for r in candidates))})
+            continue
+        if date not in merged:
+            merged[date] = versions[0]
+    return list(merged.values()), conflicts
+
+
 def collect(seed, cache, page_size=10):
     cache.mkdir(parents=True, exist_ok=True)
     saved = cache / 'fuel-data.json'
@@ -133,8 +152,9 @@ def collect(seed, cache, page_size=10):
                     return None
             with ThreadPoolExecutor(max_workers=4) as pool:
                 rows = [r for r in pool.map(read, urls) if r]
-            bundle[key] = list({r['date']: r for r in bundle[key]+rows}.values())
-            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows), errors=failures[:3]))
+            bundle[key], conflicts = merge_reports(bundle[key], rows)
+            failures.extend('Conflicting published reports for ' + r['date'] for r in conflicts)
+            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows), errors=failures[:3], conflicts=conflicts))
         except Exception as exc:
             status.append(dict(source=source, status='failed', errors=[str(exc)[:180]]))
     try:

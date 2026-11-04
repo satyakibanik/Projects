@@ -32,6 +32,8 @@ Coal contains annual Barapukuria production and a separate initially collapsed a
 
 Every chart includes individual layer checkboxes. Both gas history charts also include labelled All / None controls; the distribution chart keeps All / None without the extra heading. The daily source and annual coal charts omit the All / None toolbar. The daily breakdowns select individual supply sources or distribution sectors; time-series plots select individual gas series; Coal selects the annual mine-production series. Hidden layers are omitted from chart geometry, axis scaling and tooltips. An empty selection keeps its controls available and shows an explicit empty state. Selections are independent across charts and persist in the `fuelHide` URL parameter across dates, windows, fuel tabs and reloads. Tables and coverage statistics always describe the underlying published data.
 
+The 4 November history backfill expands the committed gas data to **492 distinct daily observations**. It reviewed the first 500 PDF links: four unrecognized reports were rejected, and four otherwise parseable PDFs with conflicting values for two dates (20 June and 12 July 2026) were excluded. The main coverage runs 21 June 2025–4 November 2026, with gaps; one out-of-order PDF explicitly ends 1 August 2024 and remains on that printed date. The latest 365-day window has 356 reports and 9 missing dates. All original 100 rows remain unchanged. [Backfill audit](fuel-backfill-2026-11-04.json) retains rejected URLs, conflict values and the outlier's provenance. This is a partial archive backfill, not all 2,412 listed entries. GTCL and annual coal coverage are unchanged.
+
 The initial bundle contains 100 actual daily Petrobangla reports ending 27 July–3 November 2026, ten GTCL checks ending 24 October–2 November, and 21 fiscal years of BCMCL production (2005–2006 through 2025–2026). No synthetic daily history is generated. The requested Daily / 7 / 30 / 60 / 90 / 365 day / Long term controls select calendar windows ending on the chosen gas report date. Longer windows explicitly show missing coverage. Annual coal stays separate from these gas controls.
 
 Report dates come from PDF headings, not upload dates or filenames; cross-month headings are supported. A date of 3 November means the period **2 November 08:00 through 3 November 08:00 Bangladesh time**. Gas is not an hourly electricity series. Power-sector gas-demand gaps are not electricity load shedding. Production and distribution totals are preserved separately and are not presented as a calculated system loss. Domestic production sums published state and IOC subtotals, so a 0.1 rounding difference from the grand total less LNG can remain.
@@ -45,7 +47,7 @@ Rows retain original PDF URLs and SHA-256 hashes. SVG charts have corresponding 
 The Actions cache retains `.cache/fuel`, so historical reports accumulate across builds. The committed seed provides a baseline after cache eviction. Older accumulated rows beyond the committed seed depend on cache retention; backfill explicitly when needed:
 
 ```sh
-python scripts/fuel.py --page-size 100 --output begd/fuel-data.json
+python scripts/fuel.py --page-size 500 --output begd/fuel-data.json
 ```
 
 The existing local application server serves the new files:
@@ -58,3 +60,5 @@ python scripts/server.py --port 8790
 The Fuel view loads independently of ERP report availability. For an isolated static review, `python -m http.server 8790` also serves the Fuel tab; other dashboard tabs need the normal ERP server or a published static data bundle.
 
 Validation: the full JavaScript and Python suites, real PDF parsing of the 100+10 report seed, supplied-PDF comparisons, month-boundary dates, invalid layouts, preserved history on collection failure, calendar ranges, chart gaps, and browser checks of local range/date controls and navigation. Six existing Python tests skip optional integrations in this environment.
+
+For scheduled collection on a reachable network, see [Unattended fuel updates](fuel-unattended-updates.md). Conflicting same-date publisher versions are rejected during collection; if a saved observation exists it is retained and the source is marked partial. Otherwise that date remains missing until the conflict is reviewed.

@@ -43,7 +43,7 @@ test('Gas starts with its daily snapshot, then both histories and a collapsed ta
  const headings=['Latest available day','Gas supply by source','Where the gas went','Gas supply over time','Gas supply & demand in the power sector','Daily gas data'];
  const positions=headings.map(h=>html.indexOf(h));assert.ok(positions.every(n=>n>=0));assert.deepEqual(positions,positions.slice().sort((a,b)=>a-b));
  assert.match(html,/<details class="fuel-panel" id="fuel-daily-table">/);
- assert.match(html,/265 missing days/);assert.doesNotMatch(html,/Barapukuria coal production/);
+ assert.match(html,/of 365 calendar days reported/);assert.doesNotMatch(html,/Barapukuria coal production/);
 });
 test('Coal contains only annual data and its collapsed table, preserving a direct Coal URL',async()=>{
  const {html,subtitle}=await rendered('?fuelType=coal&fuelWindow=7&fuelDate=2026-10-27');

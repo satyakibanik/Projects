@@ -13,6 +13,23 @@ FIXTURES = ROOT / 'tests/fixtures/fuel'
 
 
 class FuelTests(unittest.TestCase):
+    def test_conflicting_archive_dates_are_not_arbitrarily_selected(self):
+        first = dict(date='2026-06-20', total=2703.8, url='https://one.pdf', sha256='a')
+        second = dict(first, total=2702.5, url='https://two.pdf', sha256='b')
+        rows, conflicts = fuel.merge_reports([], [first, second])
+        self.assertEqual(rows, [])
+        self.assertEqual(conflicts, [{'date': '2026-06-20', 'urls': ['https://one.pdf', 'https://two.pdf']}])
+        rows, conflicts = fuel.merge_reports([first], [second])
+        self.assertEqual(rows, [first])
+        self.assertEqual(len(conflicts), 1)
+
+    def test_identical_values_from_duplicate_pdfs_keep_one_provenance(self):
+        first = dict(date='2026-06-20', total=2703.8, url='https://one.pdf', sha256='a')
+        second = dict(first, url='https://two.pdf', sha256='b')
+        rows, conflicts = fuel.merge_reports([], [first, second])
+        self.assertEqual(rows, [first])
+        self.assertEqual(conflicts, [])
+
     def report(self, name, source):
         return fuel.parse_text((FIXTURES / name).read_text(), source)
 
@@ -65,7 +82,9 @@ class FuelTests(unittest.TestCase):
         bundle = json.loads((ROOT / 'begd/fuel-data.json').read_text())
         rows = bundle['gas']
         self.assertEqual(len(rows), len({r['date'] for r in rows}))
-        self.assertEqual(len(rows), 100)
+        self.assertGreaterEqual(len(rows), 365)
+        self.assertEqual([r['date'] for r in rows], sorted(r['date'] for r in rows))
+        self.assertLess(rows[0]['date'], '2026-01-01')
         for r in rows:
             self.assertAlmostEqual(r['total'], r['domestic']+r['lng'], delta=.3)
             self.assertTrue(r['url'].startswith('https://objectstorage.'))
