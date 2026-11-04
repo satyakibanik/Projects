@@ -288,3 +288,56 @@ test('daily event filter persists where available and resets for a report withou
  html=vm.runInContext(`data={operations:{events:[{description:'Grid Forced S/D'}]}};operations()`,c);
  assert.equal(vm.runInContext('dailyEventCategory',c),'');assert.match(html,/1 of 1 entries shown/);
 });
+
+test('fresh workbook fetches pass the latest EWIC readings and P1 logs into matching, including same-ID refreshes',async()=>{
+ const nodes=new Map();const document={addEventListener(){},querySelectorAll(){return []},querySelector(selector){
+  if(!nodes.has(selector))nodes.set(selector,{textContent:'',innerHTML:'',checked:false,hidden:false,value:'',addEventListener(){}});return nodes.get(selector);
+ }};
+ const context=app(document),calls=[];
+ context.location={hash:'#operations'};
+ context.window.BEGDEWICMap={mount:(flows,events)=>calls.push({flows,events})};
+ const payloads=[{report_id:'1',date:'2026-10-29',operations:{ewic:[{time:'01:00',ishwardi_ghorashal:10}],events:[{description:'Ishurdi-Ghorasal first entry'}]}},{report_id:'1',date:'2026-10-29',operations:{ewic:[{time:'02:00',ishwardi_ghorashal:-20}],events:[{description:'Sirajganj-Sreepur refreshed entry'}]}}];
+ context.fetch=async()=>({ok:true,json:async()=>payloads.shift()});
+ vm.runInContext("setupCharts=()=>{};operations=()=>'';reportSubtitle=()=>'';loadPreviousForecast=()=>{}",context);
+ assert.equal(await vm.runInContext("load('1')",context),true);
+ assert.equal(await vm.runInContext("load('1')",context),true);
+ assert.equal(calls.length,2);assert.equal(calls[0].flows[0].ishwardi_ghorashal,10);assert.equal(calls[1].flows[0].ishwardi_ghorashal,-20);
+ assert.match(calls[1].events[0].description,/refreshed entry/);
+});
+
+test('EWIC event focus highlights the series and exact event time without emphasizing flow points',()=>{
+ const selected=['ishwardi_ghorashal','sirajganj_sreepur','ishwardi_ghorashal_yesterday'].map(key=>{
+  const classes=new Set();return {dataset:{series:key},style:{},classes,classList:{toggle(k,on){on?classes.add(k):classes.delete(k)}}};
+ });
+ const layers=[];const svg={append(node){layers.push(node)}};
+ const wrapper={dataset:{chart:'test-ewic'},querySelector:()=>svg,querySelectorAll(selector){return selector.includes('data-series')?selected:layers.filter(l=>!l.removed)}};
+ const document={addEventListener(){},querySelector:s=>s==='.ewic-chart-column .interactive-chart'?wrapper:{addEventListener(){}},createElementNS(_,tag){return {tag,attrs:{},children:[],setAttribute(k,v){this.attrs[k]=v},append(child){this.children.push(child)},remove(){this.removed=true}}}};
+ const context=app(document);
+ vm.runInContext("chartData.set('test-ewic',{rows:[{time:'18:30',ishwardi_ghorashal:50,sirajganj_sreepur:100}],series:[{key:'ishwardi_ghorashal',name:'Ishwardi–Ghorashal',color:'#123456'},{key:'sirajganj_sreepur',name:'Sirajganj–Sreepur',color:'#abcdef'}],x:row=>Number(row.time.slice(0,2))*60+Number(row.time.slice(3)),y:value=>200-value,plotBounds:{left:0,right:1440,top:10,bottom:200}})",context);
+ vm.runInContext("highlightEWICMoment({time:'18:21',row:{time:'18:30'},reasons:[{keys:['ishwardi_ghorashal']}]})",context);
+ assert.equal(selected[0].classes.has('ewic-series-focused'),true);
+ assert.equal(selected[1].classes.has('ewic-series-muted'),true);
+ assert.equal(selected[2].classes.has('ewic-series-muted'),true);
+ const marks=layers.at(-1).children;
+ assert.equal(marks.find(n=>n.tag==='line').attrs.x1,'1101');
+ assert.equal(marks.filter(n=>n.tag==='circle').length,0);
+ vm.runInContext('highlightEWICMoment(null)',context);
+ assert.equal(layers[0].removed,true);assert.ok(selected.every(g=>g.classes.size===0));
+});
+
+test('EWIC chart redraws at measured dimensions and skips redundant size notifications',()=>{
+ let callback;const updates=[];
+ const svg={clientWidth:612,clientHeight:388};
+ const wrapper={dataset:{chart:'resize-ewic'},isConnected:true,querySelector:()=>svg};
+ const column={querySelector:()=>wrapper};
+ const document={addEventListener(){},querySelector:s=>s==='.ewic-chart-column'?column:{addEventListener(){}}};
+ const c=app(document);
+ c.ResizeObserver=class{constructor(fn){callback=fn}observe(node){assert.equal(node,column)}};
+ c.recordResize=(node,view,dimensions)=>{assert.equal(node,wrapper);assert.equal(view,'operations');updates.push(dimensions);vm.runInContext(`chartData.set('resize-ewic',{width:${dimensions.width},height:${dimensions.height}})`,c)};
+ vm.runInContext("chartData.set('resize-ewic',{width:800,height:360});refreshChart=recordResize;setupEWICChartSize()",c);
+ callback();assert.equal(updates.length,1);assert.equal(updates[0].width,612);assert.equal(updates[0].height,388);
+ callback();assert.equal(updates.length,1);
+ svg.clientWidth=520;callback();assert.equal(updates.length,2);assert.equal(updates[1].width,520);
+ const html=vm.runInContext("chart([{time:'00:00',value:100}],[{key:'value',color:'#123456',name:'Flow'}],{width:612,height:388})",c);
+ assert.match(html,/viewBox="0 0 612 388"/);assert.doesNotMatch(html,/preserveAspectRatio="none"/);
+});

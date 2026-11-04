@@ -38,6 +38,7 @@ def daily_summary(report):
         'water_level': water_level_summary(report),
         'demand_mwh': requirement, 'demand_basis': basis,
         'shed_peak_mw': max(shedding) if shedding else None,
+        'regional_shed_mw': {region['name']: number(region.get('shed_mw')) for region in report.get('regions', [])},
         'unserved_mwh': number(summary.get('unserved_mwh')),
         'imports_mwh': number(summary.get('import_mwh')),
         'fuels': {key: number(value) for key, value in (report.get('fuels') or {}).items()},
@@ -99,6 +100,9 @@ def extract_trend_workbook(content, item):
                 routes.append({'name':name, 'energy_mwh':round(kwh / 1000, 6) if kwh is not None else None})
     report = {'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],
               'water_level':extract_water_level(workbook),
+              'regions':[{'name':str(sheet.cell(row,2).value).replace(' Zone',''),
+                          'shed_mw':number(sheet.cell(60+row-17,7).value)}
+                         for row in range(17,26) if sheet.cell(row,2).value],
               'operations':extract_event_log(sheet),
               'source_url':item['download_url'], 'fuels':fuels, 'hourly':hourly, 'imports':routes,
               'summary':{'energy_mwh':energy(sheet['K8'].value), 'unserved_mwh':energy(sheet['K9'].value),

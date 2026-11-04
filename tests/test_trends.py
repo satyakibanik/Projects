@@ -8,6 +8,14 @@ from trends import build_trends, daily_summary
 
 
 class TrendsTests(unittest.TestCase):
+    def test_regional_shedding_preserves_snapshots_zero_and_missing(self):
+        row = daily_summary({'date':'2026-10-29', 'hourly':[{'shed_mw':100}],
+                             'regions':[{'name':'Dhaka','shed_mw':0}, {'name':'Khulna','shed_mw':20},
+                                        {'name':'Sylhet','shed_mw':None}, {'name':'Rangpur','shed_mw':-2}]})
+        self.assertEqual(row['regional_shed_mw'], {'Dhaka':0, 'Khulna':20, 'Sylhet':None, 'Rangpur':None})
+        self.assertEqual(row['shed_peak_mw'],100)
+        self.assertEqual(daily_summary({'date':'2026-10-29'})['regional_shed_mw'],{})
+
     def test_daily_energy_uses_published_totals_not_hourly_sums(self):
         report = {'date':'2026-10-18', 'summary':{'energy_mwh':2400,'unserved_mwh':0,'import_mwh':120},
                   'hourly':[{'generation_mw':99999,'shed_mw':0},{'shed_mw':35},{'shed_mw':None}],
@@ -76,10 +84,13 @@ class NationalRecoveryTests(unittest.TestCase):
         p['E26']=240
         for col in [6,7,8,9,10,11,12]:p.cell(26,col,0)
         book['P4']['E9']=125
+        p['B17']='Dhaka Zone';p['G60']=0
+        p['B18']='Chattogram Zone';p['G61']=25
         book['En-Curve']['B2']='bad ancillary date'
         stream=io.BytesIO();book.save(stream)
         report=extract_trend_workbook(stream.getvalue(),{'id':'5129','published_date':'2026-09-12','download_url':'https://erp.powergrid.gov.bd/report'})
         row=daily_summary(report)
+        self.assertEqual(row['regional_shed_mw'],{'Dhaka':0,'Chattogram':25})
         self.assertEqual(row['date'],'2026-09-11');self.assertEqual(row['generation_mwh'],240000)
         self.assertEqual(row['demand_mwh'],245000);self.assertEqual(row['shed_peak_mw'],125)
         self.assertEqual(row['temperature_c'],33.7)

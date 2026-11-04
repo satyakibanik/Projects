@@ -184,7 +184,7 @@
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
     hoverCharts.set(id,{key,rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
+    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${options.selectAll?`<label><input type="checkbox" data-trend-all="${escape(key)}" ${allSeries.every(s=>!hidden.has(stableId(s.name)))?'checked':''}>Select / unselect all</label>`:''}${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -242,7 +242,10 @@
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${detailControls(detail)}${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${unitControls('generation')}</div>`);
     if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
-    html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
+    const regionNames=[...new Set(['Dhaka','Chattogram','Cumilla','Mymensingh','Sylhet','Khulna','Barishal','Rajshahi','Rangpur',...bundle.days.flatMap(row=>Object.keys(row.regional_shed_mw||{}))])].sort();
+    const regionColors=['#4e79a7','#f28e2b','#59a14f','#b07aa1','#76b7b2','#edc948','#af7aa1','#9c755f','#d37295'];
+    const shedSeries=[{name:'Reported load shedding',color:'#e15759',width:3,value:r=>r.shed_peak_mw},...regionNames.map((name,i)=>({name:name+' · P1 evening',color:regionColors[i%regionColors.length],dash:true,value:r=>r.regional_shed_mw?.[name]}))];
+    html+=panel('Reported load shedding','National: P4 daily maximum · Regions: P1 evening snapshots · MW',plot(rows,shedSeries,'Reported load shedding','MW',false,{selectAll:true})+'<p class="note">Regional evening snapshots and the national daily maximum cover different times. Missing regional readings remain gaps.</p>');
     html+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
     html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:costAverageDays})||'';
     html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
@@ -352,6 +355,15 @@
     return [...host.querySelectorAll(selector)].filter(node=>{if(boundControls.has(node))return false;boundControls.add(node);return true});
   }
   function bindControls(host){
+    unbound(host,'[data-trend-all]').forEach(control=>{
+      const inputs=[...control.closest('.trends-chart').querySelectorAll('[data-trend-layer]')];
+      const count=inputs.filter(input=>input.checked).length;control.indeterminate=count>0&&count<inputs.length;
+      control.addEventListener('change',()=>{
+        const hidden=hiddenLayers.get(control.dataset.trendAll)||new Set();
+        inputs.forEach(input=>{const id=stableId(input.dataset.trendLayer);control.checked?hidden.delete(id):hidden.add(id)});
+        hiddenLayers.set(control.dataset.trendAll,hidden);refreshLayerChart(control);
+      });
+    });
     unbound(host,'[data-trend-group]').forEach(control=>{
       control.indeterminate=control.dataset.partial==='true';
       control.addEventListener('change',()=>{
@@ -410,6 +422,10 @@
     const note=wrap.querySelector('.bpdb-fit-note')||[...wrap.closest('.panel').querySelectorAll('[data-trend-note]')].find(note=>note.dataset.trendNote===key),nextNote=next.querySelector('.bpdb-fit-note');
     if(note)note.remove();if(nextNote)wrap.append(nextNote);
     wrap.querySelectorAll('[data-trend-layer]').forEach(input=>{input.checked=!hiddenLayers.get(key)?.has(stableId(input.dataset.trendLayer))});
+    wrap.querySelectorAll('[data-trend-all]').forEach(input=>{
+      const members=[...wrap.querySelectorAll('[data-trend-layer]')],count=members.filter(member=>member.checked).length;
+      input.checked=count===members.length;input.indeterminate=count>0&&count<members.length;
+    });
     wrap.querySelectorAll('[data-trend-group]').forEach(input=>{
       const members=[...wrap.querySelectorAll('.bpdb-fuel-group [data-trend-layer]')],count=members.filter(member=>member.checked).length;
       input.checked=count===members.length;input.indeterminate=count>0&&count<members.length;

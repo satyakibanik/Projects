@@ -198,3 +198,16 @@ test('fitted value axis follows visible data extrema with padding and handles co
  html=api.plot([{date:'2026-01-01',v:0}],series,'Zero range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);
  html=api.plot([{date:'2026-01-01',v:null}],series,'Empty range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);assert.match(html,/No reported values/);
 });
+
+test('load shedding exposes a master checkbox and retains individual selected series in shared state',()=>{
+ const api=load(),rows=[{date:'2026-10-29',shed:120,region:0}];
+ const series=[{name:'Reported load shedding',color:'#123456',value:r=>r.shed},{name:'Dhaka · P1 evening',color:'#abcdef',value:r=>r.region}];
+ let html=api.plot(rows,series,'Reported load shedding','MW',false,{selectAll:true});
+ assert.match(html,/data-trend-all="load-shedding" checked/);
+ assert.match(html,/Dhaka · P1 evening: 0 MW/);
+ const state=api.getViewState();state.trendLayers=[['load-shedding|dhaka-p1-evening',false]];api.setViewState(state);
+ html=api.plot(rows,series,'Reported load shedding','MW',false,{selectAll:true});
+ assert.doesNotMatch(html,/data-trend-all="load-shedding" checked/);
+ assert.match(html,/data-trend-layer="Dhaka · P1 evening" data-trend-chart-key="load-shedding" >/);
+ assert.doesNotMatch(html,/data-trend-series="Dhaka · P1 evening"/);
+});

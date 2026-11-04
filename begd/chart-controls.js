@@ -5,9 +5,9 @@ function bindChartControl(node,type,handler){
   if(bindings.has(type))node.removeEventListener(type,bindings.get(type));
   bindings.set(type,handler);node.addEventListener(type,handler);
 }
-function refreshChart(wrapper,view){
+function refreshChart(wrapper,view,dimensions){
   const previous=wrapper.dataset.chart,model=chartData.get(previous);
-  const template=document.createElement('template');template.innerHTML=model.redraw();
+  const template=document.createElement('template');template.innerHTML=model.redraw(dimensions);
   const next=template.content.querySelector('.interactive-chart');
   wrapper.querySelector('svg.chart').replaceWith(next.querySelector('svg.chart'));
   wrapper.dataset.chart=next.dataset.chart;chartData.delete(previous);
@@ -17,6 +17,7 @@ function refreshChart(wrapper,view){
     input.checked=nextModel.series.find(series=>series.key===input.dataset.toggleSeries)?.defaultVisible!==false;
   });
   setupCharts(view,[wrapper]);
+  if(wrapper.closest('.ewic-chart-column'))highlightEWICMoment(wrapper.ewicMoment||null);
 }
 function setupCharts(view,wrappers=null) {
   if(!wrappers)setupRegionalSnapshotTooltips();
