@@ -126,9 +126,14 @@ function setupRegionalSnapshotTooltips() {
     const tooltip = wrapper.querySelector('.regional-snapshot-tooltip');
     const hide = () => { tooltip.hidden = true; };
     const show = point => {
-      const {region,report,metric,label,value} = point.dataset;
+      const {region,report,metric} = point.dataset;
+      const values = JSON.parse(point.dataset.values);
       tooltip.dataset.metric = metric;
-      tooltip.innerHTML = `<strong>${esc(region)} · ${esc(report)}</strong><div><span>${esc(label)}</span><b>${esc(value)} MW</b></div>`;
+      tooltip.innerHTML = `<strong>${esc(region)} · ${esc(report)}</strong>` + [
+        ['generation_mw','Daily generation','#4e79a7'],
+        ['demand_mw','Evening demand','#f28e2b'],
+        ['shed_mw','Reported load shedding','#e15759'],
+      ].map(([key,label,color]) => `<div style="color:${color}"><span>${esc(label)}</span><b>${esc(fmt(values[key],2))} MW</b></div>`).join('');
       tooltip.hidden = false;
       const bounds = wrapper.getBoundingClientRect(), target = point.getBoundingClientRect();
       const x = target.left + target.width / 2 - bounds.left;

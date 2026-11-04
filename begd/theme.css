@@ -71,7 +71,7 @@ footer{flex-wrap:wrap;gap:10px 24px}
 @keyframes operating-date-pulse{0%,100%{box-shadow:0 0 0 0 #c4872210}50%{box-shadow:0 0 0 5px #c4872233}}
 [data-theme=dark] #subtitle .operating-date-highlight{background:#352b1b;color:#ffe0a2;border-color:#dba74d}
 nav a.nav-live,nav a.nav-live.active,[data-theme=dark] nav a.nav-live,[data-theme=dark] nav a.nav-live.active{background:transparent;border-radius:0}
-nav a.nav-live.active:before{display:none}
+nav a.nav-live.active:before{display:block}
 .nav-section-divider{width:calc(100% - 20px);margin:10px 10px 14px;border:0;border-top:1px solid var(--line)}
 @media(prefers-reduced-motion:reduce){#subtitle .operating-date-highlight{animation:none}}
 @media(max-width:800px){.nav-section-divider{flex:0 0 24px;align-self:center;width:24px;margin:0}#subtitle .operating-date-highlight{font-size:15px}}
