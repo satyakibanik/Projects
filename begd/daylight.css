@@ -3,3 +3,6 @@
 .daylight-key{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:center;margin:8px 0 12px;color:var(--muted);font:11px/1.5 var(--mono)}
 .daylight-key>span{display:inline-flex;align-items:center;gap:5px}.daylight-key i{display:inline-block;width:12px;height:10px;border:1px solid #8a98a955;border-radius:2px}
 @media(max-width:600px){.daylight-key{font-size:10px}}
+.en-curve-chart{grid-template-areas:"style legend" "plot legend" "daylight legend" "help legend"}
+.en-curve-chart>.daylight-key{grid-area:daylight}
+@media(max-width:760px){.en-curve-chart{grid-template-areas:"style" "plot" "daylight" "legend" "help"}}
