@@ -51,6 +51,13 @@ jobs:
           key: begd-system-loss-v1-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
             begd-system-loss-v1-
+      - name: Restore fuel report cache
+        uses: actions/cache@v4
+        with:
+          path: .cache/fuel
+          key: begd-fuel-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            begd-fuel-
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
