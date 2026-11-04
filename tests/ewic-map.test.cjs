@@ -5,8 +5,9 @@ const root=path.resolve(__dirname,'..');
 const catalog=JSON.parse(fs.readFileSync(path.join(root,'begd/ewic-locations.json'),'utf8'));
 function load(fail=false){
  const nodes=new Map();
- const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',value:'0',attrs:{},handlers:{},setAttribute(k,v){this.attrs[k]=v},removeAttribute(k){delete this.attrs[k]},addEventListener(k,fn){this.handlers[k]=fn}});return nodes.get(selector)};
- const host={isConnected:true,querySelector:node};
+ const node=selector=>{if(!nodes.has(selector))nodes.set(selector,{innerHTML:'',textContent:'',value:'0',attrs:{},handlers:{},querySelector:selector=>node(selector),setAttribute(k,v){this.attrs[k]=v},removeAttribute(k){delete this.attrs[k]},addEventListener(k,fn){this.handlers[k]=fn}});return nodes.get(selector)};
+ const panel={querySelector:node};
+ const host={isConnected:true,closest:()=>panel,querySelector:selector=>['[data-ewic-sources]','[data-ewic-coverage]'].includes(selector)?null:node(selector)};
  const window={BEGDPlantMap:require('../begd/plant-map.js')};
  const fetch=async url=>({ok:!fail,json:async()=>url==='ewic-locations.json'?catalog:JSON.parse(fs.readFileSync(path.join(root,'begd',url),'utf8'))});
  vm.runInNewContext(fs.readFileSync(path.join(root,'begd/ewic-map.js'),'utf8'),{window,document:{querySelector:()=>host},fetch});
