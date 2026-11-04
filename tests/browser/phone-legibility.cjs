@@ -36,6 +36,7 @@ const tabs=['realtime','trends','overview','en-curve','regions','plants','import
      await point.focus();
      const tooltip=page.locator('.regional-snapshot-tooltip');
      await tooltip.waitFor({state:'visible'});
+     assert.equal(await tooltip.evaluate(e=>getComputedStyle(e).fontSize),'12px','Regional tooltip values remain legible');
      assert.equal(await tooltip.locator('div').count(),3,'Each regional bar tooltip shows all three measures');
      assert.deepEqual(await tooltip.locator('div').evaluateAll(rows=>rows.map(e=>({color:e.style.color,text:e.textContent}))),[
       {color:'rgb(78, 121, 167)',text:'Daily generation1,000 MW'},

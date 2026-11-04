@@ -237,4 +237,5 @@ circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
 /* Keep nine full region names readable at narrow chart widths. */
 .regional-fuel-chart-scroll{max-width:100%;overflow-x:auto;padding-bottom:4px}
 .regional-fuel-svg{min-width:650px}
-.chart-tooltip.regional-snapshot-tooltip,[data-theme=dark] .chart-tooltip.regional-snapshot-tooltip{background:#fff;color:#223c50;border-color:#9bb5c6}
+.chart-tooltip.regional-snapshot-tooltip,[data-theme=dark] .chart-tooltip.regional-snapshot-tooltip{background:#fff;color:#223c50;border-color:#9bb5c6;font-size:12px;line-height:1.5}
+.regional-snapshot-tooltip>strong{font-size:11px}
