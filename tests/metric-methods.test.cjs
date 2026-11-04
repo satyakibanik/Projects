@@ -7,7 +7,7 @@ const report={date:'2026-10-19',source_url:'https://erp.powergrid.gov.bd/web/fil
 test('unserved provenance distinguishes a published total from integrated chart readings',()=>{
  const html=methods().render('Energy not served',{report});
  for(const text of ['P1!K9','GWh','2 decimal places','not the gap','does not expose','2026-10-19','Original report'])assert.ok(html.includes(text),text);
- assert.match(methods().render('Energy not served',{report,curve:true}),/En-Curve!U8/);
+ assert.match(methods().render('Energy not served',{report,curve:true}),/En-Curve labelled Energy not served/);
 });
 test('trend provenance includes contributing zero values and omits missing days',()=>{
  const rows=[{...report,generation_mwh:0},{date:'2026-10-18',generation_mwh:null},{...report,date:'2026-10-17',generation_mwh:3000}];
@@ -17,7 +17,7 @@ test('trend provenance includes contributing zero values and omits missing days'
 });
 test('requirement source list retains the per-day fallback basis',()=>{
  const html=methods().render('Total demand requirement',{rows:[{...report,demand_mwh:100,demand_basis:'P1 generation + reported energy not served'}]});
- assert.match(html,/En-Curve!U9; fallback P1!K8 \+ K9/);assert.match(html,/P1 generation \+ reported energy not served/);
+ assert.match(html,/En-Curve labelled Total Energy Requirement; fallback P1!K8 \+ K9/);assert.match(html,/P1 generation \+ reported energy not served/);
 });
 test('legacy provenance does not claim modern summary cells',()=>{
  const legacy={...report,summary:{unserved_mwh:null},hourly:[{demand_mw:null}]};
@@ -38,4 +38,11 @@ test('every headline metric call has methodology and trend helpers receive curre
 test('circuit flow provenance identifies the observed circuit, time, sign and workbook range',()=>{
  const html=methods().render('Largest listed circuit flow',{report:{...report,operations:{ewic:[{time:'17:00',gopalganj_aminbazar:-1338}]}}});
  for(const text of ['EWIC!B9:B34','F9:F34','Gopalganj–Aminbazar','17:00 BST','-1,338 MW','not the simultaneous sum','Download workbook'])assert.ok(html.includes(text),text);
+});
+
+test('curve provenance follows the parsed coordinates after inserted source columns',()=>{
+ const shifted={...report,en_curve:{total_cells:{energy_generated_mwh:'V7',energy_not_served_mwh:'V8',total_requirement_mwh:'V9'}}};
+ assert.match(methods().render('Energy generated',{report:shifted,curve:true}),/En-Curve!V7/);
+ assert.match(methods().render('Energy not served',{report:shifted,curve:true}),/En-Curve!V8/);
+ assert.match(methods().render('Total energy requirement',{report:shifted,curve:true}),/En-Curve!V9/);
 });

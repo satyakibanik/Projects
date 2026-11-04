@@ -352,3 +352,19 @@ test('hourly shading follows selected, explicit forecast, and real-time dates ac
  const two=vm.runInContext("realtimeYesterday=true;realtimePlot([{time:'23:00',mw:100}],[{key:'mw',name:'Power',color:'#123456'}],[{time:'00:00',mw:90}])",c);
  assert.match(two,/data-daylight-date="2026-11-03"/);assert.match(two,/data-daylight-date="2026-11-04"/);
 });
+
+test('missing Energy Curve totals preserve readings instead of scaling all energy to zero',()=>{
+ const c=app();
+ const draw=totals=>vm.runInContext(`energyCurveHourlyTable([{time:'00:00',gas_mw:100,shortage_mw:2},{time:'00:30',gas_mw:100,shortage_mw:2}],[{key:'gas_mw',name:'Gas'},{key:'shortage_mw',name:'Shortage'}],${JSON.stringify(totals)},'energy')`,c);
+ for(const totals of [{},{energy_generated_mwh:null,energy_not_served_mwh:null}]){
+  const html=draw(totals);
+  assert.match(html,/<td>100<\/td>/);
+  assert.match(html,/unscaled readings/);
+  assert.match(html,/class="energy-curve-shortage">2<\/td>/);
+ }
+ const reconciled=draw({energy_generated_mwh:200,energy_not_served_mwh:4});
+ assert.match(reconciled,/<td>200<\/td>/);assert.match(reconciled,/class="energy-curve-shortage">4<\/td>/);
+ assert.doesNotMatch(reconciled,/unscaled readings/);
+ const zero=draw({energy_generated_mwh:0,energy_not_served_mwh:0});
+ assert.doesNotMatch(zero,/<td>100<\/td>/);
+});

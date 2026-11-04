@@ -178,7 +178,7 @@
       const start=rows[fitted.start],end=rows[fitted.end];
       body+=`<path data-cost-trendline-path d="M${x(fitted.start)},${y(fitted.value(start))} L${x(fitted.end)},${y(fitted.value(end))}" fill="none" stroke="${fitted.color}" stroke-width="3" stroke-dasharray="9 6" aria-label="${escape(fitted.name)} · least squares over ${fitted.count} reported days"/>`;
     }
-    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${s.name==='Imports'?'<img class="bpdb-fuel-icon" src="plant-icons/import-export.png" alt="">':''}${escape(s.name)}</label>`;
+    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`;
     const group=options.groupLayers?allSeries.filter(s=>s.name!=='Reported total'):[];
     const active=group.filter(s=>!hidden.has(stableId(s.name))).length;
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');

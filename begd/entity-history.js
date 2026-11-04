@@ -19,7 +19,7 @@
    {id:'voltage_range',label:'Voltage range (min–max)',unit:'p.u.',fields:['min_kv','max_kv'],names:['Minimum voltage','Maximum voltage'],note:'The shaded band spans each day’s reported minimum and maximum, divided by this row’s nominal voltage class. It does not show intraday trajectories or allowable limits. The dashed line marks nominal voltage (1 p.u.). Hover or focus for both readings with original kV in brackets. Missing days remain gaps.'}
   ]
  };
- const state={plants:{id:null,metric:'capacity',days:30,search:'',waterLevel:true},substations:{id:null,metric:'load_mw',days:30,search:''}};
+ const state={plants:{id:null,metric:'capacity',days:30,search:'',waterLevel:true},substations:{id:null,metric:'voltage_range',days:30,search:''}};
  const isKarnaphuliHydro=meta=>/^Karnaphuli\s+Hydro\s+PP(?:\s+Unit\b|$)/i.test(String(meta?.name||'').trim());
  function overlayWaterLevel(rows,waterRows){
   const water=new Map(waterRows.map(row=>[row.date,row.water_level]));

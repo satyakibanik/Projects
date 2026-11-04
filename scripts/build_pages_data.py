@@ -19,6 +19,7 @@ WINDOW_DAYS = 14
 sys.path.insert(0, str(SCRIPTS))
 import server
 from import_report import parse_report
+from energy_curve import energy_curve_cache_current
 from trends import build_trends, extract_trend_workbook
 from operational_events import build_event_log, event_cache_current
 from entity_history import write_entity_history
@@ -144,7 +145,7 @@ def write_data_bundle(output_dir):
         if not is_recent and cache_path.is_file():
             try:
                 cached = json.loads(cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"] and event_cache_current(cached, item["published_date"], latest):
+                if cached.get("report_id") == item["id"] and energy_curve_cache_current(cached) and event_cache_current(cached, item["published_date"], latest):
                     return cached
             except (OSError, ValueError):
                 pass

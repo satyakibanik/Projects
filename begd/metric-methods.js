@@ -15,7 +15,7 @@
   'Peak generation':['Published maximum generation, including cross-border imports.','P1!E13','MW',0],
   'Energy generated':[energy,'P1!K8','GWh',2],
   'Energy not served':[shortage,'P1!K9','GWh',2],
-  'Total energy requirement':['Published daily energy requirement: generated energy plus energy not served. This is not separately metered consumption.','En-Curve!U9','GWh',2],
+  'Total energy requirement':['Published daily energy requirement: generated energy plus energy not served. This is not separately metered consumption.','En-Curve labelled Total Energy Requirement','GWh',2],
   'Total imported energy':['Published daily imported energy, already included in national generated energy.','P1!K26','GWh',2],
   'Share of total energy':['Imported energy ÷ national generated energy × 100. Both inputs use the same operating day.','P1!K26 ÷ P1!K8 × 100','%',1],
   'Import routes':['Count of GenLog columns named HVDC, Tripura, Adani or Nepal with numeric published daily energy.','GenLog!B11:last column; row 38','routes',0],
@@ -33,7 +33,7 @@
   'Effective available · day peak':['Published effective available generation for day peak after the report’s adjustments.','Forecast!L, System Total row','MW',0],
   'Effective available · evening peak':['Published effective available generation for evening peak after the report’s adjustments.','Forecast!M, System Total row','MW',0],
   'Total generation':['Sum of published daily national generated energy over reported days in the selected window. Includes imports.','P1!K8 for each contributing operating day','GWh',2,'generation_mwh'],
-  'Total demand requirement':['Sum of matching-date En-Curve requirement totals; where unavailable, daily P1 generation plus reported unserved energy. Not independently metered demand.','En-Curve!U9; fallback P1!K8 + K9','GWh',2,'demand_mwh'],
+  'Total demand requirement':['Sum of matching-date En-Curve requirement totals; where unavailable, daily P1 generation plus reported unserved energy. Not independently metered demand.','En-Curve labelled Total Energy Requirement; fallback P1!K8 + K9','GWh',2,'demand_mwh'],
   'Maximum reported load shedding':['Largest available P4 load-shedding reading across reported days in the selected window. This is power curtailed at a reading, not daily unserved energy.','P4!E9:E33 for each contributing day','MW',2,'shed_peak_mw'],
   'Total imports':['Sum of published daily imported energy over reported days in the selected window. Already included in total generation.','P1!K26 for each contributing operating day','GWh',2,'imports_mwh']
  };
@@ -46,7 +46,11 @@
  function render(label,{report={},rows=null,curve=false}={}){
   const def=definitions[label];if(!def)return '';
   let [definition,cells,unit,digits,key]=def;
-  if(curve){cells={'Energy generated':'En-Curve!U7','Energy not served':'En-Curve!U8','Total energy requirement':'En-Curve!U9'}[label]||cells;}
+  if(curve){
+   const key={'Energy generated':'energy_generated_mwh','Energy not served':'energy_not_served_mwh','Total energy requirement':'total_requirement_mwh'}[label];
+   const coordinate=report.en_curve?.total_cells?.[key];
+   if(key)cells=coordinate?`En-Curve!${coordinate}`:`En-Curve labelled ${label}`;
+  }
   // Pre-P4 reports have different summary coordinates. Do not assert modern cells.
   const legacy=report.workbook_layout==='legacy'||(!rows&&report.summary?.unserved_mwh==null&&report.hourly?.length&&report.hourly.every(r=>r.demand_mw==null));
   if(legacy)cells={'Evening peak demand':'P1!D10','Peak generation':'P1!D9','Energy generated':'P1!D12'}[label]||'Unavailable in this legacy workbook layout';
