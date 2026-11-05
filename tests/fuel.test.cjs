@@ -108,3 +108,33 @@ test('all saved GTCL dates remain visible even when Petrobangla has no report',a
  const data=require('../begd/fuel-data.json');
  for(const check of data.checks)assert.ok(html.includes(check.url));
 });
+
+test('long histories have bounded SVG elements and preserve the entire daily series',()=>{
+ const data=require('../begd/fuel-data.json').gas;
+ const html=plot(data,[['total','Total','#123456'],['lng','LNG','#654321']]);
+ assert.equal((html.match(/<path /g)||[]).length,2);
+ assert.equal((html.match(/data-fuel-surface/g)||[]).length,1);
+ assert.doesNotMatch(html,/<circle |data-fuel-point=/);
+ assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
+ assert.doesNotMatch(html,/fuel-average-line/);
+ assert.match(html,/stroke-width="1.5"/);
+ assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
+});
+test('nearest date selection stays within the saved history',()=>{
+ const {nearestRow}=require('../begd/fuel.js');
+ assert.equal(nearestRow(rows,Date.parse('2026-09-01')),0);
+ assert.equal(nearestRow(rows,Date.parse('2026-11-01')),2);
+ assert.equal(nearestRow(rows,Date.parse('2026-10-03T01:00:00Z')),1);
+});
+test('collapsed daily table defers thousands of cells until it is opened',async()=>{
+ const {html}=await rendered('?fuelWindow=all');
+ assert.match(html,/<div data-fuel-daily-body><\/div>/);
+ assert.doesNotMatch(html,/<caption>Published daily values/);
+});
+
+
+test('removed average control and old average URLs show only daily series',async()=>{
+ const {html}=await rendered('?fuelWindow=all&fuelSeries=average');
+ assert.doesNotMatch(html,/data-fuel-series|30-day averages|fuel-average-line/);
+ assert.match(html,/fuel-daily-line/);
+});

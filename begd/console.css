@@ -239,3 +239,9 @@ circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
 .regional-fuel-svg{min-width:650px}
 .chart-tooltip.regional-snapshot-tooltip,[data-theme=dark] .chart-tooltip.regional-snapshot-tooltip{background:#fff;color:#223c50;border-color:#9bb5c6;font-size:12px;line-height:1.5}
 .regional-snapshot-tooltip>strong{font-size:11px}
+
+/* Keep every dashboard link reachable without moving the main page. */
+@media(min-width:801px){
+ nav{height:100dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
+ nav>*{flex-shrink:0}
+}
