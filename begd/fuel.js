@@ -31,13 +31,20 @@
    return i-start+1===count?sum/count:null;
   });
  }
+ function historyRows(all,end,range,mode='daily'){
+  if(mode!=='average')return range==='daily'?all.filter(r=>r.date===end):selectRows(all,end,range);
+  const fields=[...series,...powerSeries],averages=Object.fromEntries(fields.map(([field])=>[field,rollingMean(all,field)]));
+  const rows=all.map((row,i)=>({...row,...Object.fromEntries(fields.map(([field])=>[field,averages[field][i]]))}));
+  return range==='daily'?rows.filter(r=>r.date===end):selectRows(rows,end,range);
+ }
  function nearestRow(rows,time){
   let low=0,high=rows.length-1;
   while(low<high){const mid=(low+high)>>1;if(Date.parse(rows[mid].date)<time)low=mid+1;else high=mid;}
   return low&&time-Date.parse(rows[low-1].date)<Date.parse(rows[low].date)-time?low-1:low;
  }
- function plot(rows,fields,{bars=false,annual=false,categorical=false,unit='MMCFD',chartKey='',hidden=hiddenLayers}={}){
+ function plot(rows,fields,{bars=false,annual=false,categorical=false,unit='MMCFD',chartKey='',hidden=hiddenLayers,average=false}={}){
   if(!rows.length)return '<p class="fuel-empty">No verified reports in this window. Choose another end date or a longer range.</p>';
+  if(average)fields=fields.map(([field,name,color])=>[field,name+' · 30-day avg',color]);
   const W=950,H=290,L=130,R=28,T=24,B=48,precision=annual?3:1;
   const id='fuel-chart-'+chartSequence++,key=chartKey||id,title=fields.map(f=>f[1]).join(', ');
   const layers=categorical?rows.map(r=>({id:key+':'+r.layerKey,name:r.label,color:r.color||fields[0][2]})):fields.map(([field,name,color])=>({id:key+':'+field,name,color}));
@@ -45,9 +52,8 @@
   if(categorical)rows=rows.filter(r=>!hiddenSet.has(key+':'+r.layerKey));
   else fields=fields.filter(([field])=>!hiddenSet.has(key+':'+field));
   const active=rows.length>0&&fields.length>0;
-  const dense=!bars&&!annual&&!categorical&&rows.length>90;
-  const averages=dense?Object.fromEntries(fields.map(([field])=>[field,rollingMean(rows,field)])):{};
-  charts.set(id,{rows,fields,unit,precision,layers,key,dense,averages,index:0});
+  const dense=!bars&&!annual&&!categorical&&(rows.length>90||average);
+  charts.set(id,{rows,fields,unit,precision,layers,key,dense,index:0});
   let svg='';
   if(active){
    const max=Math.max(1,...rows.flatMap(r=>fields.map(([field])=>Number.isFinite(r[field])?r[field]:0)))*1.12;
@@ -58,7 +64,9 @@
    fields.forEach(([field,name,color],j)=>{
     if(dense){
      const path=values=>{let d='',prev=null;values.forEach((value,i)=>{if(!Number.isFinite(value)){prev=null;return;}const r=rows[i],connected=prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000;d+=(connected?'L':'M')+x(r,i).toFixed(2)+','+y(value).toFixed(2)+' ';prev=r;});return d;};
-     svg+=`<path class="fuel-daily-line" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="1" stroke-opacity=".45"/><path class="fuel-average-line" d="${path(averages[field])}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+     svg+=`<path class="${average?'fuel-average-line':'fuel-daily-line'}" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+     const reported=rows.map((r,i)=>Number.isFinite(r[field])?i:null).filter(i=>i!==null);
+     if(reported.length===1){const i=reported[0];svg+=`<circle cx="${x(rows[i],i)}" cy="${y(rows[i][field])}" r="2.5" fill="${color}"/>`;}
      return;
     }
     let prev=null;
@@ -77,7 +85,7 @@
    });
   }else svg='<text class="fuel-no-layers" x="475" y="120" text-anchor="middle">No layers selected</text><text class="fuel-no-layers" x="475" y="180" text-anchor="middle">Select a layer below</text>';
   const actions=['gas-source','coal-production'].includes(key)?'':`<div class="fuel-layer-actions">${key==='gas-distribution'?'':'<span>Chart layers</span>'}<button type="button" data-fuel-layers="all" data-fuel-chart-id="${id}">All</button><button type="button" data-fuel-layers="none" data-fuel-chart-id="${id}">None</button></div>`;
-  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i style="background:${esc(layer.color)}"></i>${esc(layer.name)}</label>`).join('')}</div></div><p class="fuel-chart-help">${dense?'Thin lines: daily reports. Strong lines: 30-day rolling averages, requiring 30 consecutive reported days. ':''}Hover, tap or focus the chart to inspect exact daily values.</p>`;
+  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i style="background:${esc(layer.color)}"></i>${esc(layer.name)}</label>`).join('')}</div></div><p class="fuel-chart-help">${average?'30-day rolling averages require 30 consecutive reported days; missing reports interrupt the average. ':'Daily reported values. '}Hover, tap or focus the chart to inspect ${average?'30-day averages':'exact daily values'}.</p>`;
  }
  function bindTooltips(){
   document.querySelectorAll('[data-fuel-chart]').forEach(chart=>{
@@ -87,10 +95,7 @@
     const hit=event.target.closest?.('[data-fuel-point], [data-fuel-surface]');if(!hit)return;
     if(model.dense&&Number.isFinite(event.clientX)){const box=chart.querySelector('svg').getBoundingClientRect(),fraction=Math.max(0,Math.min(1,((event.clientX-box.left)/box.width*950-130)/792));model.index=nearestRow(model.rows,Date.parse(model.rows[0].date)+fraction*(Date.parse(model.rows.at(-1).date)-Date.parse(model.rows[0].date)));}
     const row=model.rows[model.dense?model.index:Number(hit.dataset.fuelPoint)];if(!row)return;
-    const index=model.dense?model.index:Number(hit.dataset.fuelPoint);
-    const tooltipRow=model.dense?{...row,...Object.fromEntries(model.fields.map(([field])=>[field+'_average',model.averages[field][index]]))}:row;
-    const tooltipFields=model.dense?[...model.fields,...model.fields.map(([field,name,color])=>[field+'_average',name+' · 30-day avg',color])]:model.fields;
-    tip.innerHTML=tooltipHTML(tooltipRow,tooltipFields,model.unit,model.precision);tip.hidden=false;
+    tip.innerHTML=tooltipHTML(row,model.fields,model.unit,model.precision);tip.hidden=false;
     const first=Date.parse(model.rows[0].date),last=Date.parse(model.rows.at(-1).date);
     const x=model.dense?130+(last===first?.5:(Date.parse(row.date)-first)/(last-first))*792:Number(hit.dataset.fuelX);
     if(model.dense)hit.setAttribute('aria-label',pointTitle(row)+': '+model.fields.map(([field,name])=>name+' '+fmt(row[field],model.precision)+' '+model.unit).join('; '));cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.removeAttribute('hidden');
@@ -122,8 +127,8 @@
   const check=bundle.checks.find(r=>r.date===row.date),delta=difference(row,check);
   return `<details class="fuel-panel"><summary>Gas sources, cross-checks & reporting periods</summary><h3>Petrobangla × GTCL</h3>${check?.extraction_method==='ocr'?'<p>GTCL national totals were read from a scanned report using OCR and checked against its nine production components. No power-sector value was extracted from that scan.</p>':''}${row.date_basis?`<p>The report heading has an incomplete date. Its embedded workbook title (${esc(row.date_evidence.pdf_title)}) supplies the month/year, corroborated by the PDF creation date. The <a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">original report ↗</a> retains that evidence.</p>`:''}${check?`<p>Period ending ${label(row.date)}: Petrobangla <strong>${fmt(row.total)}</strong> · GTCL <strong>${fmt(check.total,4)}</strong> · difference <strong>${fmt(delta,4)} MMCFD</strong>. ${Math.abs(delta)<=.05001?'National total agrees at Petrobangla’s published precision.':'National totals differ beyond rounding.'} <a href="${esc(check.url)}" target="_blank" rel="noopener noreferrer">GTCL report ↗</a></p>${Number.isFinite(check.power_supply)?`<p>Power-sector gas supply: Petrobangla <strong>${fmt(row.power_supply)}</strong> · GTCL <strong>${fmt(check.power_supply,3)} MMCFD</strong>. These published allocations differ; they are not substituted between sources.</p>`:'<p>No readable power-sector total was extracted from this GTCL report. Its national gas total can still be compared.</p>'}`:'<p>No GTCL check stored for this date. The Petrobangla value remains unverified by a second publisher.</p>'}<div class="fuel-table"><table><caption>All saved GTCL reports · MMCFD</caption><thead><tr><th>Period end</th><th>Petrobangla total</th><th>GTCL total</th><th>Difference</th></tr></thead><tbody>${bundle.checks.slice().reverse().flatMap(c=>{const g=bundle.gas.find(r=>r.date===c.date);return [`<tr><th><a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${label(c.date)} ↗</a></th><td>${fmt(g?.total)}</td><td>${fmt(c.total,4)}</td><td>${fmt(difference(g,c),4)}</td></tr>`]}).join('')}</tbody></table></div><p><a href="${esc(bundle.sources.petrobangla)}" target="_blank" rel="noopener noreferrer">Petrobangla</a> is primary for national production, LNG and sector allocation. Its <a href="https://petrobangla.org.bd/" target="_blank" rel="noopener noreferrer">homepage headline</a> is a latest-period check, not a historical breakdown. <a href="${esc(bundle.sources.gtcl)}" target="_blank" rel="noopener noreferrer">GTCL</a> is provisional/operational and uses greater precision. Agreement on national totals does not mean fields, capacity, well counts or allocations match. Transmission throughput is not national production.</p><p><a href="${esc(bundle.sources.emrd)}" target="_blank" rel="noopener noreferrer">EMRD</a> provides a rounded summary; without a clearly matched reporting period it is not spliced into this series.</p><p>Reports cover 08:00 to 08:00 Bangladesh time and are indexed by period end, not upload date. Petrobangla uses MMCFD (million cubic feet per day); GTCL’s MMSCF over the same 24-hour period is numerically comparable as a daily average, subject to the publishers’ measurement conventions. Gas supply includes LNG send-out, not LNG cargo volume. Values are not converted to MW or MWh.</p><p>New reports are collected during each site build. Failed downloads or unrecognized layouts preserve saved data. The 365-day and long-term controls do not imply complete history.</p></details>`;
  }
- function gasView(end,range){
-  const row=bundle.gas.find(r=>r.date===end),rows=range==='daily'?[row]:selectRows(bundle.gas,end,range);
+ function gasView(end,range,mode='daily'){
+  const row=bundle.gas.find(r=>r.date===end),rows=range==='daily'?[row]:selectRows(bundle.gas,end,range),chartRows=historyRows(bundle.gas,end,range,mode),average=mode==='average';
   const age=Math.max(0,Math.floor((Date.now()-Date.parse(end+'T08:00:00+06:00'))/86400000));
   const production=[['state','State companies','State','#21856c'],['ioc','International operators','IOCs','#4f82cf'],['lng','Regasified LNG','LNG','#bd7921']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
   const allocation=[['power_supply','Power plants','Power'],['fertilizer_supply','Fertilizer factories','Fertilizer'],['others','Other consumers','Others']].map(([key,name,short])=>({date:end,label:name,year:short,value:row[key],layerKey:key}));
@@ -131,8 +136,8 @@
    <p class="fuel-coverage" role="status"><strong>${label(end)} · ${age} day${age===1?'':'s'} since period end</strong> · Saved official data, not live gas telemetry.${bundle.source_status?.some(s=>s.status!=='ok')?' Latest collection is incomplete; saved reports retained.':''}</p>
    <div class="fuel-kpis">${[['Total gas supply',row.total,'Including regasified LNG'],['Domestic gas',row.domestic,'State companies + international operators'],['Regasified LNG',row.lng,fmt(100*row.lng/row.total)+'% of total gas supply'],['Gas supplied to power',row.power_supply,fmt(100*row.power_supply/row.power_demand)+'% of reported gas demand']].map(([title,value,note])=>`<div class="fuel-kpi"><div>${title}</div><strong>${fmt(value)} <small>MMCFD</small></strong><p>${note}</p></div>`).join('')}</div>
    <div class="fuel-columns"><section class="fuel-panel"><div class="fuel-panel-title"><h2>Gas supply by source</h2><a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Daily report ↗</a></div>${plot(production,[['value','Gas supplied','#21856c']],{bars:true,categorical:true,chartKey:'gas-source'})}<p class="fuel-note">State companies: ${fmt(row.state)} · international operators: ${fmt(row.ioc)} · regasified LNG: ${fmt(row.lng)} MMCFD. Domestic production sums the published state and IOC subtotals; rounding can leave a 0.1 MMCFD difference.</p></section><section class="fuel-panel"><h2>Where the gas went</h2>${plot(allocation,[['value','Gas distributed','#21856c']],{bars:true,categorical:true,chartKey:'gas-distribution'})}<p class="fuel-note">Power plants: ${fmt(row.power_supply)} · fertilizer: ${fmt(row.fertilizer_supply)} · others: ${fmt(row.others)} MMCFD. Distribution total: ${fmt(row.distribution_total)} MMCFD. Published distribution and production totals can differ; this is not a calculated system loss.</p></section></div>
-   <section class="fuel-panel"><span class="fuel-eyebrow">02 / GAS HISTORY</span><h2>Gas supply over time</h2><div class="fuel-windows" role="group" aria-label="Gas time window">${windows.map(v=>`<button type="button" data-fuel-window="${v}" aria-pressed="${range===v}">${v==='daily'?'Daily':v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">The selected window applies to both time-series charts below. Daily snapshot above remains the selected reporting day.</p>${plot(rows,series,{chartKey:'gas-supply'})}${historyNote(bundle.gas,rows,end,range,series)}</section>
-   <section class="fuel-panel"><span class="fuel-eyebrow">03 / POWER-SECTOR GAS HISTORY</span><h2>Gas supply & demand in the power sector</h2>${plot(rows,powerSeries,{chartKey:'gas-power'})}${historyNote(bundle.gas,rows,end,range,powerSeries)}<p class="fuel-note">${fmt(row.power_demand-row.power_supply)} MMCFD below reported power-sector gas demand on ${label(end)}. This gas gap is not an estimate of electricity load shedding.</p></section>
+   <section class="fuel-panel"><span class="fuel-eyebrow">02 / GAS HISTORY</span><h2>Gas supply over time</h2><div class="fuel-windows" role="group" aria-label="Gas time window">${windows.map(v=>`<button type="button" data-fuel-window="${v}" aria-pressed="${range===v}">${v==='daily'?'Daily':v==='all'?'Long term':v+'d'}</button>`).join('')}</div><div class="fuel-windows" role="group" aria-label="Gas history series">${[['daily','Daily values'],['average','30-day averages']].map(([value,name])=>`<button type="button" data-fuel-series="${value}" aria-pressed="${mode===value}">${name}</button>`).join('')}</div><p class="fuel-note">The selected window and series apply to both time-series charts below. Daily snapshot and data table retain reported daily values.</p>${plot(chartRows,series,{chartKey:'gas-supply',average})}${historyNote(bundle.gas,rows,end,range,series)}</section>
+   <section class="fuel-panel"><span class="fuel-eyebrow">03 / POWER-SECTOR GAS HISTORY</span><h2>Gas supply & demand in the power sector</h2>${plot(chartRows,powerSeries,{chartKey:'gas-power',average})}${historyNote(bundle.gas,rows,end,range,powerSeries)}<p class="fuel-note">${fmt(row.power_demand-row.power_supply)} MMCFD below reported power-sector gas demand on ${label(end)}. This gas gap is not an estimate of electricity load shedding.</p></section>
    <details class="fuel-panel" id="fuel-daily-table"><summary>Daily gas data · ${rows.length} report${rows.length===1?'':'s'}</summary><div data-fuel-daily-body></div><button type="button" id="fuel-csv">Download this window as CSV</button></details>${sourceCheck(row)}`;
  }
  function coalView(){
@@ -159,18 +164,19 @@
  function draw(focusTab=false){
   charts.clear();chartSequence=0;
   hiddenLayers=new Set((new URLSearchParams(location.search).get('fuelHide')||'').split(',').filter(key=>/^(gas-source|gas-distribution|gas-supply|gas-power|coal-production):[a-z_]+$/.test(key)));
-  const params=new URLSearchParams(location.search),range=windows.includes(params.get('fuelWindow'))?params.get('fuelWindow'):'30',tab=params.get('fuelType')==='coal'?'coal':'gas';
+  const params=new URLSearchParams(location.search),range=windows.includes(params.get('fuelWindow'))?params.get('fuelWindow'):'30',tab=params.get('fuelType')==='coal'?'coal':'gas',mode=params.get('fuelSeries')==='average'?'average':'daily';
   const end=bundle.gas.some(r=>r.date===params.get('fuelDate'))?params.get('fuelDate'):bundle.gas.at(-1).date;
   const previous=new Date(Date.parse(end+'T00:00:00Z')-86400000).toISOString().slice(0,10);
   document.querySelector('#subtitle').textContent=tab==='gas'?`Gas period: ${label(previous)} 08:00 → ${label(end)} 08:00 · Bangladesh time (UTC+06:00)`:'Coal · annual Barapukuria mine production · July–June fiscal years';
   root.BEGDDataStatus?.set('fuel',[{label:'Fuel collection attempted',value:bundle.last_attempt_at}]);
   document.querySelector('#source').textContent=tab==='gas'?'Gas: Petrobangla daily production and distribution reports; GTCL provisional operational cross-checks. Gas dates are independent of electricity workbook dates.':'Coal: BCMCL annual Barapukuria mine production. Daily coal data is not provided by this source.';
-  document.querySelector('#content').innerHTML=`<div class="fuel-dashboard"><div class="fuel-tabs" role="tablist" aria-label="Fuel type">${['gas','coal'].map(type=>`<button type="button" id="fuel-tab-${type}" role="tab" data-fuel-type="${type}" aria-selected="${tab===type}" aria-controls="fuel-panel-${type}" tabindex="${tab===type?'0':'-1'}">${type==='gas'?'Gas':'Coal'}</button>`).join('')}</div><div class="fuel-tab-panel" role="tabpanel" id="fuel-panel-${tab}" aria-labelledby="fuel-tab-${tab}">${tab==='gas'?gasView(end,range):coalView()}</div><div role="tabpanel" id="fuel-panel-${tab==='gas'?'coal':'gas'}" aria-labelledby="fuel-tab-${tab==='gas'?'coal':'gas'}" hidden></div></div>`;
+  document.querySelector('#content').innerHTML=`<div class="fuel-dashboard"><div class="fuel-tabs" role="tablist" aria-label="Fuel type">${['gas','coal'].map(type=>`<button type="button" id="fuel-tab-${type}" role="tab" data-fuel-type="${type}" aria-selected="${tab===type}" aria-controls="fuel-panel-${type}" tabindex="${tab===type?'0':'-1'}">${type==='gas'?'Gas':'Coal'}</button>`).join('')}</div><div class="fuel-tab-panel" role="tabpanel" id="fuel-panel-${tab}" aria-labelledby="fuel-tab-${tab}">${tab==='gas'?gasView(end,range,mode):coalView()}</div><div role="tabpanel" id="fuel-panel-${tab==='gas'?'coal':'gas'}" aria-labelledby="fuel-tab-${tab==='gas'?'coal':'gas'}" hidden></div></div>`;
   document.querySelectorAll('[data-fuel-type]').forEach(button=>{
    button.addEventListener('click',()=>update('fuelType',button.dataset.fuelType,true));
    button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const type=event.key==='Home'?'gas':event.key==='End'?'coal':tab==='gas'?'coal':'gas';update('fuelType',type,true);});
   });
   document.querySelectorAll('[data-fuel-window]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.fuelWindow;update('fuelWindow',value);document.querySelector(`[data-fuel-window="${value}"]`)?.focus({preventScroll:true});}));
+  document.querySelectorAll('[data-fuel-series]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.fuelSeries;update('fuelSeries',value);document.querySelector(`[data-fuel-series="${value}"]`)?.focus({preventScroll:true});}));
   document.querySelector('#fuel-date')?.addEventListener('change',event=>update('fuelDate',event.target.value));
   document.querySelector('#fuel-daily-table')?.addEventListener('toggle',event=>{
    const details=event.currentTarget,body=details.querySelector('[data-fuel-daily-body]');
@@ -195,7 +201,7 @@
  function saveLayers(){const u=new URL(location.href);if(hiddenLayers.size)u.searchParams.set('fuelHide',[...hiddenLayers].sort().join(','));else u.searchParams.delete('fuelHide');history.replaceState(history.state,'',u);draw();}
  function update(key,value,focusTab=false){const u=new URL(location.href);u.searchParams.set(key,value);history.replaceState(null,'',u);draw(focusTab);}
  root.BEGDFuel={mount,selectRows,difference};
- if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,rollingMean,nearestRow};
+ if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,rollingMean,nearestRow,historyRows};
  if(typeof document!=='undefined'){
   window.addEventListener('popstate',()=>{if(location.hash==='#fuel')mount();});
   if(location.hash==='#fuel')mount();

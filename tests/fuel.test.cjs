@@ -112,11 +112,12 @@ test('all saved GTCL dates remain visible even when Petrobangla has no report',a
 test('long histories have bounded SVG elements and preserve the entire daily series',()=>{
  const data=require('../begd/fuel-data.json').gas;
  const html=plot(data,[['total','Total','#123456'],['lng','LNG','#654321']]);
- assert.equal((html.match(/<path /g)||[]).length,4);
+ assert.equal((html.match(/<path /g)||[]).length,2);
  assert.equal((html.match(/data-fuel-surface/g)||[]).length,1);
  assert.doesNotMatch(html,/<circle |data-fuel-point=/);
  assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
- assert.match(html,/30-day rolling averages/);
+ assert.doesNotMatch(html,/fuel-average-line/);
+ assert.match(html,/stroke-width="1.5"/);
  assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
 });
 test('rolling averages require complete consecutive dates and preserve zero',()=>{
@@ -136,4 +137,19 @@ test('collapsed daily table defers thousands of cells until it is opened',async(
  const {html}=await rendered('?fuelWindow=all');
  assert.match(html,/<div data-fuel-daily-body><\/div>/);
  assert.doesNotMatch(html,/<caption>Published daily values/);
+});
+
+
+test('average mode replaces daily geometry and uses history preceding the selected window',async()=>{
+ const {historyRows}=require('../begd/fuel.js');
+ const all=Array.from({length:60},(_,i)=>({date:new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10),total:i}));
+ const averaged=historyRows(all,all[59].date,'7','average');
+ assert.equal(averaged.length,7);assert.equal(averaged[0].total,38.5);assert.equal(averaged[6].total,44.5);
+ assert.equal(all[59].total,59,'Averaging must never overwrite reported daily values');
+ const {html}=await rendered('?fuelWindow=all&fuelSeries=average');
+ assert.match(html,/data-fuel-series="average" aria-pressed="true"/);
+ assert.match(html,/fuel-average-line/);assert.doesNotMatch(html,/fuel-daily-line/);
+ const daily=await rendered('?fuelWindow=all');
+ assert.match(daily.html,/data-fuel-series="daily" aria-pressed="true"/);
+ assert.match(daily.html,/fuel-daily-line/);assert.doesNotMatch(daily.html,/fuel-average-line/);
 });
