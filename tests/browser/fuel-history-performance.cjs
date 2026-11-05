@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const {serve}=require('./fixture-site.cjs');
 const data=require('../../begd/fuel-data.json');
+const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:path').join(require('node:os').tmpdir(),'begd-fuel-fast-history.png');
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{for(const width of [390,1165]){
@@ -49,7 +50,7 @@ const data=require('../../begd/fuel-data.json');
    const last=nav.locator('a').last();await last.focus();
    const lastBounds=await last.boundingBox();assert.ok(lastBounds.y>=0&&lastBounds.y+lastBounds.height<=799);
    await history.locator('[data-fuel-layer="gas-supply:lng"]').check();
-   await history.screenshot({path:'/private/tmp/begd-fuel-fast-history.png'});
+   await history.screenshot({path:screenshotPath});
   }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.deepEqual(errors,[]);
