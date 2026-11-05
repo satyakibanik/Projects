@@ -108,3 +108,32 @@ test('all saved GTCL dates remain visible even when Petrobangla has no report',a
  const data=require('../begd/fuel-data.json');
  for(const check of data.checks)assert.ok(html.includes(check.url));
 });
+
+test('long histories have bounded SVG elements and preserve the entire daily series',()=>{
+ const data=require('../begd/fuel-data.json').gas;
+ const html=plot(data,[['total','Total','#123456'],['lng','LNG','#654321']]);
+ assert.equal((html.match(/<path /g)||[]).length,4);
+ assert.equal((html.match(/data-fuel-surface/g)||[]).length,1);
+ assert.doesNotMatch(html,/<circle |data-fuel-point=/);
+ assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
+ assert.match(html,/30-day rolling averages/);
+ assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
+});
+test('rolling averages require complete consecutive dates and preserve zero',()=>{
+ const {rollingMean,nearestRow}=require('../begd/fuel.js');
+ const days=Array.from({length:32},(_,i)=>({date:new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10),total:i}));
+ const values=rollingMean(days,'total');
+ assert.ok(values.slice(0,29).every(v=>v===null));
+ assert.equal(values[29],14.5);assert.equal(values[30],15.5);
+ assert.equal(rollingMean(days.map(r=>({...r,total:0})),'total')[29],0);
+ const gap=days.filter((_,i)=>i!==15);assert.ok(rollingMean(gap,'total').every(v=>v===null));
+ const missing=days.map((r,i)=>({...r,total:i===15?null:r.total}));assert.ok(rollingMean(missing,'total').every(v=>v===null));
+ assert.equal(nearestRow(days,Date.parse(days[0].date)-86400000),0);
+ assert.equal(nearestRow(days,Date.parse(days[31].date)+86400000),31);
+ assert.equal(nearestRow(days,Date.parse(days[12].date)+3600000),12);
+});
+test('collapsed daily table defers thousands of cells until it is opened',async()=>{
+ const {html}=await rendered('?fuelWindow=all');
+ assert.match(html,/<div data-fuel-daily-body><\/div>/);
+ assert.doesNotMatch(html,/<caption>Published daily values/);
+});

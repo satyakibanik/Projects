@@ -1,8 +1,9 @@
 (function(root){
  'use strict';
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const fmt=(v,d=1)=>Number.isFinite(v)?v.toLocaleString('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d}):'—';
- const label=d=>new Date(d+'T08:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+ const numberFormats=new Map(),dateFormat=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+ const fmt=(v,d=1)=>{if(!Number.isFinite(v))return '—';if(!numberFormats.has(d))numberFormats.set(d,new Intl.NumberFormat('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d}));return numberFormats.get(d).format(v);};
+ const label=d=>dateFormat.format(new Date(d+'T08:00:00+06:00'));
  const series=[['domestic','Domestic gas','#21856c'],['lng','Regasified LNG','#bd7921'],['total','Total including LNG','#4f82cf']];
  const powerSeries=[['power_demand','Reported gas demand','#9a678e'],['power_supply','Gas supplied','#21856c']];
  const windows=['daily','7','30','60','90','365','all'];
@@ -19,6 +20,22 @@
  function tooltipHTML(row,fields,unit='MMCFD',precision=1){
   return `<strong>${esc(pointTitle(row))}</strong>${fields.map(([key,name,color])=>`<div><span><i style="background:${esc(row.color||color)}"></i>${esc(name)}</span><b>${fmt(row[key],precision)} ${esc(unit)}</b></div>`).join('')}`;
  }
+ // Require thirty consecutive calendar days; missing observations stay missing.
+ function rollingMean(rows,field,count=30){
+  let sum=0,start=0;
+  return rows.map((row,i)=>{
+   if(!Number.isFinite(row[field])){sum=0;start=i+1;return null;}
+   if(i&&Date.parse(row.date)-Date.parse(rows[i-1].date)!==86400000){sum=0;start=i;}
+   sum+=row[field];
+   if(i-start+1>count){sum-=rows[start][field];start++;}
+   return i-start+1===count?sum/count:null;
+  });
+ }
+ function nearestRow(rows,time){
+  let low=0,high=rows.length-1;
+  while(low<high){const mid=(low+high)>>1;if(Date.parse(rows[mid].date)<time)low=mid+1;else high=mid;}
+  return low&&time-Date.parse(rows[low-1].date)<Date.parse(rows[low].date)-time?low-1:low;
+ }
  function plot(rows,fields,{bars=false,annual=false,categorical=false,unit='MMCFD',chartKey='',hidden=hiddenLayers}={}){
   if(!rows.length)return '<p class="fuel-empty">No verified reports in this window. Choose another end date or a longer range.</p>';
   const W=950,H=290,L=130,R=28,T=24,B=48,precision=annual?3:1;
@@ -28,7 +45,9 @@
   if(categorical)rows=rows.filter(r=>!hiddenSet.has(key+':'+r.layerKey));
   else fields=fields.filter(([field])=>!hiddenSet.has(key+':'+field));
   const active=rows.length>0&&fields.length>0;
-  charts.set(id,{rows,fields,unit,precision,layers,key});
+  const dense=!bars&&!annual&&!categorical&&rows.length>90;
+  const averages=dense?Object.fromEntries(fields.map(([field])=>[field,rollingMean(rows,field)])):{};
+  charts.set(id,{rows,fields,unit,precision,layers,key,dense,averages,index:0});
   let svg='';
   if(active){
    const max=Math.max(1,...rows.flatMap(r=>fields.map(([field])=>Number.isFinite(r[field])?r[field]:0)))*1.12;
@@ -37,6 +56,11 @@
    const y=value=>H-B-value/max*(H-T-B);
    for(let i=0;i<=4;i++){const value=max*i/4,yy=y(value);svg+=`<line class="fuel-grid" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-10}" y="${yy+4}" text-anchor="end">${annual&&value>=1000000?fmt(value/1000000,1)+'m':annual&&value>=1000?fmt(value/1000,0)+'k':fmt(value,0)}</text>`;}
    fields.forEach(([field,name,color],j)=>{
+    if(dense){
+     const path=values=>{let d='',prev=null;values.forEach((value,i)=>{if(!Number.isFinite(value)){prev=null;return;}const r=rows[i],connected=prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000;d+=(connected?'L':'M')+x(r,i).toFixed(2)+','+y(value).toFixed(2)+' ';prev=r;});return d;};
+     svg+=`<path class="fuel-daily-line" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="1" stroke-opacity=".45"/><path class="fuel-average-line" d="${path(averages[field])}" fill="none" stroke="${color}" stroke-width="2.5"/>`;
+     return;
+    }
     let prev=null;
     rows.forEach((r,i)=>{if(!Number.isFinite(r[field])){prev=null;return;}const xx=x(r,i),yy=y(r[field]);
      if(bars){const w=Math.min(180,(W-L-R)/rows.length*.68/fields.length);svg+=`<rect x="${xx+(j-fields.length/2)*w}" y="${yy}" width="${w-2}" height="${H-B-yy}" fill="${esc(r.color||color)}"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field],precision)} ${esc(unit)}</title></rect>`;}
@@ -45,34 +69,42 @@
    });
    const stride=Math.max(1,Math.ceil(rows.length/(annual?2:4)));
    rows.forEach((r,i)=>{if((i%stride===0&&(i===0||rows.length-1-i>stride*.65))||i===rows.length-1)svg+=`<text x="${x(r,i)}" y="${H-17}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${esc(annual?r.year:categorical?r.year:multiYear?r.date.slice(0,7):r.date.slice(5))}</text>`;});
-   rows.forEach((r,i)=>{
+   if(dense)svg+=`<rect class="fuel-chart-hit" data-fuel-surface x="${L}" y="${T}" width="${W-L-R}" height="${H-B-T}" fill="transparent" tabindex="0" role="img" aria-label="Daily gas history. Use Left and Right arrow keys to inspect each reporting day; Home and End jump to the first and last."/>`;
+   else rows.forEach((r,i)=>{
     const xx=x(r,i),left=i?(x(rows[i-1],i-1)+xx)/2:L,right=i<rows.length-1?(xx+x(rows[i+1],i+1))/2:W-R;
     const description=pointTitle(r)+': '+fields.map(([field,name])=>name+' '+fmt(r[field],precision)+' '+unit).join('; ');
     svg+=`<rect class="fuel-chart-hit" data-fuel-point="${i}" data-fuel-x="${xx}" x="${left}" y="${T}" width="${right-left}" height="${H-B-T}" fill="transparent" tabindex="${i===0?'0':'-1'}" role="img" aria-label="${esc(description)}"/>`;
    });
   }else svg='<text class="fuel-no-layers" x="475" y="120" text-anchor="middle">No layers selected</text><text class="fuel-no-layers" x="475" y="180" text-anchor="middle">Select a layer below</text>';
   const actions=['gas-source','coal-production'].includes(key)?'':`<div class="fuel-layer-actions">${key==='gas-distribution'?'':'<span>Chart layers</span>'}<button type="button" data-fuel-layers="all" data-fuel-chart-id="${id}">All</button><button type="button" data-fuel-layers="none" data-fuel-chart-id="${id}">None</button></div>`;
-  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i style="background:${esc(layer.color)}"></i>${esc(layer.name)}</label>`).join('')}</div></div><p class="fuel-chart-help">Hover, tap or focus the chart to inspect visible layers.</p>`;
+  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i style="background:${esc(layer.color)}"></i>${esc(layer.name)}</label>`).join('')}</div></div><p class="fuel-chart-help">${dense?'Thin lines: daily reports. Strong lines: 30-day rolling averages, requiring 30 consecutive reported days. ':''}Hover, tap or focus the chart to inspect exact daily values.</p>`;
  }
  function bindTooltips(){
   document.querySelectorAll('[data-fuel-chart]').forEach(chart=>{
    const model=charts.get(chart.dataset.fuelChart),tip=chart.querySelector('.fuel-tooltip'),cursor=chart.querySelector('.fuel-cursor');
    const hide=()=>{tip.hidden=true;cursor.setAttribute('hidden','');};
    const show=event=>{
-    const hit=event.target.closest?.('[data-fuel-point]');if(!hit)return;
-    const row=model.rows[Number(hit.dataset.fuelPoint)];if(!row)return;
-    tip.innerHTML=tooltipHTML(row,model.fields,model.unit,model.precision);tip.hidden=false;
-    const x=Number(hit.dataset.fuelX);cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.removeAttribute('hidden');
+    const hit=event.target.closest?.('[data-fuel-point], [data-fuel-surface]');if(!hit)return;
+    if(model.dense&&Number.isFinite(event.clientX)){const box=chart.querySelector('svg').getBoundingClientRect(),fraction=Math.max(0,Math.min(1,((event.clientX-box.left)/box.width*950-130)/792));model.index=nearestRow(model.rows,Date.parse(model.rows[0].date)+fraction*(Date.parse(model.rows.at(-1).date)-Date.parse(model.rows[0].date)));}
+    const row=model.rows[model.dense?model.index:Number(hit.dataset.fuelPoint)];if(!row)return;
+    const index=model.dense?model.index:Number(hit.dataset.fuelPoint);
+    const tooltipRow=model.dense?{...row,...Object.fromEntries(model.fields.map(([field])=>[field+'_average',model.averages[field][index]]))}:row;
+    const tooltipFields=model.dense?[...model.fields,...model.fields.map(([field,name,color])=>[field+'_average',name+' · 30-day avg',color])]:model.fields;
+    tip.innerHTML=tooltipHTML(tooltipRow,tooltipFields,model.unit,model.precision);tip.hidden=false;
+    const first=Date.parse(model.rows[0].date),last=Date.parse(model.rows.at(-1).date);
+    const x=model.dense?130+(last===first?.5:(Date.parse(row.date)-first)/(last-first))*792:Number(hit.dataset.fuelX);
+    if(model.dense)hit.setAttribute('aria-label',pointTitle(row)+': '+model.fields.map(([field,name])=>name+' '+fmt(row[field],model.precision)+' '+model.unit).join('; '));cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.removeAttribute('hidden');
     const box=chart.getBoundingClientRect(),anchor=Number.isFinite(event.clientX)?event.clientX-box.left:x/950*box.width;
     tip.style.left=(box.width<600?6:Math.max(6,Math.min(anchor+12,box.width-312)))+'px';
    };
    chart.addEventListener('pointermove',show);chart.addEventListener('pointerdown',show);chart.addEventListener('focusin',show);
-   chart.addEventListener('pointerleave',hide);chart.addEventListener('focusout',hide);
+   chart.addEventListener('pointerleave',event=>{if(event.pointerType!=='touch')hide();});chart.addEventListener('focusout',hide);
    chart.addEventListener('keydown',event=>{
     if(event.key==='Escape'){hide();return;}
     if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
-    const hit=event.target.closest?.('[data-fuel-point]');if(!hit)return;
-    event.preventDefault();const current=Number(hit.dataset.fuelPoint),next=event.key==='Home'?0:event.key==='End'?model.rows.length-1:Math.max(0,Math.min(model.rows.length-1,current+(event.key==='ArrowRight'?1:-1)));
+    const hit=event.target.closest?.('[data-fuel-point], [data-fuel-surface]');if(!hit)return;
+    event.preventDefault();const current=model.dense?model.index:Number(hit.dataset.fuelPoint),next=event.key==='Home'?0:event.key==='End'?model.rows.length-1:Math.max(0,Math.min(model.rows.length-1,current+(event.key==='ArrowRight'?1:-1)));
+    if(model.dense){model.index=next;show({target:hit});return;}
     chart.querySelectorAll('[data-fuel-point]').forEach(point=>point.setAttribute('tabindex',Number(point.dataset.fuelPoint)===next?'0':'-1'));
     chart.querySelector(`[data-fuel-point="${next}"]`)?.focus({preventScroll:true});
    });
@@ -101,7 +133,7 @@
    <div class="fuel-columns"><section class="fuel-panel"><div class="fuel-panel-title"><h2>Gas supply by source</h2><a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Daily report ↗</a></div>${plot(production,[['value','Gas supplied','#21856c']],{bars:true,categorical:true,chartKey:'gas-source'})}<p class="fuel-note">State companies: ${fmt(row.state)} · international operators: ${fmt(row.ioc)} · regasified LNG: ${fmt(row.lng)} MMCFD. Domestic production sums the published state and IOC subtotals; rounding can leave a 0.1 MMCFD difference.</p></section><section class="fuel-panel"><h2>Where the gas went</h2>${plot(allocation,[['value','Gas distributed','#21856c']],{bars:true,categorical:true,chartKey:'gas-distribution'})}<p class="fuel-note">Power plants: ${fmt(row.power_supply)} · fertilizer: ${fmt(row.fertilizer_supply)} · others: ${fmt(row.others)} MMCFD. Distribution total: ${fmt(row.distribution_total)} MMCFD. Published distribution and production totals can differ; this is not a calculated system loss.</p></section></div>
    <section class="fuel-panel"><span class="fuel-eyebrow">02 / GAS HISTORY</span><h2>Gas supply over time</h2><div class="fuel-windows" role="group" aria-label="Gas time window">${windows.map(v=>`<button type="button" data-fuel-window="${v}" aria-pressed="${range===v}">${v==='daily'?'Daily':v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">The selected window applies to both time-series charts below. Daily snapshot above remains the selected reporting day.</p>${plot(rows,series,{chartKey:'gas-supply'})}${historyNote(bundle.gas,rows,end,range,series)}</section>
    <section class="fuel-panel"><span class="fuel-eyebrow">03 / POWER-SECTOR GAS HISTORY</span><h2>Gas supply & demand in the power sector</h2>${plot(rows,powerSeries,{chartKey:'gas-power'})}${historyNote(bundle.gas,rows,end,range,powerSeries)}<p class="fuel-note">${fmt(row.power_demand-row.power_supply)} MMCFD below reported power-sector gas demand on ${label(end)}. This gas gap is not an estimate of electricity load shedding.</p></section>
-   <details class="fuel-panel" id="fuel-daily-table"><summary>Daily gas data · ${rows.length} report${rows.length===1?'':'s'}</summary>${table(rows)}<button type="button" id="fuel-csv">Download this window as CSV</button></details>${sourceCheck(row)}`;
+   <details class="fuel-panel" id="fuel-daily-table"><summary>Daily gas data · ${rows.length} report${rows.length===1?'':'s'}</summary><div data-fuel-daily-body></div><button type="button" id="fuel-csv">Download this window as CSV</button></details>${sourceCheck(row)}`;
  }
  function coalView(){
   const rows=bundle.coal,latest=rows.at(-1);
@@ -140,6 +172,10 @@
   });
   document.querySelectorAll('[data-fuel-window]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.fuelWindow;update('fuelWindow',value);document.querySelector(`[data-fuel-window="${value}"]`)?.focus({preventScroll:true});}));
   document.querySelector('#fuel-date')?.addEventListener('change',event=>update('fuelDate',event.target.value));
+  document.querySelector('#fuel-daily-table')?.addEventListener('toggle',event=>{
+   const details=event.currentTarget,body=details.querySelector('[data-fuel-daily-body]');
+   if(details.open&&!body.dataset.loaded){body.innerHTML=table(range==='daily'?[bundle.gas.find(r=>r.date===end)]:selectRows(bundle.gas,end,range));body.dataset.loaded='true';}
+  });
   document.querySelector('#fuel-csv')?.addEventListener('click',()=>{
    const rows=range==='daily'?[bundle.gas.find(r=>r.date===end)]:selectRows(bundle.gas,end,range),keys=['date','domestic','lng','total','power_demand','power_supply','fertilizer_demand','fertilizer_supply','others','distribution_total','url'];
    const csv=keys.join(',')+'\n'+rows.map(r=>keys.map(k=>r[k]).join(',')).join('\n');
@@ -159,7 +195,7 @@
  function saveLayers(){const u=new URL(location.href);if(hiddenLayers.size)u.searchParams.set('fuelHide',[...hiddenLayers].sort().join(','));else u.searchParams.delete('fuelHide');history.replaceState(history.state,'',u);draw();}
  function update(key,value,focusTab=false){const u=new URL(location.href);u.searchParams.set(key,value);history.replaceState(null,'',u);draw(focusTab);}
  root.BEGDFuel={mount,selectRows,difference};
- if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote};
+ if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,rollingMean,nearestRow};
  if(typeof document!=='undefined'){
   window.addEventListener('popstate',()=>{if(location.hash==='#fuel')mount();});
   if(location.hash==='#fuel')mount();
