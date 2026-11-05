@@ -120,18 +120,11 @@ test('long histories have bounded SVG elements and preserve the entire daily ser
  assert.match(html,/stroke-width="1.5"/);
  assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
 });
-test('rolling averages require complete consecutive dates and preserve zero',()=>{
- const {rollingMean,nearestRow}=require('../begd/fuel.js');
- const days=Array.from({length:32},(_,i)=>({date:new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10),total:i}));
- const values=rollingMean(days,'total');
- assert.ok(values.slice(0,29).every(v=>v===null));
- assert.equal(values[29],14.5);assert.equal(values[30],15.5);
- assert.equal(rollingMean(days.map(r=>({...r,total:0})),'total')[29],0);
- const gap=days.filter((_,i)=>i!==15);assert.ok(rollingMean(gap,'total').every(v=>v===null));
- const missing=days.map((r,i)=>({...r,total:i===15?null:r.total}));assert.ok(rollingMean(missing,'total').every(v=>v===null));
- assert.equal(nearestRow(days,Date.parse(days[0].date)-86400000),0);
- assert.equal(nearestRow(days,Date.parse(days[31].date)+86400000),31);
- assert.equal(nearestRow(days,Date.parse(days[12].date)+3600000),12);
+test('nearest date selection stays within the saved history',()=>{
+ const {nearestRow}=require('../begd/fuel.js');
+ assert.equal(nearestRow(rows,Date.parse('2026-09-01')),0);
+ assert.equal(nearestRow(rows,Date.parse('2026-11-01')),2);
+ assert.equal(nearestRow(rows,Date.parse('2026-10-03T01:00:00Z')),1);
 });
 test('collapsed daily table defers thousands of cells until it is opened',async()=>{
  const {html}=await rendered('?fuelWindow=all');
@@ -140,16 +133,8 @@ test('collapsed daily table defers thousands of cells until it is opened',async(
 });
 
 
-test('average mode replaces daily geometry and uses history preceding the selected window',async()=>{
- const {historyRows}=require('../begd/fuel.js');
- const all=Array.from({length:60},(_,i)=>({date:new Date(Date.UTC(2026,0,1+i)).toISOString().slice(0,10),total:i}));
- const averaged=historyRows(all,all[59].date,'7','average');
- assert.equal(averaged.length,7);assert.equal(averaged[0].total,38.5);assert.equal(averaged[6].total,44.5);
- assert.equal(all[59].total,59,'Averaging must never overwrite reported daily values');
+test('removed average control and old average URLs show only daily series',async()=>{
  const {html}=await rendered('?fuelWindow=all&fuelSeries=average');
- assert.match(html,/data-fuel-series="average" aria-pressed="true"/);
- assert.match(html,/fuel-average-line/);assert.doesNotMatch(html,/fuel-daily-line/);
- const daily=await rendered('?fuelWindow=all');
- assert.match(daily.html,/data-fuel-series="daily" aria-pressed="true"/);
- assert.match(daily.html,/fuel-daily-line/);assert.doesNotMatch(daily.html,/fuel-average-line/);
+ assert.doesNotMatch(html,/data-fuel-series|30-day averages|fuel-average-line/);
+ assert.match(html,/fuel-daily-line/);
 });
