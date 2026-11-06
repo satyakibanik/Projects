@@ -375,3 +375,26 @@ test('unreported interconnector energy stays unavailable rather than becoming ze
  assert.match(html,/East → west energy[^]*?class="value">—/);
  assert.match(html,/45,199.47/);
 });
+
+
+test('overview energy composition mirrors realtime fuel and share charts from En-Curve readings',()=>{
+ const c=app();
+ const sources=[
+  ['gas_public_mw','Gas-Public'],['gas_pvt_mw','Gas-Pvt'],['hfo_public_mw','HFO-Public'],['hsd_public_mw','HSD-Public'],
+  ['coal_mw','Coal'],['hydro_mw','Hydro'],['solar_mw','Solar'],['wind_mw','Wind'],
+  ['hvdc_mw','HVDC'],['nepal_mw','Nepal'],['tripura_mw','Tripura'],['adani_mw','Adani']
+ ].map(([key,name])=>({key,name}));
+ const first={time:'00:00',gas_public_mw:60,gas_pvt_mw:40,hfo_public_mw:20,hsd_public_mw:10,coal_mw:100,hydro_mw:30,solar_mw:20,wind_mw:10,hvdc_mw:50,nepal_mw:20,tripura_mw:20,adani_mw:20,total_generation_mw:400};
+ const incomplete={...first,time:'00:30',gas_public_mw:55,adani_mw:null,wind_mw:null,total_generation_mw:300};
+ const endpoint={...first,time:'24:00'};
+ vm.runInContext(`data={date:'2026-11-05',en_curve:${JSON.stringify({date:'2026-11-05',sources,hourly:[first,incomplete,endpoint]})}}`,c);
+ const html=vm.runInContext('overviewEnergyCompositionCharts()',c);
+ const models=JSON.parse(vm.runInContext(`JSON.stringify([...chartData.values()].map(model=>({rows:model.rows,series:model.series.map(series=>({key:series.key,name:series.name})),unit:model.unit,xRight:model.plotBounds.right,xEnd:model.x(model.rows.at(-1))})))`,c));
+ assert.match(html,/Generation by fuel type/);assert.match(html,/Import dependence \(%\) & renewable share \(%\)/);
+ assert.equal(models.length,2);assert.equal(models[0].unit,'MW');assert.equal(models[1].unit,'%');
+ assert.deepEqual(models[0].series.map(series=>series.name),['Gas','Liquid fuel','Coal','Hydro','Solar','Wind']);
+ assert.equal(models[0].rows[0].fuel_type_0,100);assert.equal(models[0].rows[0].fuel_type_1,30);
+ assert.ok(Math.abs(models[1].rows[0].import_dependence_pct-27.5)<1e-9);assert.ok(Math.abs(models[1].rows[0].renewable_share_pct-15)<1e-9);
+ assert.equal(models[1].rows[1].import_dependence_pct,null);assert.equal(models[1].rows[1].renewable_share_pct,null);
+ assert.equal(models[0].xEnd,models[0].xRight,'the 24:00 workbook endpoint should land at the right edge');
+});
