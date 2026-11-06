@@ -937,6 +937,7 @@ async function selectOperatingDate(date,preservedScroll=null){
 async function selectLatestReport(){
  const clickScroll=pendingOperatingDateScroll;pendingOperatingDateScroll=null;
  const scrollX=clickScroll?.x??window.scrollX,scrollY=clickScroll?.y??window.scrollY;
+ const scrollLock={x:scrollX,y:scrollY};operatingDateScrollLock=scrollLock;
  const token=++operatingDateRequest;
  request++;setReportPickerBusy(true);$('#date-status').textContent='Loading latest published report…';
  try{
