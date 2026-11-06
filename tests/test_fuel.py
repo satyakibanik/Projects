@@ -3,6 +3,7 @@ import io
 from datetime import datetime
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -15,6 +16,35 @@ FIXTURES = ROOT / 'tests/fixtures/fuel'
 
 
 class FuelTests(unittest.TestCase):
+    def test_fetch_preserves_curl_exit_and_complete_stderr(self):
+        url = fuel.SOURCES['petrobangla']
+        message = b'curl: (60) SSL certificate problem: unable to get local issuer certificate\n' + b'diagnostic ' * 30
+        with patch.object(fuel.subprocess, 'run', side_effect=subprocess.CalledProcessError(60, ['curl'], stderr=message)) as run:
+            with self.assertRaises(fuel.FuelFetchError) as caught:
+                fuel.fetch(url)
+        error = caught.exception
+        self.assertEqual(error.details(), {'url':url, 'curl_exit_code':60, 'stderr':message.decode()})
+        self.assertIn('unable to get local issuer certificate', str(error))
+        args = run.call_args.args[0]
+        self.assertIn('--show-error', args)
+        self.assertIn('=https', args)
+        self.assertNotIn('--insecure', args)
+        self.assertNotIn('-k', args)
+
+    def test_collection_retains_structured_timeout_and_saved_reports(self):
+        seed = ROOT / 'begd/fuel-data.json'
+        original = json.loads(seed.read_text())
+        message = 'curl: (28) Connection timed out after 35000 milliseconds\n'
+        with tempfile.TemporaryDirectory() as tmp, patch.object(fuel, 'fetch', side_effect=fuel.FuelFetchError(fuel.SOURCES['gtcl'],28,message)):
+            result = fuel.collect(seed, Path(tmp))
+            persisted = json.loads((Path(tmp)/'fuel-data.json').read_text())
+        self.assertEqual(result['gas'], original['gas'])
+        self.assertEqual(result['last_successful_refresh_at'], original['last_successful_refresh_at'])
+        for row in persisted['source_status']:
+            self.assertEqual(row['error_details'][0]['curl_exit_code'],28)
+            self.assertEqual(row['error_details'][0]['stderr'],message)
+            self.assertIn('Connection timed out',row['errors'][0])
+
     def test_conflicting_archive_dates_are_not_arbitrarily_selected(self):
         first = dict(date='2026-06-20', total=2703.8, url='https://one.pdf', sha256='a')
         second = dict(first, total=2702.5, url='https://two.pdf', sha256='b')
@@ -31,7 +61,6 @@ class FuelTests(unittest.TestCase):
         rows, conflicts = fuel.merge_reports([], [first, second])
         self.assertEqual(rows, [first])
         self.assertEqual(conflicts, [])
-
     def report(self, name, source):
         return fuel.parse_text((FIXTURES / name).read_text(), source)
 

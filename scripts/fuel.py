@@ -25,14 +25,34 @@ SOURCES = {'petrobangla': 'https://petrobangla.org.bd/pages/reports' + REPORT_FI
 BN = str.maketrans('০১২৩৪৫৬৭৮৯', '0123456789')
 
 
+class FuelFetchError(RuntimeError):
+    """Retain curl's actual failure instead of its command representation."""
+    def __init__(self, url, exit_code, stderr):
+        self.url = url
+        self.exit_code = exit_code
+        self.stderr = stderr.decode('utf-8', errors='replace') if isinstance(stderr, bytes) else str(stderr or '')
+        detail = self.stderr.strip() or 'curl returned no error text'
+        super().__init__(f'curl exit {exit_code} fetching {url}: {detail}')
+
+    def details(self):
+        return {'url': self.url, 'curl_exit_code': self.exit_code, 'stderr': self.stderr}
+
+
+def error_details(exc):
+    return exc.details() if isinstance(exc, FuelFetchError) else {'type': type(exc).__name__, 'message': str(exc)}
+
+
 def fetch(url):
     host = urlparse(url).hostname or ''
     if host not in {'petrobangla.org.bd', 'gtcl.gov.bd', 'bcmcl.org.bd'} and host != 'objectstorage.ap-dcc-gazipur-1.oraclecloud15.com':
         raise ValueError('Unexpected fuel source host')
     # Use the platform trust store; never disable certificate verification.
-    return subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location',
-                           '--proto', '=https', '--proto-redir', '=https', '--max-time', '35',
-                           '--max-filesize', '15000000', url], check=True, capture_output=True).stdout
+    try:
+        return subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location',
+                               '--proto', '=https', '--proto-redir', '=https', '--max-time', '35',
+                               '--max-filesize', '15000000', url], check=True, capture_output=True).stdout
+    except subprocess.CalledProcessError as exc:
+        raise FuelFetchError(url, exc.returncode, exc.stderr) from exc
 
 
 def number_line(text, pattern):
@@ -246,6 +266,7 @@ def collect(seed, cache, page_size=10):
     status = []
     for source, key in [('petrobangla', 'gas'), ('gtcl', 'checks')]:
         failures = []
+        details = []
         try:
             listing = fetch(SOURCES[source]+f'&page_size={page_size}').decode()
             extensions = r'(?:pdf|xlsx)' if source == 'gtcl' else 'pdf'
@@ -260,20 +281,23 @@ def collect(seed, cache, page_size=10):
                         path.write_bytes(fetch(url))
                     return parse_report(path.read_bytes(), source, url)
                 except Exception as exc:
-                    failures.append(str(exc)[:180])
+                    failures.append(str(exc))
+                    details.append(error_details(exc))
                     return None
             with ThreadPoolExecutor(max_workers=4) as pool:
                 rows = [r for r in pool.map(read, urls) if r]
             bundle[key], conflicts = merge_reports(bundle[key], rows)
             failures.extend('Conflicting published reports for ' + r['date'] for r in conflicts)
-            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows), errors=failures[:3], conflicts=conflicts))
+            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows), errors=failures, error_details=details, conflicts=conflicts))
         except Exception as exc:
-            status.append(dict(source=source, status='failed', errors=[str(exc)[:180]]))
+            status.append(dict(source=source, status='failed', errors=[str(exc)], error_details=[error_details(exc)]))
     try:
         bundle['coal'] = parse_coal(fetch(SOURCES['coal']).decode())
         status.append(dict(source='coal', status='ok'))
     except Exception as exc:
-        status.append(dict(source='coal', status='failed', errors=[str(exc)[:180]]))
+        status.append(dict(source='coal', status='failed', errors=[str(exc)], error_details=[error_details(exc)]))
+    # JSON keeps error text intact and escapes embedded newlines in Actions logs.
+    print('Fuel source collection: ' + json.dumps(status, ensure_ascii=False))
     bundle.update(schema_version=1, sources=SOURCES, last_attempt_at=datetime.now(timezone.utc).isoformat(), source_status=status)
     for key in ['gas', 'checks']:
         bundle[key].sort(key=lambda r:r['date'])
