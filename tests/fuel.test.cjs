@@ -26,7 +26,7 @@ test('history notes distinguish saved coverage, calendar gaps and observed-day a
  const html=historyNote(rows,rows,'2026-10-04','7',[['total','Total','#123456']]);
  assert.match(html,/1 Oct 2026–4 Oct 2026/);assert.match(html,/3 published daily reports spanning 4 calendar days/);
  assert.match(html,/3 of 7 calendar days reported/);assert.match(html,/4 missing days/);assert.match(html,/Total: 20.0 MMCFD/);
- assert.match(html,/Earlier dates are not yet loaded/);
+ assert.match(html,/Earlier dates are unavailable in this saved dataset/);
 });
 
 async function rendered(search=''){
@@ -43,7 +43,7 @@ test('Gas starts with its daily snapshot, then both histories and a collapsed ta
  const headings=['Latest available day','Gas supply by source','Where the gas went','Gas supply over time','Gas supply & demand in the power sector','Daily gas data'];
  const positions=headings.map(h=>html.indexOf(h));assert.ok(positions.every(n=>n>=0));assert.deepEqual(positions,positions.slice().sort((a,b)=>a-b));
  assert.match(html,/<details class="fuel-panel" id="fuel-daily-table">/);
- assert.match(html,/265 missing days/);assert.doesNotMatch(html,/Barapukuria coal production/);
+ assert.match(html,/of 365 calendar days reported/);assert.doesNotMatch(html,/Barapukuria coal production/);
 });
 test('Coal contains only annual data and its collapsed table, preserving a direct Coal URL',async()=>{
  const {html,subtitle}=await rendered('?fuelType=coal&fuelWindow=7&fuelDate=2026-10-27');
@@ -95,4 +95,46 @@ test('gas lines do not bridge missing reporting days',()=>{
  assert.equal((html.match(/stroke-width="2.5"/g)||[]).length,1);
  assert.match(plot([],[]),/No verified reports/);
  assert.match(plot([{date:'2026-11-03',total:0}],[['total','Total','#123456']]),/0.0 MMCFD/);
+});
+
+test('multi-year gas history includes years on its axis',()=>{
+ const html=plot([{date:'2020-01-12',total:3167.9},{date:'2026-11-04',total:2561.7}],[['total','Total','#123456']]);
+ assert.match(html,/>2020-01<\/text>/);assert.match(html,/>2026-11<\/text>/);
+});
+
+test('all saved GTCL dates remain visible even when Petrobangla has no report',async()=>{
+ const {html}=await rendered('?fuelWindow=all');
+ assert.match(html,/All saved GTCL reports/);
+ const data=require('../begd/fuel-data.json');
+ for(const check of data.checks)assert.ok(html.includes(check.url));
+});
+
+test('long histories have bounded SVG elements and preserve the entire daily series',()=>{
+ const data=require('../begd/fuel-data.json').gas;
+ const html=plot(data,[['total','Total','#123456'],['lng','LNG','#654321']]);
+ assert.equal((html.match(/<path /g)||[]).length,2);
+ assert.equal((html.match(/data-fuel-surface/g)||[]).length,1);
+ assert.doesNotMatch(html,/<circle |data-fuel-point=/);
+ assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
+ assert.doesNotMatch(html,/fuel-average-line/);
+ assert.match(html,/stroke-width="1.5"/);
+ assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
+});
+test('nearest date selection stays within the saved history',()=>{
+ const {nearestRow}=require('../begd/fuel.js');
+ assert.equal(nearestRow(rows,Date.parse('2026-09-01')),0);
+ assert.equal(nearestRow(rows,Date.parse('2026-11-01')),2);
+ assert.equal(nearestRow(rows,Date.parse('2026-10-03T01:00:00Z')),1);
+});
+test('collapsed daily table defers thousands of cells until it is opened',async()=>{
+ const {html}=await rendered('?fuelWindow=all');
+ assert.match(html,/<div data-fuel-daily-body><\/div>/);
+ assert.doesNotMatch(html,/<caption>Published daily values/);
+});
+
+
+test('removed average control and old average URLs show only daily series',async()=>{
+ const {html}=await rendered('?fuelWindow=all&fuelSeries=average');
+ assert.doesNotMatch(html,/data-fuel-series|30-day averages|fuel-average-line/);
+ assert.match(html,/fuel-daily-line/);
 });
