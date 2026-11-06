@@ -65,7 +65,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    }
    await page.locator('nav a[href="#overview"]').click();
-   await page.evaluate(()=>{const max=Math.max(0,document.documentElement.scrollHeight-innerHeight-250);window.scrollTo(0,Math.min(1900,max));});await page.waitForTimeout(100);
+   await page.evaluate(()=>{const max=Math.max(0,document.documentElement.scrollHeight-window.innerHeight-500);window.scrollTo(0,Math.min(1500,max));});await page.waitForTimeout(100);
    const overviewScrollBefore=await page.evaluate(()=>scrollY);
    const previousButton=await page.locator('#previous-report').boundingBox();
    await page.mouse.click(previousButton.x+previousButton.width/2,previousButton.y+previousButton.height/2);
