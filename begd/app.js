@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
 const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
-let data, request=0, operatingDateRequest=0;
+let data, request=0, operatingDateRequest=0, pendingOperatingDateScroll=null;
 let currentDayData=null, currentDayRequest=0, currentDayError=null, currentDayChartUpdatedAt=null;
 let realtimeYesterday=false, dailyEventCategory='';
 const comparisonData={yesterday:null,tomorrow:null,highest:null}, comparisonRequests={yesterday:0,tomorrow:0,highest:0};
@@ -834,7 +834,7 @@ function enCurve(){
  return '<div class="metrics en-curve-metrics">'+metric('Energy generated',gwh(totals.energy_generated_mwh),'GWh','Daily total · '+esc(shortDate(curve.date||data.date)))+metric('Energy not served',gwh(totals.energy_not_served_mwh),'GWh','Reported daily energy shortage')+metric('Total energy requirement',gwh(totals.total_requirement_mwh),'GWh','Generated energy plus energy not served')+'</div>'+chartPanel('Generation by source','Half-hourly generation profile by workbook source, including reported shortage',generationChart+energyCurveHourlyTable(rows,generationSeries,totals,enCurveTableMode),'MW · BST')+'<div id="bpdb-day-cost" data-cost-date="'+esc(data.date)+'">'+(window.BEGDCosts?.dayPanel(data.date,undefined,data)||'')+'</div>'+chartPanel('Reported shortage','Half-hourly power shortage recorded in the workbook',shortageChart,'MW · BST')+'<p class="note">Source: En-Curve sheet · operating date '+esc(shortDate(curve.date||data.date))+'. Source series and daily totals are transcribed from the selected Power Grid workbook.</p>';
 }
 document.addEventListener('click',event=>{const toggle=event.target.closest?.('[data-en-curve-table-mode]');if(!toggle)return;const mode=toggle.dataset.enCurveTableMode==='mw'?'mw':'energy';if(mode===enCurveTableMode)return;enCurveTableMode=mode;render()});
-function render(){ewicChartObserver?.disconnect();plantDetailObserver?.disconnect();if(location.hash==='#fuel'){window.BEGDFuel?.mount();return}if(location.hash==='#news'){window.BEGDNews?.mount();return}if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);if(live)window.BEGDDataStatus?.realtime(currentDayData,currentDayChartUpdatedAt);else window.BEGDDataStatus?.set(valid,[{label:'Workbook snapshot updated',value:data.updated_at||window.BEGD_STATIC_DATA?.generated_at},...(valid==='forecast'?[{label:'ERP data updated',value:currentDayData?.updated_at},{label:'Forecast issued',value:window.BEGDIndependentStudy?.freshness()}]:[])]);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.some(note=>!note.startsWith('L-Curve omitted:'))?'<p class="note" role="note">'+data.quality_notes.filter(note=>!note.startsWith('L-Curve omitted:')).map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='operations')setupEWICChartSize();if(valid==='operations')window.BEGDEWICMap?.mount(data.operations?.ewic||[],data.operations?.events||[],highlightEWICMoment);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(live||valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(live)$('#realtime-yesterday')?.addEventListener('change',event=>{realtimeYesterday=event.target.checked;render();$('#realtime-yesterday')?.focus({preventScroll:true})});if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){const scrollX=window.scrollX,scrollY=window.scrollY;requestAnimationFrame(()=>window.scrollTo(scrollX,scrollY));ewicChartObserver?.disconnect();plantDetailObserver?.disconnect();if(location.hash==='#fuel'){window.BEGDFuel?.mount();return}if(location.hash==='#news'){window.BEGDNews?.mount();return}if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);if(live)window.BEGDDataStatus?.realtime(currentDayData,currentDayChartUpdatedAt);else window.BEGDDataStatus?.set(valid,[{label:'Workbook snapshot updated',value:data.updated_at||window.BEGD_STATIC_DATA?.generated_at},...(valid==='forecast'?[{label:'ERP data updated',value:currentDayData?.updated_at},{label:'Forecast issued',value:window.BEGDIndependentStudy?.freshness()}]:[])]);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.some(note=>!note.startsWith('L-Curve omitted:'))?'<p class="note" role="note">'+data.quality_notes.filter(note=>!note.startsWith('L-Curve omitted:')).map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='operations')setupEWICChartSize();if(valid==='operations')window.BEGDEWICMap?.mount(data.operations?.ewic||[],data.operations?.events||[],highlightEWICMoment);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(live||valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(live)$('#realtime-yesterday')?.addEventListener('change',event=>{realtimeYesterday=event.target.checked;render();$('#realtime-yesterday')?.focus({preventScroll:true})});if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 document.addEventListener('change',event=>{
  const category=event.target.closest?.('[data-daily-event-category]');
  if(category){filterDailyEvents(category);return}
@@ -907,9 +907,12 @@ function setReportPickerBusy(busy){
  $('#report-date-controls').setAttribute('aria-busy',String(busy));updateReportDayNavigation();
 }
 function selectedReportStatus(){return data?'Loaded · operating '+data.date+' · published '+(data.published_date||'unavailable'):'No archived report loaded.';}
-async function selectOperatingDate(date){
+document.addEventListener('pointerdown',event=>{pendingOperatingDateScroll=event.target.closest?.('#previous-report,#next-report,#report-date,#load-report,#latest-report')?{x:window.scrollX,y:window.scrollY}:null},true);
+async function selectOperatingDate(date,preservedScroll=null){
  const status=$('#date-status');
  if(!window.BEGDViewCodec.validDate(date)){status.textContent='Choose a valid operating date (Bangladesh time).';return false;}
+ const clickScroll=pendingOperatingDateScroll;pendingOperatingDateScroll=null;
+ const scrollX=preservedScroll?.x??clickScroll?.x??window.scrollX,scrollY=preservedScroll?.y??clickScroll?.y??window.scrollY;
  const token=++operatingDateRequest;
  request++;setReportPickerBusy(true);status.textContent='Loading operating date '+date+'…';
  try{
@@ -926,9 +929,11 @@ async function selectOperatingDate(date){
   $('#report-date').value=data?.date||'';
   status.textContent=error.message+(data?' Still showing operating date '+data.date+'.':'');
   return false;
- }finally{if(token===operatingDateRequest)setReportPickerBusy(false);}
+ }finally{if(token===operatingDateRequest){setReportPickerBusy(false);requestAnimationFrame(()=>window.scrollTo(scrollX,scrollY));}}
 }
 async function selectLatestReport(){
+ const clickScroll=pendingOperatingDateScroll;pendingOperatingDateScroll=null;
+ const scrollX=clickScroll?.x??window.scrollX,scrollY=clickScroll?.y??window.scrollY;
  const token=++operatingDateRequest;
  request++;setReportPickerBusy(true);$('#date-status').textContent='Loading latest published report…';
  try{
@@ -942,16 +947,16 @@ async function selectLatestReport(){
   const report=await responseReport.json();
   if(token!==operatingDateRequest)return false;
   // Reuse exact-date loading so comparisons, the picker and URL stay in sync.
-  return await selectOperatingDate(report.date);
+  return await selectOperatingDate(report.date,{x:scrollX,y:scrollY});
  }catch(error){
   if(token===operatingDateRequest)$('#date-status').textContent=error.message+(data?' Still showing operating date '+data.date+'.':'');
   return false;
- }finally{if(token===operatingDateRequest)setReportPickerBusy(false);}
+ }finally{if(token===operatingDateRequest){setReportPickerBusy(false);requestAnimationFrame(()=>window.scrollTo(scrollX,scrollY));}}
 }
 $('#latest-report').addEventListener('click',selectLatestReport);
 function navigateReportDay(offset){const date=reportDayNavigationTarget(offset);if(date)selectOperatingDate(date);}
 $('#load-report').addEventListener('click',()=>selectOperatingDate($('#report-date').value));
-$('#report-date').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#load-report').disabled){event.preventDefault();selectOperatingDate(event.target.value)}});
+$('#report-date').addEventListener('keydown',event=>{if(event.key==='Enter'&&!$('#load-report').disabled){pendingOperatingDateScroll={x:window.scrollX,y:window.scrollY};event.preventDefault();selectOperatingDate(event.target.value)}});
 $('#previous-report').addEventListener('click',()=>navigateReportDay(-1));
 $('#next-report').addEventListener('click',()=>navigateReportDay(1));
 window.addEventListener('hashchange',render);
