@@ -74,6 +74,31 @@ class TrendsTests(unittest.TestCase):
         self.assertEqual(build_trends([],'now')['days'],[])
 
 
+    def test_briefing_peaks_and_ramps_use_reported_hourly_values_and_skip_gaps(self):
+        row=daily_summary({'date':'2026-10-18','summary':{'peak_demand_mw':120,'peak_generation_mw':130},
+            'hourly':[{'time':'17:00','demand_mw':100,'shed_mw':0},
+                      {'time':'18:00','demand_mw':140,'shed_mw':5},
+                      {'time':'20:00','demand_mw':300,'shed_mw':2}]})
+        self.assertEqual(row['peak_demand_mw'],120)
+        self.assertEqual(row['peak_demand_time'],None)
+        self.assertEqual(row['peak_generation_mw'],130)
+        self.assertEqual(row['ramp_up_mw'],40)
+        self.assertEqual(row['ramp_up_interval'],{'value':40,'from':'17:00','to':'18:00'})
+        self.assertIsNone(row['ramp_down_mw'])
+
+    def test_forecast_summary_matches_preceding_report_to_selected_operating_day(self):
+        reports=[
+            {'date':'2026-01-01','published_date':'2026-01-02','report_id':'1',
+             'forecast':{'date':'2026-01-02','demand_hourly':[
+                 {'time':'18:00','demand_mw':100},{'time':'19:00','demand_mw':150}]}},
+            {'date':'2026-01-02','published_date':'2026-01-03','report_id':'2',
+             'hourly':[{'time':'18:00','demand_mw':125},{'time':'19:00','demand_mw':120}]},
+        ]
+        row=build_trends(reports,'now')['days'][-1]
+        self.assertEqual(row['forecast_error_mw'],25)
+        self.assertEqual(row['forecast_peak_time_delta_minutes'],-60)
+
+
 class NationalRecoveryTests(unittest.TestCase):
     def test_ancillary_failure_does_not_discard_national_totals(self):
         import io
