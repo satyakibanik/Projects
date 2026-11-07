@@ -80,6 +80,10 @@ class TrendsTests(unittest.TestCase):
                       {'time':'20:00','demand_mw':300,'shed_mw':2}]})
         self.assertEqual(row['peak_demand_mw'],120)
         self.assertEqual(row['peak_demand_time'],None)
+        self.assertEqual(row['daytime_peak_demand_mw'],100)
+        self.assertEqual(row['daytime_peak_demand_time'],'17:00')
+        self.assertEqual(row['evening_peak_demand_mw'],300)
+        self.assertEqual(row['evening_peak_demand_time'],'20:00')
         self.assertEqual(row['peak_generation_mw'],130)
         self.assertEqual(row['ramp_up_mw'],40)
         self.assertEqual(row['ramp_up_interval'],{'value':40,'from':'17:00','to':'18:00'})
@@ -97,6 +101,10 @@ class TrendsTests(unittest.TestCase):
         self.assertEqual(row['forecast_error_mw'],25)
         self.assertIsNone(row['forecast_daytime_peak_time_delta_minutes'])
         self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
+        self.assertEqual(row['daytime_peak_demand_mw'],11900)
+        self.assertEqual(row['daytime_peak_demand_time'],'13:00')
+        self.assertEqual(row['evening_peak_demand_mw'],13000)
+        self.assertEqual(row['evening_peak_demand_time'],'18:00')
 
     def test_forecast_peak_time_deltas_use_separate_daytime_and_evening_windows(self):
         reports=[
