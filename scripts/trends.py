@@ -51,6 +51,17 @@ def time_minute(value):
     return parsed.hour * 60 + parsed.minute
 
 
+def peak_demand_window(rows, start, end):
+    candidates = [(time_minute(row.get('time')), number(row.get('demand_mw')), row)
+                  for row in rows]
+    candidates = [(minute, demand, row) for minute, demand, row in candidates
+                  if minute is not None and demand is not None and start <= minute < end]
+    if not candidates:
+        return None, None
+    minute, demand, _ = max(candidates, key=lambda item: item[1])
+    return demand, f'{minute // 60:02d}:{minute % 60:02d}'
+
+
 def peak_time_delta(actuals, forecasts, start, end):
     actual_rows = [(time_minute(row.get('time')), number(row.get('demand_mw')), row)
                    for row in actuals]
@@ -107,6 +118,13 @@ def daily_summary(report, forecast=None):
     if peak_demand is None and demand_rows:
         peak_demand = max(number(row.get('demand_mw')) for row in demand_rows)
         peak_rows = [row for row in demand_rows if number(row.get('demand_mw')) == peak_demand]
+    daylight = daylight_times(report['date'])
+    daytime_peak_demand, daytime_peak_time = (None, None)
+    evening_peak_demand, evening_peak_time = (None, None)
+    if daylight:
+        sunrise, sunset = daylight
+        daytime_peak_demand, daytime_peak_time = peak_demand_window(demand_rows, sunrise, sunset)
+        evening_peak_demand, evening_peak_time = peak_demand_window(demand_rows, sunset, 1440)
     forecast = forecast or {}
     plant_energy = {}
     for plant in report.get('plants', []):
@@ -126,6 +144,10 @@ def daily_summary(report, forecast=None):
         'peak_demand_mw': peak_demand,
         'peak_generation_mw': number(summary.get('peak_generation_mw')),
         'peak_demand_time': peak_rows[0].get('time') if peak_rows else None,
+        'daytime_peak_demand_mw': daytime_peak_demand,
+        'daytime_peak_demand_time': daytime_peak_time,
+        'evening_peak_demand_mw': evening_peak_demand,
+        'evening_peak_demand_time': evening_peak_time,
         'forecast_error_mw': forecast.get('error_mw'),
         'forecast_daytime_peak_time_delta_minutes': forecast.get('daytime_peak_time_delta_minutes'),
         'forecast_evening_peak_time_delta_minutes': forecast.get('evening_peak_time_delta_minutes'),
