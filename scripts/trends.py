@@ -55,6 +55,16 @@ def daily_summary(report, forecast=None):
         peak_demand = max(number(row.get('demand_mw')) for row in demand_rows)
         peak_rows = [row for row in demand_rows if number(row.get('demand_mw')) == peak_demand]
     forecast = forecast or {}
+    plant_energy = {}
+    for plant in report.get('plants', []):
+        name = ' '.join(str(plant.get('name') or '').split())
+        energy = number(plant.get('energy_mwh'))
+        if not name or energy is None:
+            continue
+        key = name.casefold()
+        if key not in plant_energy:
+            plant_energy[key] = {'name': name, 'energy_mwh': 0}
+        plant_energy[key]['energy_mwh'] = round(plant_energy[key]['energy_mwh'] + energy, 6)
     return {
         'date': report['date'], 'report_id': report.get('report_id'),
         'source_url': report.get('source_url'),
@@ -78,6 +88,7 @@ def daily_summary(report, forecast=None):
         'imports_mwh': number(summary.get('import_mwh')),
         'fuels': {key: number(value) for key, value in (report.get('fuels') or {}).items()},
         'routes': {route['name']: number(route.get('energy_mwh')) for route in report.get('imports', [])},
+        '_plant_energy_mwh': plant_energy,
     }
 
 
@@ -140,9 +151,32 @@ def build_trends(reports, generated_at):
         }
     end = max(selected)
     start = end - dt.timedelta(days=364)
-    return {'generated_at': generated_at, 'end_date': end.isoformat(),
-            'days': [daily_summary(selected[day][1], forecast_metrics.get(day.isoformat()))
-                     for day in sorted(selected) if day >= start]}
+    summaries = [daily_summary(selected[day][1], forecast_metrics.get(day.isoformat()))
+                 for day in sorted(selected) if day >= start]
+    for index, row in enumerate(summaries):
+        previous = summaries[index - 1] if index else None
+        current_imports, previous_imports = row.get('imports_mwh'), previous and previous.get('imports_mwh')
+        row['imports_drop_mwh'] = (round(max(0, previous_imports - current_imports), 6)
+                                   if previous_imports is not None and current_imports is not None else None)
+        current_plants = row.get('_plant_energy_mwh', {})
+        previous_plants = previous.get('_plant_energy_mwh', {}) if previous else {}
+        changes = []
+        for key in current_plants.keys() & previous_plants.keys():
+            current = current_plants[key]
+            before = previous_plants[key]
+            changes.append({'name': current['name'], 'change_mwh': round(current['energy_mwh'] - before['energy_mwh'], 6),
+                            'current_mwh': current['energy_mwh'], 'previous_mwh': before['energy_mwh']})
+        rise = max((change for change in changes if change['change_mwh'] > 0),
+                   key=lambda change: change['change_mwh'], default=None)
+        drop = min((change for change in changes if change['change_mwh'] < 0),
+                   key=lambda change: change['change_mwh'], default=None)
+        row['plant_output_rise_mwh'] = rise['change_mwh'] if rise else 0 if previous else None
+        row['plant_output_rise_detail'] = rise
+        row['plant_output_drop_mwh'] = abs(drop['change_mwh']) if drop else 0 if previous else None
+        row['plant_output_drop_detail'] = drop
+    for row in summaries:
+        row.pop('_plant_energy_mwh', None)
+    return {'generated_at': generated_at, 'end_date': end.isoformat(), 'days': summaries}
 
 
 def extract_trend_workbook(content, item):

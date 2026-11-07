@@ -73,7 +73,6 @@ class TrendsTests(unittest.TestCase):
         self.assertEqual(result['days'][0]['date'],'2025-10-19')
         self.assertEqual(build_trends([],'now')['days'],[])
 
-
     def test_briefing_peaks_and_ramps_use_reported_hourly_values_and_skip_gaps(self):
         row=daily_summary({'date':'2026-10-18','summary':{'peak_demand_mw':120,'peak_generation_mw':130},
             'hourly':[{'time':'17:00','demand_mw':100,'shed_mw':0},
@@ -97,6 +96,24 @@ class TrendsTests(unittest.TestCase):
         row=build_trends(reports,'now')['days'][-1]
         self.assertEqual(row['forecast_error_mw'],25)
         self.assertEqual(row['forecast_peak_time_delta_minutes'],-60)
+
+    def test_import_and_plant_output_changes_compare_previous_available_report(self):
+        reports=[
+            {'date':'2026-01-01','published_date':'2026-01-02','report_id':'1',
+             'summary':{'import_mwh':1000}, 'plants':[
+                 {'name':'Plant A','energy_mwh':100},{'name':'Plant B','energy_mwh':200}]},
+            {'date':'2026-01-03','published_date':'2026-01-04','report_id':'2',
+             'summary':{'import_mwh':600}, 'plants':[
+                 {'name':'Plant A','energy_mwh':400},{'name':'Plant B','energy_mwh':50}]},
+        ]
+        days=build_trends(reports,'now')['days']
+        self.assertIsNone(days[0]['imports_drop_mwh'])
+        self.assertEqual(days[1]['imports_drop_mwh'],400)
+        self.assertEqual(days[1]['plant_output_rise_mwh'],300)
+        self.assertEqual(days[1]['plant_output_rise_detail']['name'],'Plant A')
+        self.assertEqual(days[1]['plant_output_drop_mwh'],150)
+        self.assertEqual(days[1]['plant_output_drop_detail']['name'],'Plant B')
+        self.assertNotIn('_plant_energy_mwh',days[1])
 
 
 class NationalRecoveryTests(unittest.TestCase):
