@@ -19,13 +19,13 @@
  function evaluate(report,days,forecastReport=null,costDays=[]){
   const costByDate=new Map(costDays.filter(row=>!row.calculated&&finite(row.total_bdt)).map(row=>[row.date,row.total_bdt]));
   const historyDays=days.map(day=>({...day,reported_fuel_cost_bdt:costByDate.get(day.date)}));
-  const date=report.date,prev=previousDay(historyDays,date),currentDay=historyDays.find(day=>day.date===date)||null,selected=metrics(report,forecastReport,costDays,currentDay),rows=[];
+  const date=report.date,prev=previousDay(historyDays,date),currentDay=historyDays.find(day=>day.date===date)||null,selected=metrics(report,forecastReport,costDays,currentDay),rows=[];const peakMinute=selected.values.peak_demand_time_minute,peakDaylight=root.BEGDDaylight?.times(date),peakPeriod=peakMinute===null?'Peak-demand':!peakDaylight?'Peak-demand':peakMinute<peakDaylight.sunrise?'Overnight':peakMinute<peakDaylight.sunset?'Daytime':'Evening',peakDemandTimeName=`${peakPeriod} peak-demand time`;
   for(const [key,name,unit,type,target,view] of SPECS){
    const value=selected.values[key];if(!finite(value))continue;
    const hist=historyWindow(historyDays,date,d=>historicalValue(d,key));
    const result=assess(value,hist.map(d=>historicalValue(d,key)),type);
    const previous=prev?historicalValue(prev,key):null;
-   rows.push({key,name,unit,type,target,view,value,previous,source:SOURCE_BY_KEY[key],...result,
+   rows.push({key,name:key==='peak_demand_time_minute'?peakDemandTimeName:name,unit,type,target,view,value,previous,source:SOURCE_BY_KEY[key],...result,
     detail:key==='ramp_up_mw'?selected.up:key==='ramp_down_mw'?selected.down:key==='plant_output_drop_mwh'?currentDay?.plant_output_drop_detail:key==='plant_output_rise_mwh'?currentDay?.plant_output_rise_detail:null,
     peakTime:key==='peak_demand_mw'?selected.peakTime:null});
   }
