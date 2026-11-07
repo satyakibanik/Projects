@@ -14,6 +14,59 @@ def number(value):
     return round(value, 6) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value >= 0 else None
 
 
+def daylight_times(date):
+    """Estimated sunrise and sunset at Dhaka, returned as BST minutes after midnight."""
+    if not isinstance(date, str):
+        return None
+    try:
+        day = dt.date.fromisoformat(date)
+    except ValueError:
+        return None
+    if day.isoformat() != date:
+        return None
+    year_start = dt.date(day.year, 1, 1)
+    year_days = (dt.date(day.year + 1, 1, 1) - year_start).days
+    ordinal = day.timetuple().tm_yday
+    g = 2 * math.pi / year_days * (ordinal - 1)
+    equation = 229.18 * (.000075 + .001868 * math.cos(g) - .032077 * math.sin(g)
+                         - .014615 * math.cos(2*g) - .040849 * math.sin(2*g))
+    decl = (.006918 - .399912 * math.cos(g) + .070257 * math.sin(g)
+            - .006758 * math.cos(2*g) + .000907 * math.sin(2*g)
+            - .002697 * math.cos(3*g) + .00148 * math.sin(3*g))
+    radians = math.pi / 180
+    lat = 23.8103 * radians
+    argument = math.cos(90.833 * radians) / (math.cos(lat) * math.cos(decl)) - math.tan(lat) * math.tan(decl)
+    if not -1 <= argument <= 1:
+        return None
+    hour_angle = math.degrees(math.acos(argument))
+    noon = 720 - 4 * 90.4125 - equation + 360
+    return noon - 4 * hour_angle, noon + 4 * hour_angle
+
+
+def time_minute(value):
+    try:
+        parsed = dt.datetime.strptime(value, '%H:%M')
+    except (TypeError, ValueError):
+        return None
+    return parsed.hour * 60 + parsed.minute
+
+
+def peak_time_delta(actuals, forecasts, start, end):
+    actual_rows = [(time_minute(row.get('time')), number(row.get('demand_mw')), row)
+                   for row in actuals]
+    forecast_rows = [(time_minute(row.get('time')), number(row.get('demand_mw')), row)
+                     for row in forecasts]
+    actual_rows = [(minute, demand, row) for minute, demand, row in actual_rows
+                   if minute is not None and demand is not None and start <= minute < end]
+    forecast_rows = [(minute, demand, row) for minute, demand, row in forecast_rows
+                     if minute is not None and demand is not None and start <= minute < end]
+    if not actual_rows or not forecast_rows:
+        return None
+    actual_peak = max(actual_rows, key=lambda item: item[1])
+    forecast_peak = max(forecast_rows, key=lambda item: item[1])
+    return actual_peak[0] - forecast_peak[0]
+
+
 def temperature(value):
     """A signed Celsius reading; missing and non-finite values remain unavailable."""
     return round(value, 6) if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) else None
@@ -74,7 +127,8 @@ def daily_summary(report, forecast=None):
         'peak_generation_mw': number(summary.get('peak_generation_mw')),
         'peak_demand_time': peak_rows[0].get('time') if peak_rows else None,
         'forecast_error_mw': forecast.get('error_mw'),
-        'forecast_peak_time_delta_minutes': forecast.get('peak_time_delta_minutes'),
+        'forecast_daytime_peak_time_delta_minutes': forecast.get('daytime_peak_time_delta_minutes'),
+        'forecast_evening_peak_time_delta_minutes': forecast.get('evening_peak_time_delta_minutes'),
         'ramp_up_mw': (largest_ramp(1) or {}).get('value'),
         'ramp_up_interval': largest_ramp(1),
         'ramp_down_mw': (largest_ramp(-1) or {}).get('value'),
@@ -133,21 +187,16 @@ def build_trends(reports, generated_at):
             continue
         actual_peak = max(actuals, key=lambda row: number(row['demand_mw']))
         predicted = next((row for row in points if row['time'] == actual_peak['time']), None)
-        predicted_peak = max(points, key=lambda row: number(row['demand_mw']))
-        try:
-            actual_time = dt.datetime.strptime(actual_peak['time'], '%H:%M')
-            forecast_time = dt.datetime.strptime(predicted_peak['time'], '%H:%M')
-        except (TypeError, ValueError):
-            time_delta = None
-        else:
-            time_delta = int((actual_time - forecast_time).total_seconds() / 60)
-            if time_delta > 720:
-                time_delta -= 1440
-            elif time_delta < -720:
-                time_delta += 1440
+        daylight = daylight_times(day.isoformat())
+        daytime_delta = evening_delta = None
+        if daylight:
+            sunrise, sunset = daylight
+            daytime_delta = peak_time_delta(actuals, points, sunrise, sunset)
+            evening_delta = peak_time_delta(actuals, points, sunset, 1440)
         forecast_metrics[day.isoformat()] = {
             'error_mw': number(actual_peak['demand_mw']) - number(predicted['demand_mw']) if predicted else None,
-            'peak_time_delta_minutes': time_delta,
+            'daytime_peak_time_delta_minutes': daytime_delta,
+            'evening_peak_time_delta_minutes': evening_delta,
         }
     end = max(selected)
     start = end - dt.timedelta(days=364)

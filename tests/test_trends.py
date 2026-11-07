@@ -95,7 +95,25 @@ class TrendsTests(unittest.TestCase):
         ]
         row=build_trends(reports,'now')['days'][-1]
         self.assertEqual(row['forecast_error_mw'],25)
-        self.assertEqual(row['forecast_peak_time_delta_minutes'],-60)
+        self.assertIsNone(row['forecast_daytime_peak_time_delta_minutes'])
+        self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
+
+    def test_forecast_peak_time_deltas_use_separate_daytime_and_evening_windows(self):
+        reports=[
+            {'date':'2026-11-05','published_date':'2026-11-06','report_id':'1',
+             'forecast':{'date':'2026-11-06','demand_hourly':[
+                 {'time':'00:00','demand_mw':16000},
+                 {'time':'13:00','demand_mw':12000},
+                 {'time':'19:00','demand_mw':14000},
+                 {'time':'22:30','demand_mw':13900}]}},
+            {'date':'2026-11-06','published_date':'2026-11-07','report_id':'2',
+             'hourly':[{'time':'13:00','demand_mw':11900},
+                       {'time':'18:00','demand_mw':13000},
+                       {'time':'20:00','demand_mw':12800}]},
+        ]
+        row=build_trends(reports,'now')['days'][-1]
+        self.assertEqual(row['forecast_daytime_peak_time_delta_minutes'],0)
+        self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
 
     def test_import_and_plant_output_changes_compare_previous_available_report(self):
         reports=[
