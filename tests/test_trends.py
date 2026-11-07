@@ -95,7 +95,8 @@ class TrendsTests(unittest.TestCase):
         ]
         row=build_trends(reports,'now')['days'][-1]
         self.assertEqual(row['forecast_error_mw'],25)
-        self.assertEqual(row['forecast_peak_time_delta_minutes'],-60)
+        self.assertIsNone(row['forecast_daytime_peak_time_delta_minutes'])
+        self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
 
     def test_forecast_peak_time_deltas_use_separate_daytime_and_evening_windows(self):
         reports=[
