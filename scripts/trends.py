@@ -127,7 +127,6 @@ def daily_summary(report, forecast=None):
         'peak_generation_mw': number(summary.get('peak_generation_mw')),
         'peak_demand_time': peak_rows[0].get('time') if peak_rows else None,
         'forecast_error_mw': forecast.get('error_mw'),
-        'forecast_peak_time_delta_minutes': forecast.get('peak_time_delta_minutes'),
         'forecast_daytime_peak_time_delta_minutes': forecast.get('daytime_peak_time_delta_minutes'),
         'forecast_evening_peak_time_delta_minutes': forecast.get('evening_peak_time_delta_minutes'),
         'ramp_up_mw': (largest_ramp(1) or {}).get('value'),
@@ -188,14 +187,6 @@ def build_trends(reports, generated_at):
             continue
         actual_peak = max(actuals, key=lambda row: number(row['demand_mw']))
         predicted = next((row for row in points if row['time'] == actual_peak['time']), None)
-        predicted_peak = max(points, key=lambda row: number(row['demand_mw']))
-        try:
-            actual_time = time_minute(actual_peak.get('time'))
-            forecast_time = time_minute(predicted_peak.get('time'))
-        except (TypeError, ValueError):
-            time_delta = None
-        else:
-            time_delta = actual_time - forecast_time if actual_time is not None and forecast_time is not None else None
         daylight = daylight_times(day.isoformat())
         daytime_delta = evening_delta = None
         if daylight:
@@ -204,7 +195,6 @@ def build_trends(reports, generated_at):
             evening_delta = peak_time_delta(actuals, points, sunset, 1440)
         forecast_metrics[day.isoformat()] = {
             'error_mw': number(actual_peak['demand_mw']) - number(predicted['demand_mw']) if predicted else None,
-            'peak_time_delta_minutes': time_delta,
             'daytime_peak_time_delta_minutes': daytime_delta,
             'evening_peak_time_delta_minutes': evening_delta,
         }
