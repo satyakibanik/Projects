@@ -80,6 +80,10 @@ class TrendsTests(unittest.TestCase):
                       {'time':'20:00','demand_mw':300,'shed_mw':2}]})
         self.assertEqual(row['peak_demand_mw'],120)
         self.assertEqual(row['peak_demand_time'],None)
+        self.assertEqual(row['daytime_peak_demand_mw'],100)
+        self.assertEqual(row['daytime_peak_demand_time'],'17:00')
+        self.assertEqual(row['evening_peak_demand_mw'],300)
+        self.assertEqual(row['evening_peak_demand_time'],'20:00')
         self.assertEqual(row['peak_generation_mw'],130)
         self.assertEqual(row['ramp_up_mw'],40)
         self.assertEqual(row['ramp_up_interval'],{'value':40,'from':'17:00','to':'18:00'})
@@ -114,6 +118,10 @@ class TrendsTests(unittest.TestCase):
         row=build_trends(reports,'now')['days'][-1]
         self.assertEqual(row['forecast_daytime_peak_time_delta_minutes'],0)
         self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
+        self.assertEqual(row['daytime_peak_demand_mw'],11900)
+        self.assertEqual(row['daytime_peak_demand_time'],'13:00')
+        self.assertEqual(row['evening_peak_demand_mw'],13000)
+        self.assertEqual(row['evening_peak_demand_time'],'18:00')
 
     def test_import_and_plant_output_changes_compare_previous_available_report(self):
         reports=[
