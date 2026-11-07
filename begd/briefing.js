@@ -37,7 +37,7 @@
    rows.some(r=>r.severity==='UNUSUAL')?'UNUSUAL':anomalous?'WATCH':'TYPICAL';
   let headline;
   if(status==='INSUFFICIENT DATA')headline='This briefing is limited by historical coverage for '+date+'.';
-  else if(anomalous){const top=rows.find(r=>['EXTREME','UNUSUAL','WATCH'].includes(r.severity));headline=`${top.name} was ${top.severity.toLowerCase()} at ${fmt(top.value)} ${top.unit} on ${date}.`;}
+  else if(anomalous){const top=rows.find(r=>['EXTREME','UNUSUAL','WATCH'].includes(r.severity)),direction=top.value>=top.median?'above':'below',selectedValue=top.type==='time'?clockFmt(top.value):fmt(top.value),medianValue=top.type==='time'?clockFmt(top.median):fmt(top.median);headline=`${top.name} was ${top.severity.toLowerCase()} at ${selectedValue} ${top.unit}, ${direction} its recent median of ${medianValue} ${top.unit} across ${top.count} earlier reports.`;}
   else headline=`The evaluated indicators were within their recent ranges for ${date}.`;
   return {date,previousDate:prev?.date||null,status,headline,rows:rows.slice(0,5),allRows:rows,
    baselineStart:days.filter(d=>d.date<date&&Date.parse(d.date+'T00:00:00Z')>=Date.parse(date+'T00:00:00Z')-MAX_DAYS*86400000).sort((a,b)=>a.date.localeCompare(b.date))[0]?.date||null,baselineEnd:prev?.date||null};
