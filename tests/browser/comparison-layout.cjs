@@ -8,11 +8,21 @@ const {serve,fixture}=require('./fixture-site.cjs');
   for(const width of [390,1213])for(const theme of ['light','dark']){
    const context=await browser.newContext({viewport:{width,height:858},isMobile:width===390,hasTouch:width===390});
    const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+   let selectedDate='2026-10-29';
    const report=date=>({...fixture.report,report_id:date,date,published_date:date});
    await page.route('**/*',route=>{
     const u=new URL(route.request().url());
-    if(u.pathname==='/api/report')return route.fulfill({json:report(u.searchParams.get('date')||'2026-10-29')});
+    if(u.pathname==='/api/report'){
+     selectedDate=u.searchParams.get('date')||u.searchParams.get('id')||selectedDate;
+     return route.fulfill({json:report(selectedDate)});
+    }
     if(u.pathname==='/api/reports')return route.fulfill({json:{reports:['2026-10-29','2026-10-28','2026-10-27'].map(date=>({id:date,date,operating_date:date,published_date:date})),complete:true}});
+    if(u.pathname==='/api/neighbor'&&u.searchParams.get('offset')==='-1'){
+     const previous=new Date(selectedDate+'T00:00:00Z');previous.setUTCDate(previous.getUTCDate()-1);
+     const previousDate=previous.toISOString().slice(0,10),selected=report(previousDate);
+     selected.forecast={...fixture.report.forecast,date:selectedDate};
+     return route.fulfill({json:selected});
+    }
     return serve(route);
    });
    await page.goto('https://begd.test/begd/index.html?v=2&date=2026-10-29&compare=2026-10-03,2026-10-27#operations');
@@ -54,7 +64,18 @@ const {serve,fixture}=require('./fixture-site.cjs');
     })),true,`${width} ${theme} ${style}: regional date keys must stay compact`);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    }
-   assert.deepEqual(errors,[]);console.log('PASS comparison layout',width,theme,'distinct colors, compact legends, stable date arrows/load/Enter/latest');
+   await page.locator('nav a[href="#overview"]').click();
+   await page.waitForTimeout(600);
+   await page.evaluate(()=>window.scrollTo(0,1000));await page.waitForTimeout(100);
+   const overviewScrollBefore=await page.evaluate(()=>scrollY);
+   const previousButton=await page.locator('#previous-report').boundingBox();
+   await page.mouse.click(previousButton.x+previousButton.width/2,previousButton.y+previousButton.height/2);
+   await page.waitForFunction(()=>document.querySelector('#report-date').value==='2026-10-28'&&document.querySelector('#report-date-controls').getAttribute('aria-busy')==='false');
+   await page.waitForFunction(()=>document.querySelector('#content').innerText.includes('Forecasted demand · previous day file'));
+   await page.waitForTimeout(100);
+   const overviewScrollAfter=await page.evaluate(()=>scrollY);
+   assert(Math.abs(overviewScrollAfter-overviewScrollBefore)<=8,`${width} ${theme}: overview redraw jumped ${overviewScrollBefore} → ${overviewScrollAfter}`);
+   assert.deepEqual(errors,[]);console.log('PASS comparison layout',width,theme,'distinct colors, compact legends, stable date arrows/load/Enter/latest and deep Overview scroll');
    await context.close();
   }
  }finally{await browser.close()}
