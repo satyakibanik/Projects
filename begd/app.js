@@ -848,7 +848,7 @@ function hideInsightNavigation(){
  const links=[...document.querySelectorAll('nav a')].filter(item=>item!==link);
  const count=document.querySelector('.nav-caption span');
  if(count)count.textContent=`01—${String(links.length).padStart(2,'0')}`;
- links.forEach((item,index)=>{const number=item.querySelector('span');if(number)number.textContent=String(index+1).padStart(2,'0')});
+ links.forEach((item,index)=>{const number=item.querySelector?.('span');if(number)number.textContent=String(index+1).padStart(2,'0')});
 }
 hideInsightNavigation();
 function renderInsightView(){
