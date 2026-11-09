@@ -23,7 +23,7 @@ test('hourly H_COI weights only online units by present capacity',()=>{
  ]});
  assert.equal(rows.length,2);
  assert.equal(rows[0].h,(100*5.5+300*4.5)/400);
- assert.equal(rows[0].capacity,400);assert.equal(rows[0].plants,2);
+ assert.equal(rows[0].capacity,400);assert.equal(rows[0].plants,3);assert.equal(rows[0].fuelCounts.Other,1);
  assert.equal(rows[1].h,(300*4.5+50*0)/350);
 });
 
@@ -70,6 +70,6 @@ test('Long Term calendar rolling means stay connected across report-date gaps',(
  }
  const mean7=api.rollingCalendar(points,7);
  assert.equal(mean7.values[24*3],6);
- assert.equal(mean7.counts[24*3],24);
+ assert.equal(mean7.counts[24*3],25);
  assert.ok(mean7.values.slice(24*3).every(Number.isFinite));
 });

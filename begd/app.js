@@ -845,7 +845,7 @@ const renderDashboard=render;
 function hideInsightNavigation(){
  const link=document.querySelector('nav a[href="#insight"]');
  if(!link)return;
- link.remove();
+ link.parentNode.removeChild(link);
  const links=[...document.querySelectorAll('nav a')];
  const count=document.querySelector('.nav-caption span');
  if(count)count.textContent=`01—${String(links.length).padStart(2,'0')}`;
