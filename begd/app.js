@@ -844,7 +844,7 @@ function render(){const scrollX=operatingDateScrollLock?.x??window.scrollX,scrol
 const renderDashboard=render;
 function hideInsightNavigation(){
  const link=document.querySelector('nav a[href="#insight"]');
- if(!link)return;
+ if(!link||typeof document.querySelectorAll!=='function')return;
  const links=[...document.querySelectorAll('nav a')].filter(item=>item!==link);
  const count=document.querySelector('.nav-caption span');
  if(count)count.textContent=`01—${String(links.length).padStart(2,'0')}`;
