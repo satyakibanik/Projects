@@ -11,7 +11,8 @@ const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:pat
   await context.route('**/*',serve);
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('https://begd.test/begd/index.html?v=2&fuelWindow=all#fuel');
-  const history=page.locator('section.fuel-panel').filter({has:page.getByRole('heading',{name:'Gas supply over time',exact:true})});
+  const history=page.locator('section.fuel-panel').filter({has:page.getByRole('heading',{name:'Gas supply by source over time',exact:true})});
+  const powerHistory=page.locator('section.fuel-panel').filter({has:page.getByRole('heading',{name:'Gas supply & demand in the power sector',exact:true})});
   const surface=history.locator('[data-fuel-surface]');await surface.waitFor();
   assert.equal(await history.locator('svg *').count()<40,true);
   assert.equal(await page.locator('#fuel-daily-table tbody').count(),0);
@@ -28,11 +29,15 @@ const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:pat
   assert.equal(await history.locator('.fuel-daily-line').count(),2);
   assert.equal(await page.locator('[data-fuel-series]').count(),0);
   assert.equal(await page.locator('.fuel-average-line').count(),0);
-  await page.getByRole('button',{name:'365d',exact:true}).click();
+  await history.getByRole('button',{name:'365d',exact:true}).click();
   assert.equal(await history.locator('[data-fuel-surface]').count(),1);
-  await page.getByRole('button',{name:'30d',exact:true}).click();
+  await history.getByRole('button',{name:'30d',exact:true}).click();
   assert.ok(await history.locator('[data-fuel-point]').count()>0);
-  await page.getByRole('button',{name:'Long term',exact:true}).click();
+  await history.getByRole('button',{name:'Long term',exact:true}).click();
+  await powerHistory.getByRole('button',{name:'90d',exact:true}).click();
+  assert.equal(await powerHistory.getByRole('button',{name:'90d',exact:true}).getAttribute('aria-pressed'),'true');
+  assert.equal(await history.getByRole('button',{name:'Long term',exact:true}).getAttribute('aria-pressed'),'true');
+  assert.equal(new URL(page.url()).searchParams.get('fuelPowerWindow'),'90');
   await page.locator('#fuel-daily-table > summary').click();
   await page.locator('#fuel-daily-table tbody tr').first().waitFor();
   assert.equal(await page.locator('#fuel-daily-table tbody tr').count(),data.gas.length);

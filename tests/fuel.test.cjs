@@ -56,10 +56,33 @@ async function rendered(search=''){
 }
 test('Gas starts with its daily snapshot, then both histories and a collapsed table',async()=>{
  const {html}=await rendered('?fuelWindow=365');
- const headings=['Latest available day','Gas supply by source','Where the gas went','Gas supply over time','Gas supply & demand in the power sector','Daily gas data'];
+ const headings=['Latest available day','Gas supply by source','Where the gas went','Gas supply by source over time','Gas supply by destination over time','Gas supply & demand in the power sector','Daily gas data'];
  const positions=headings.map(h=>html.indexOf(h));assert.ok(positions.every(n=>n>=0));assert.deepEqual(positions,positions.slice().sort((a,b)=>a-b));
  assert.match(html,/<details class="fuel-panel" id="fuel-daily-table">/);
  assert.match(html,/of 365 calendar days reported/);assert.doesNotMatch(html,/Barapukuria coal production/);
+ assert.match(html,/SUPPLY SNAPSHOT · MMCFD/);assert.match(html,/Gas supplied to power plants/);
+ assert.match(html,/data-destination-window="30" aria-pressed="true"/);
+ assert.match(html,/Power plants/);assert.match(html,/Fertilizer factories/);assert.match(html,/Other consumers/);
+ assert.doesNotMatch(html,/fuel-collection-warning/);
+});
+test('destination history has an independent calendar window and uses reported end-use values',async()=>{
+ const {html}=await rendered('?fuelWindow=7&fuelDestinationWindow=90');
+ const destination=html.slice(html.indexOf('Gas supply by destination over time'),html.indexOf('04 / POWER-SECTOR GAS HISTORY'));
+ assert.match(destination,/data-destination-window="90" aria-pressed="true"/);
+ assert.match(destination,/90 calendar days reported/);
+ assert.match(destination,/Power plants/);assert.match(destination,/Fertilizer factories/);assert.match(destination,/Other consumers/);
+ assert.match(destination,/gas-destination-history:power_supply/);
+});
+test('power-sector history has its own duration selector',async()=>{
+ const {html}=await rendered('?fuelWindow=7&fuelDestinationWindow=60&fuelPowerWindow=90');
+ const source=html.slice(html.indexOf('Gas supply by source over time'),html.indexOf('Gas supply by destination over time'));
+ const destination=html.slice(html.indexOf('Gas supply by destination over time'),html.indexOf('04 / POWER-SECTOR GAS HISTORY'));
+ const power=html.slice(html.indexOf('04 / POWER-SECTOR GAS HISTORY'),html.indexOf('Daily gas data'));
+ assert.match(source,/data-fuel-window="7" aria-pressed="true"/);
+ assert.match(destination,/data-destination-window="60" aria-pressed="true"/);
+ assert.match(power,/data-power-window="90" aria-pressed="true"/);
+ assert.match(power,/90 calendar days reported/);
+ assert.match(power,/gas-power:power_supply/);
 });
 test('Coal contains only annual data and its collapsed table, preserving a direct Coal URL',async()=>{
  const {html,subtitle}=await rendered('?fuelType=coal&fuelWindow=7&fuelDate=2026-10-27');
