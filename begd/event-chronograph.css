@@ -165,7 +165,7 @@
 .event-chronograph-panel .event-chronograph-list-item.is-selected{background:#ffdc4226}
 
 /* Compact lanes and full-width details with three quiet desktop columns. */
-.event-lanes-scroll{max-height:160px}
+.event-lanes-scroll{max-height:none;overflow-y:visible}
 .event-context-tooltip{display:grid;grid-template-columns:minmax(0,1.5fr) repeat(2,minmax(0,1fr));gap:10px 28px;width:100%;max-width:none;max-height:none;padding:15px 18px;box-shadow:none}
 .event-tooltip-summary{min-width:0}
 .event-tooltip-summary>strong{display:block;font:600 13px/1.5 var(--body);color:#173b55}
@@ -173,7 +173,7 @@
 .event-tooltip-endpoint>b{margin:0 0 8px}
 .event-context-tooltip .event-tooltip-note{grid-column:1/-1;margin-top:0}
 @media(max-width:760px){
- .event-lanes-scroll{max-height:140px}
+ .event-lanes-scroll{max-height:none;overflow-y:visible}
  .event-context-tooltip{grid-template-columns:minmax(0,1fr);gap:10px;padding:12px 14px}
  .event-context-tooltip .event-tooltip-endpoint{padding-top:8px}
 }
