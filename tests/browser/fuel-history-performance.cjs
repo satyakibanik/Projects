@@ -2,6 +2,7 @@ const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
 const {serve}=require('./fixture-site.cjs');
 const data=require('../../begd/fuel-data.json');
+const latestLabel=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}).format(new Date(data.gas.at(-1).date+'T08:00:00+06:00'));
 const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:path').join(require('node:os').tmpdir(),'begd-fuel-fast-history.png');
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
@@ -15,14 +16,14 @@ const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:pat
   assert.equal(await history.locator('svg *').count()<40,true);
   assert.equal(await page.locator('#fuel-daily-table tbody').count(),0);
   await surface.focus();await page.keyboard.press('End');
-  assert.match(await history.locator('.fuel-tooltip').textContent(),/4 Nov 2026/);
+  assert.match(await history.locator('.fuel-tooltip').textContent(),new RegExp(latestLabel));
   assert.doesNotMatch(await history.locator('.fuel-tooltip').textContent(),/30-day avg/);
   if(width===390){const b=await surface.boundingBox();await page.touchscreen.tap(b.x+b.width/2,b.y+b.height/2);assert.equal(await history.locator('.fuel-tooltip').isVisible(),true);}
   await page.keyboard.press('Home');assert.match(await history.locator('.fuel-tooltip').textContent(),/12 Jan 2020/);
   await page.keyboard.press('ArrowRight');assert.match(await history.locator('.fuel-tooltip').textContent(),/17 Jan 2020/);
   const box=await surface.boundingBox();
   await page.mouse.move(box.x+box.width,box.y+box.height/2);
-  assert.match(await history.locator('.fuel-tooltip').textContent(),/4 Nov 2026/);
+  assert.match(await history.locator('.fuel-tooltip').textContent(),new RegExp(latestLabel));
   await history.locator('[data-fuel-layer="gas-supply:lng"]').uncheck();
   assert.equal(await history.locator('.fuel-daily-line').count(),2);
   assert.equal(await page.locator('[data-fuel-series]').count(),0);

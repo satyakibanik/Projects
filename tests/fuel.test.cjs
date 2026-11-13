@@ -1,6 +1,6 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
-const {selectRows,difference,plot,tooltipHTML,historyNote}=require('../begd/fuel.js');
+const {selectRows,difference,plot,tooltipHTML,historyNote,collectionMessage}=require('../begd/fuel.js');
 const rows=[{date:'2026-10-01',total:10},{date:'2026-10-03',total:20},{date:'2026-10-04',total:30}];
 test('fuel ranges use calendar days, not report count, and never borrow future data',()=>{
  assert.deepEqual(selectRows(rows,'2026-10-03','2').map(r=>r.date),['2026-10-03']);
@@ -27,6 +27,22 @@ test('history notes distinguish saved coverage, calendar gaps and observed-day a
  assert.match(html,/1 Oct 2026–4 Oct 2026/);assert.match(html,/3 published daily reports spanning 4 calendar days/);
  assert.match(html,/3 of 7 calendar days reported/);assert.match(html,/4 missing days/);assert.match(html,/Total: 20.0 MMCFD/);
  assert.match(html,/Earlier dates are unavailable in this saved dataset/);
+});
+
+test('collection warning identifies timed-out official sources and retained data date',()=>{
+ const warning=collectionMessage([
+  {source:'petrobangla',status:'failed',errors:['curl exit 28: connection timed out']},
+  {source:'gtcl',status:'failed',errors:['curl exit 28: connection timed out']},
+  {source:'coal',status:'failed',errors:['curl exit 28: connection timed out']},
+ ],'2026-11-04');
+ assert.match(warning,/Connection to Petrobangla, GTCL, and BCMCL timed out/);
+ assert.match(warning,/Showing saved official gas data through 4 Nov 2026/);
+ assert.match(warning,/role="status"/);
+});
+test('collection warning handles partial non-timeout failures and hides when collection succeeds',()=>{
+ assert.match(collectionMessage([{source:'gtcl',status:'partial',errors:['unrecognized PDF layout']}],'2026-11-04'),/Collection did not complete for GTCL/);
+ assert.equal(collectionMessage([{source:'petrobangla',status:'ok'},{source:'gtcl',status:'ok'},{source:'coal',status:'ok'}],'2026-11-04'),'');
+ assert.equal(collectionMessage(undefined,'2026-11-04'),'');
 });
 
 async function rendered(search=''){

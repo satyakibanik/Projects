@@ -16,6 +16,17 @@
   return rows.filter(r=>r.date<=end&&Date.parse(r.date+'T00:00:00Z')>=start);
  }
  function difference(primary,check){return primary&&check?primary.total-check.total:null;}
+ function collectionMessage(status,latestDate){
+  const failed=(Array.isArray(status)?status:[]).filter(source=>source.status!=='ok');
+  if(!failed.length)return '';
+  const names={petrobangla:'Petrobangla',gtcl:'GTCL',coal:'BCMCL'};
+  const sources=failed.map(source=>names[source.source]||'an official source');
+  const sourceText=sources.length===1?sources[0]:sources.length===2?`${sources[0]} and ${sources[1]}`:`${sources.slice(0,-1).join(', ')}, and ${sources.at(-1)}`;
+  const errors=failed.flatMap(source=>source.errors||[]).join(' ');
+  const timedOut=/timed?\s*out|timeout|curl exit 28/i.test(errors);
+  const reason=timedOut?`Connection to ${sourceText} timed out`:`Collection did not complete for ${sourceText}`;
+  return `<p class="fuel-collection-warning" role="status" style="margin:-12px 0 0;padding:11px 16px;background:color-mix(in srgb,var(--red) 10%,var(--surface));border-left:3px solid var(--red);color:var(--ink);font-size:12px;line-height:1.7">${reason}. Showing saved official gas data through ${label(latestDate)}.</p>`;
+ }
  function pointTitle(row){return row.label||row.year||label(row.date);}
  function tooltipHTML(row,fields,unit='MMCFD',precision=1){
   return `<strong>${esc(pointTitle(row))}</strong>${fields.map(([key,name,color])=>`<div><span><i style="background:${esc(row.color||color)}"></i>${esc(name)}</span><b>${fmt(row[key],precision)} ${esc(unit)}</b></div>`).join('')}`;
@@ -115,7 +126,7 @@
   const production=[['state','State companies','State','#21856c'],['ioc','International operators','IOCs','#4f82cf'],['lng','Regasified LNG','LNG','#bd7921']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
   const allocation=[['power_supply','Power plants','Power'],['fertilizer_supply','Fertilizer factories','Fertilizer'],['others','Other consumers','Others']].map(([key,name,short])=>({date:end,label:name,year:short,value:row[key],layerKey:key}));
   return `<div class="fuel-toolbar"><div><span class="fuel-eyebrow">01 / DAILY GAS SNAPSHOT</span><h2>${end===bundle.gas.at(-1).date?'Latest available day':'Selected reporting day'}</h2></div><label>Gas period ending<select id="fuel-date" aria-label="Gas period ending">${bundle.gas.slice().reverse().map(r=>`<option value="${r.date}" ${r.date===end?'selected':''}>${label(r.date)}</option>`).join('')}</select></label></div>
-   <p class="fuel-coverage" role="status"><strong>${label(end)} · ${age} day${age===1?'':'s'} since period end</strong> · Saved official data, not live gas telemetry.${bundle.source_status?.some(s=>s.status!=='ok')?' Latest collection is incomplete; saved reports retained.':''}</p>
+   <p class="fuel-coverage" role="status"><strong>${label(end)} · ${age} day${age===1?'':'s'} since period end</strong> · Saved official data, not live gas telemetry.</p>${collectionMessage(bundle.source_status,bundle.gas.at(-1)?.date)}
    <div class="fuel-kpis">${[['Total gas supply',row.total,'Including regasified LNG'],['Domestic gas',row.domestic,'State companies + international operators'],['Regasified LNG',row.lng,fmt(100*row.lng/row.total)+'% of total gas supply'],['Gas supplied to power',row.power_supply,fmt(100*row.power_supply/row.power_demand)+'% of reported gas demand']].map(([title,value,note])=>`<div class="fuel-kpi"><div>${title}</div><strong>${fmt(value)} <small>MMCFD</small></strong><p>${note}</p></div>`).join('')}</div>
    <div class="fuel-columns"><section class="fuel-panel"><div class="fuel-panel-title"><h2>Gas supply by source</h2><a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Daily report ↗</a></div>${plot(production,[['value','Gas supplied','#21856c']],{bars:true,categorical:true,chartKey:'gas-source'})}<p class="fuel-note">State companies: ${fmt(row.state)} · international operators: ${fmt(row.ioc)} · regasified LNG: ${fmt(row.lng)} MMCFD. Domestic production sums the published state and IOC subtotals; rounding can leave a 0.1 MMCFD difference.</p></section><section class="fuel-panel"><h2>Where the gas went</h2>${plot(allocation,[['value','Gas distributed','#21856c']],{bars:true,categorical:true,chartKey:'gas-distribution'})}<p class="fuel-note">Power plants: ${fmt(row.power_supply)} · fertilizer: ${fmt(row.fertilizer_supply)} · others: ${fmt(row.others)} MMCFD. Distribution total: ${fmt(row.distribution_total)} MMCFD. Published distribution and production totals can differ; this is not a calculated system loss.</p></section></div>
    <section class="fuel-panel"><span class="fuel-eyebrow">02 / GAS HISTORY</span><h2>Gas supply over time</h2><div class="fuel-windows" role="group" aria-label="Gas time window">${windows.map(v=>`<button type="button" data-fuel-window="${v}" aria-pressed="${range===v}">${v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">The selected window applies to both time-series charts below. Daily snapshot and data table retain reported daily values.</p>${plot(rows,series,{chartKey:'gas-supply'})}${historyNote(bundle.gas,rows,end,range,series)}</section>
@@ -182,7 +193,7 @@
  function saveLayers(){const u=new URL(location.href);if(hiddenLayers.size)u.searchParams.set('fuelHide',[...hiddenLayers].sort().join(','));else u.searchParams.delete('fuelHide');history.replaceState(history.state,'',u);draw();}
  function update(key,value,focusTab=false){const u=new URL(location.href);u.searchParams.set(key,value);history.replaceState(null,'',u);draw(focusTab);}
  root.BEGDFuel={mount,selectRows,difference};
- if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,nearestRow};
+ if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,nearestRow,collectionMessage};
  if(typeof document!=='undefined'){
   window.addEventListener('popstate',()=>{if(location.hash==='#fuel')mount();});
   if(location.hash==='#fuel')mount();

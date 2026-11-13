@@ -28,8 +28,36 @@ class FuelTests(unittest.TestCase):
         args = run.call_args.args[0]
         self.assertIn('--show-error', args)
         self.assertIn('=https', args)
+        self.assertEqual(args[args.index('--retry')+1], '3')
+        self.assertIn('--retry-all-errors', args)
+        self.assertEqual(args[args.index('--retry-max-time')+1], '150')
+        self.assertEqual(args[args.index('--connect-timeout')+1], '15')
+        self.assertIn('--ipv4', args)
+        self.assertIn('--http1.1', args)
         self.assertNotIn('--insecure', args)
         self.assertNotIn('-k', args)
+
+    def test_collection_reports_latest_parsed_date_and_new_rows(self):
+        seed = ROOT / 'begd/fuel-data.json'
+        original = json.loads(seed.read_text())
+        latest = original['gas'][-1]
+        next_day = dict(latest, date='2099-01-02', url='https://objectstorage.ap-dcc-gazipur-1.oraclecloud15.com/new.pdf')
+        listing = f'<a href="{next_day["url"]}">report</a>'.encode()
+
+        def fetched(url):
+            if url == fuel.SOURCES['coal']:
+                return '<td>2025-2026</td><td>762,752.630</td>'.encode()
+            if url.endswith('.pdf'):
+                return b'pdf'
+            return listing
+
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(fuel, 'fetch', side_effect=fetched), \
+                patch.object(fuel, 'parse_report', return_value=next_day):
+            result = fuel.collect(seed, Path(tmp))
+        gas = next(row for row in result['source_status'] if row['source']=='petrobangla')
+        self.assertEqual(gas['latest_report_date'], '2099-01-02')
+        self.assertEqual(gas['new_reports'], 1)
 
     def test_collection_retains_structured_timeout_and_saved_reports(self):
         seed = ROOT / 'begd/fuel-data.json'

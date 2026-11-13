@@ -49,7 +49,10 @@ def fetch(url):
     # Use the platform trust store; never disable certificate verification.
     try:
         return subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location',
-                               '--proto', '=https', '--proto-redir', '=https', '--max-time', '35',
+                               '--ipv4', '--http1.1', '--connect-timeout', '15',
+                               '--retry', '3', '--retry-all-errors', '--retry-delay', '2',
+                               '--retry-max-time', '150',
+                               '--proto', '=https', '--proto-redir', '=https', '--max-time', '45',
                                '--max-filesize', '15000000', url], check=True, capture_output=True).stdout
     except subprocess.CalledProcessError as exc:
         raise FuelFetchError(url, exc.returncode, exc.stderr) from exc
@@ -267,6 +270,7 @@ def collect(seed, cache, page_size=10):
     for source, key in [('petrobangla', 'gas'), ('gtcl', 'checks')]:
         failures = []
         details = []
+        previous_latest = max((row['date'] for row in bundle[key]), default=None)
         try:
             listing = fetch(SOURCES[source]+f'&page_size={page_size}').decode()
             extensions = r'(?:pdf|xlsx)' if source == 'gtcl' else 'pdf'
@@ -288,7 +292,11 @@ def collect(seed, cache, page_size=10):
                 rows = [r for r in pool.map(read, urls) if r]
             bundle[key], conflicts = merge_reports(bundle[key], rows)
             failures.extend('Conflicting published reports for ' + r['date'] for r in conflicts)
-            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows), errors=failures, error_details=details, conflicts=conflicts))
+            latest = max((row['date'] for row in bundle[key]), default=None)
+            new_reports = sum(row['date'] > previous_latest for row in rows) if previous_latest else len(rows)
+            status.append(dict(source=source, status='partial' if failures else 'ok', reports=len(rows),
+                               latest_report_date=latest, new_reports=new_reports,
+                               errors=failures, error_details=details, conflicts=conflicts))
         except Exception as exc:
             status.append(dict(source=source, status='failed', errors=[str(exc)], error_details=[error_details(exc)]))
     try:
