@@ -73,6 +73,17 @@ test('destination history has an independent calendar window and uses reported e
  assert.match(destination,/Power plants/);assert.match(destination,/Fertilizer factories/);assert.match(destination,/Other consumers/);
  assert.match(destination,/gas-destination-history:power_supply/);
 });
+test('power-sector history has its own duration selector',async()=>{
+ const {html}=await rendered('?fuelWindow=7&fuelDestinationWindow=60&fuelPowerWindow=90');
+ const source=html.slice(html.indexOf('Gas supply by source over time'),html.indexOf('Gas supply by destination over time'));
+ const destination=html.slice(html.indexOf('Gas supply by destination over time'),html.indexOf('04 / POWER-SECTOR GAS HISTORY'));
+ const power=html.slice(html.indexOf('04 / POWER-SECTOR GAS HISTORY'),html.indexOf('Daily gas data'));
+ assert.match(source,/data-fuel-window="7" aria-pressed="true"/);
+ assert.match(destination,/data-destination-window="60" aria-pressed="true"/);
+ assert.match(power,/data-power-window="90" aria-pressed="true"/);
+ assert.match(power,/90 calendar days reported/);
+ assert.match(power,/gas-power:power_supply/);
+});
 test('Coal contains only annual data and its collapsed table, preserving a direct Coal URL',async()=>{
  const {html,subtitle}=await rendered('?fuelType=coal&fuelWindow=7&fuelDate=2026-10-27');
  assert.match(html,/id="fuel-tab-coal"[^>]*aria-selected="true"/);
