@@ -105,7 +105,7 @@
     const fitted=options.fitTrend&&series.length===1?linearTrend(rows,series[0]):null;
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
     const narrow=root.innerWidth<600;
-    const W=narrow?420:840,H=options.compact?180:narrow?280:300,L=narrow?68:80,R=secondary.length?80:18,T=25,B=40;
+    const W=narrow?420:840,H=options.compact?180:narrow?280:300,L=narrow?96:80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
