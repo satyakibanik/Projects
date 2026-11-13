@@ -165,10 +165,10 @@
     const timedReadings = readingsWithTime(rows);
     const laneInfo = showEventLanes ? lanePositions(events) : { count: 0, positions: new Map() };
     const height = showEventLanes ? 248 + laneInfo.count * eventLaneStep : 190;
-    const ticks = Array.from({ length: values.length ? 5 : 0 }, (_, index) => {
+    const ticks = values.length ? `<text class="event-plot-y-unit" x="${left - 12}" y="${top - 8}" text-anchor="end">MW</text>` + Array.from({ length: 5 }, (_, index) => {
       const value = min + (max - min) * index / 4, y = yAt(value);
       return `<line class="event-plot-grid" x1="${left}" x2="${right}" y1="${y}" y2="${y}"/><text class="event-plot-y-label" x="${left - 12}" y="${y + 3}" text-anchor="end">${Math.round(value).toLocaleString('en-US')}</text>`;
-    }).join('');
+    }).join('') : '';
     const grid = [0, 4, 8, 12, 16, 20, 24].map(hour => {
       const x = xFor(hour * 60);
       return `<line class="event-time-grid" x1="${x}" x2="${x}" y1="${top}" y2="${chartHeight - 35}"/><text class="event-time-label" x="${x}" y="164" text-anchor="${hour === 0 ? 'start' : hour === 24 ? 'end' : 'middle'}">${String(hour).padStart(2, '0')}:00</text>`;
