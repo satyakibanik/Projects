@@ -43,7 +43,7 @@ test('news mounts without a workbook and limits the main feed to 20 cards',async
  vm.runInNewContext(source,{window,location:{hash:'#news'},document:{body:{classList:{add(){}}},querySelector:n,getElementById:n,querySelectorAll:()=>[]},setInterval(){},fetch:async()=>({ok:true,json:async()=>d})});
  await window.BEGDNews.mount();
  assert.equal((n('#news-results').innerHTML.match(/<article class="news-card/g)||[]).length,20);
- assert.match(n('#news-results').innerHTML,/News page 5/);assert.match(n('#content').innerHTML,/Last successful refresh/);
+ assert.match(n('#content').innerHTML,/data-news-language="en" aria-pressed="true">English/);assert.match(n('#news-results').innerHTML,/News page 4/);assert.match(n('#content').innerHTML,/Last successful refresh/);
 });
 
 test('automatic collection status distinguishes partial and failed refreshes',()=>{
