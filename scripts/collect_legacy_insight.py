@@ -26,9 +26,11 @@ ARCHIVE = ("https://erp.powergrid.gov.bd/w/report/"
            "eyJpdiI6IldsU2ZQTGkvbkRnQU9FMjZ5UHhmeGc9PSIsInZhbHVlIjoiQzhONVl5ZGxRY3E3T3ZVNCtLZGt1Zz09IiwibWFjIjoiN2JiNTI5MzNhOWIxZDVjY2NkMmFlZWU4ZDU1N2I4OWZlYjNlZWM1ZGU4NzRiNWU4ZjQ3ZDc1ODRlMTk3MDc0YyIsInRhZyI6IiJ9/show_report")
 REPORTS_URL = "https://erp.powergrid.gov.bd/web/files/download?location=erp%2Fweb%2Freport_docs%2F{}&title={}"
 LAST_PAGE = 156  # Verified from the public report listing pagination.
-CATEGORY_ORDER = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Wind", "Dual fuel", "Other"]
+CATEGORY_ORDER = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Wind",
+                  "Gas + HSD", "Gas + HFO", "Nuclear", "Other"]
 INERTIA = {"Gas": 5.5, "Coal": 4.5, "HFO": 0.7, "HSD": 0.7,
-           "Hydro": 3.5, "Solar": 0.0, "Wind": 0.0, "Dual fuel": 5.5}
+           "Hydro": 3.5, "Solar": 0.0, "Wind": 0.0, "Gas + HSD": 5.5,
+           "Gas + HFO": 5.5, "Nuclear": 5.5}
 
 
 def request_bytes(url, attempts=4):
@@ -133,13 +135,15 @@ def clean_fuel(value):
     parts = [part.strip() for part in re.split(r"[/+&]", raw) if part.strip()]
     if len(parts) > 1:
         normalized = set(parts)
-        if "gas" in normalized and normalized.issubset({"gas", "hfo", "hsd"}):
-            return "Dual fuel", 5.5
+        if normalized == {"gas", "hfo"}:
+            return "Gas + HFO", INERTIA["Gas + HFO"]
+        if normalized == {"gas", "hsd"}:
+            return "Gas + HSD", INERTIA["Gas + HSD"]
         return "Other", None
     fuel = parts[0] if parts else ""
     aliases = {"gas": "Gas", "coal": "Coal", "hfo": "HFO", "fo": "HFO",
                "hsd": "HSD", "hydro": "Hydro", "hydroelectric": "Hydro",
-               "solar": "Solar", "wind": "Wind"}
+               "solar": "Solar", "wind": "Wind", "nuclear": "Nuclear"}
     category = aliases.get(fuel, "Other")
     return category, INERTIA.get(category)
 

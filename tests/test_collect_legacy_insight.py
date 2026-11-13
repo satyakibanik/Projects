@@ -12,10 +12,11 @@ SPEC.loader.exec_module(collector)
 
 class LegacyInsightCollectorTests(unittest.TestCase):
     def test_fuel_assumptions_normalize_dual_fuel_order(self):
-        self.assertEqual(collector.clean_fuel("Gas / HFO"), ("Dual fuel", 5.5))
-        self.assertEqual(collector.clean_fuel("HSD/Gas"), ("Dual fuel", 5.5))
+        self.assertEqual(collector.clean_fuel("Gas / HFO"), ("Gas + HFO", 5.5))
+        self.assertEqual(collector.clean_fuel("HSD/Gas"), ("Gas + HSD", 5.5))
         self.assertEqual(collector.clean_fuel("Furnace Oil"), ("HFO", 0.7))
         self.assertEqual(collector.clean_fuel("Hydro"), ("Hydro", 3.5))
+        self.assertEqual(collector.clean_fuel("Nuclear"), ("Nuclear", 5.5))
 
     def test_hour_labels_keep_day_end_and_drop_half_hour_points(self):
         self.assertEqual(collector.time_label("24:00"), "24:00")
