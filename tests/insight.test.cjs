@@ -8,10 +8,12 @@ function insight(){
  return window.BEGDInsight;
 }
 
-test('fuel assumptions include order-independent dual-fuel labels',()=>{
+test('fuel assumptions include editable defaults, nuclear and order-independent dual-fuel labels',()=>{
  const api=insight();
- for(const [fuel,value] of [['Solar',0],['Wind',0],['HFO',.7],['HSD',.7],['Gas/HFO',5.5],['HFO/Gas',5.5],['Hydro',3.5],['Coal',4.5],['Gas',5.5],['Gas/HSD',5.5],['HSD/Gas',5.5]])assert.equal(api.inertiaFor({fuel}),value,fuel);
+ for(const [fuel,value] of [['Solar',0],['Wind',0],['HFO',.7],['HSD',.7],['Gas/HFO',5.5],['HFO/Gas',5.5],['Hydro',3.5],['Coal',4.5],['Gas',5.5],['Gas/HSD',5.5],['HSD/Gas',5.5],['Nuclear',5.5]])assert.equal(api.inertiaFor({fuel}),value,fuel);
  assert.equal(api.inertiaFor({fuel:'—'}),undefined);
+ assert.equal(api.setInertia('nuclear',6.25),true);assert.equal(api.inertiaFor({fuel:'Nuclear'}),6.25);
+ assert.equal(api.setInertia('nuclear',-1),false);assert.equal(api.setInertia('unknown',4),false);
 });
 
 test('hourly H_COI weights only online units by present capacity',()=>{
@@ -31,15 +33,33 @@ test('pre-aggregated legacy reports preserve fuel counts and capacity-weighted c
  const window={BEGD_INSIGHT_HISTORY:{categories:['Gas','Coal','HFO','HSD','Hydro','Solar','Wind','Dual fuel','Other']}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/insight.js'),'utf8'),{window});
  const point=window.BEGDInsight.hourly({date:'2019-10-27',insight_hourly:[['01:00',3,4.5,200,[1,1,1,0,0,0,0,0,0],[100,100,50,0,0,0,0,0,0]]]} )[0];
- assert.equal(point.h,4.5);assert.equal(point.capacity,200);assert.equal(point.plants,3);
+ assert.equal(point.h,(100*5.5+100*4.5+50*.7)/250);assert.equal(point.capacity,250);assert.equal(point.plants,3);
  assert.deepEqual(JSON.parse(JSON.stringify(point.fuelCounts)),{Gas:1,Coal:1,HFO:1});
  assert.equal(point.fuelNumerator.Gas,550);assert.equal(point.fuelNumerator.Coal,450);assert.equal(point.fuelNumerator.HFO,35);
 });
 
+test('custom assumptions recalculate raw and compact history instead of using stored H_COI',()=>{
+ const api=insight();api.setInertia('gas',4.2);api.setInertia('coal',6.1);
+ const raw=api.hourly({date:'2026-11-06',plant_units:[
+  {fuel:'Gas',present_capacity_mw:100,hourly:[{time:'00:00',mw:1}]},
+  {fuel:'Coal',present_capacity_mw:300,hourly:[{time:'00:00',mw:1}]},
+ ]})[0];
+ assert.equal(raw.h,(100*4.2+300*6.1)/400);
+ const window={BEGD_INSIGHT_HISTORY:{categories:['Gas','Coal']}};
+ vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/insight.js'),'utf8'),{window});
+ window.BEGDInsight.setInertia('gas',4.2);window.BEGDInsight.setInertia('coal',6.1);
+ const compact=window.BEGDInsight.hourly({date:'2020-01-01',insight_hourly:[['00:00',2,99,400,[1,1],[100,300]]]})[0];
+ assert.equal(compact.h,(100*4.2+300*6.1)/400);
+});
+
 test('Insight markup discloses MW proxy, MVA limitation, threshold and sources',()=>{
- const html=insight().markup({date:'2026-11-06'});
+ const api=insight(),html=api.markup({date:'2026-11-06'});
  for(const text of ['P</em><sub>cap,curr','MVA','H</em> = 3 s','ieeexplore.ieee.org','researchgate.net'])assert.ok(html.includes(text),text);
  assert.ok(html.includes('Long Term'));
+ assert.equal((html.match(/data-inertia-delta="-0\.1"/g)||[]).length,10);
+ assert.equal((html.match(/data-inertia-delta="0\.1"/g)||[]).length,10);
+ assert.match(html,/data-inertia-key="nuclear" value="5\.5"/);
+ api.setInertia('gas',6.25);assert.match(api.markup({date:'2026-11-07'}),/data-inertia-key="gas" value="6\.25"/);
 });
 
 test('Insight stays directly addressable but is removed from dashboard navigation',()=>{
