@@ -28,11 +28,11 @@ const screenshotPath=process.env.BEGD_FUEL_HISTORY_SCREENSHOT||require('node:pat
   assert.equal(await history.locator('.fuel-daily-line').count(),2);
   assert.equal(await page.locator('[data-fuel-series]').count(),0);
   assert.equal(await page.locator('.fuel-average-line').count(),0);
-  await page.getByRole('button',{name:'365d',exact:true}).click();
+  await history.getByRole('button',{name:'365d',exact:true}).click();
   assert.equal(await history.locator('[data-fuel-surface]').count(),1);
-  await page.getByRole('button',{name:'30d',exact:true}).click();
+  await history.getByRole('button',{name:'30d',exact:true}).click();
   assert.ok(await history.locator('[data-fuel-point]').count()>0);
-  await page.getByRole('button',{name:'Long term',exact:true}).click();
+  await history.getByRole('button',{name:'Long term',exact:true}).click();
   await page.locator('#fuel-daily-table > summary').click();
   await page.locator('#fuel-daily-table tbody tr').first().waitFor();
   assert.equal(await page.locator('#fuel-daily-table tbody tr').count(),data.gas.length);
