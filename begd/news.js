@@ -1,6 +1,6 @@
 (function(){
  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- let bundle,pending,query='',language='all',publisher='',group='',page=1;
+ let bundle,pending,query='',language='en',publisher='',group='',page=1;
  const dateLabel=date=>new Date(date+'T12:00:00+06:00').toLocaleDateString('en-GB',{day:'numeric',month:'long',year:'numeric',timeZone:'Asia/Dhaka'});
  const sourceName=a=>({'BSS':'Bangladesh Sangbad Sangstha','UNB':'United News of Bangladesh'}[a.source]||a.source);
  const postingLabel=a=>a.publication_time_verified&&a.published_at?new Date(a.published_at).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit',hour12:true,timeZone:'Asia/Dhaka'})+' BST':'';
@@ -35,7 +35,7 @@
  document.querySelectorAll('[data-news-language]').forEach(button=>button.addEventListener('click',()=>{language=button.dataset.newsLanguage;page=1;updateLanguage();results();}));
  document.querySelector('#news-publisher').addEventListener('change',e=>{publisher=e.target.value;page=1;results()});
  document.querySelector('#news-group').addEventListener('change',e=>{group=e.target.value;page=1;results()});
- document.querySelector('#news-reset').addEventListener('click',()=>{query='';language='all';publisher='';group='';page=1;document.querySelector('#news-query').value='';updateLanguage();document.querySelector('#news-publisher').value='';document.querySelector('#news-group').value='';results();});results();
+ document.querySelector('#news-reset').addEventListener('click',()=>{query='';language='en';publisher='';group='';page=1;document.querySelector('#news-query').value='';updateLanguage();document.querySelector('#news-publisher').value='';document.querySelector('#news-group').value='';results();});results();
  }
  function updateLanguage(){document.querySelectorAll('[data-news-language]').forEach(button=>button.setAttribute('aria-pressed',String(button.dataset.newsLanguage===language)));}
  function results(){
