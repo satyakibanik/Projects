@@ -120,7 +120,7 @@
     const secondaryMax=secondaryValues.length?Math.ceil(Math.max(...secondaryValues)+2):1;
     const secondaryY=v=>H-B-(v-secondaryMin)/(secondaryMax-secondaryMin)*(H-T-B);
     const seriesY=(value,s)=>s.axis==='right'?secondaryY(value):y(value);
-    let body=`<text class="trends-axis-unit" x="${L-9}" y="${T-8}" text-anchor="end">${escape(unit)}</text>`;
+    let body=`<text class="trends-axis-unit" x="${L-9}" y="${T-8}" text-anchor="start">${escape(unit)}</text>`;
     if(secondary.length){
       body+=`<g class="trends-secondary-axis" style="color:${escape(secondary[0].color)}" aria-label="${escape(secondary[0].name)}, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
       if(secondaryValues.length)for(let i=0;i<=4;i++){
