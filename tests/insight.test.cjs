@@ -38,6 +38,21 @@ test('hourly H_COI weights only online units by present capacity',()=>{
  assert.equal(rows[1].h,(300*4.5+50*0)/350);
 });
 
+test('hourly estimates largest-unit-loss RoCoF from post-trip stored energy',()=>{
+ const api=insight(),rows=api.hourly(scenarioReport()),point=rows.find(row=>row.time==='14:00'),scenario=api.simulateScenario(scenarioReport(),'14:00',{largestUnitTrip:true});
+ assert.equal(point.largestUnitName,'Gas Alpha');assert.equal(point.largestUnitMw,400);
+ assert.equal(point.postTripNumerator,scenario.scenario.numerator);
+ assert.equal(point.largestTripRoCoF,scenario.rocofHzS);
+});
+
+test('largest-unit-loss RoCoF chart renders hourly series and archival gaps honestly',()=>{
+ const api=insight(),points=api.hourly(scenarioReport()),html=api.rocofChart(points);
+ assert.match(html,/Estimated RoCoF with the loss of the largest online unit/);
+ assert.match(html,/Initial \|RoCoF\| · Hz\/s/);assert.match(html,/insight-rocof-line/);
+ const archival=[{date:'2020-01-01',time:'00:00',h:4.5,capacity:400,plants:2,fuelCounts:{},fuelCapacity:{},fuelNumerator:{},largestTripRoCoF:null}];
+ assert.match(api.rocofChart(archival),/Unit-level hourly output is unavailable/);
+});
+
 test('pre-aggregated legacy reports preserve fuel counts and capacity-weighted contributions',()=>{
  const window={BEGD_INSIGHT_HISTORY:{categories:['Gas','Coal','HFO','HSD','Hydro','Solar','Wind','Dual fuel','Other']}};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/insight.js'),'utf8'),{window});

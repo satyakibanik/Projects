@@ -66,6 +66,9 @@ nav a[href="#insight"]{display:none}
 .insight-rolling-line{fill:none;stroke:#7251a1;stroke-width:2.8;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
 .insight-rolling-line-7d{stroke:#138579;stroke-width:2.6}
 .insight-focus{fill:var(--surface);stroke:var(--blue);stroke-width:3;vector-effect:non-scaling-stroke}
+.insight-rocof-line{fill:none;stroke:#d8732f;stroke-width:2.3;stroke-linejoin:round;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.insight-rocof-focus{fill:var(--surface);stroke:#d8732f;stroke-width:3;vector-effect:non-scaling-stroke}
+.insight-secondary-section{display:grid;gap:12px;margin-top:24px;padding-top:22px;border-top:1px solid var(--line)}
 .insight-rolling-focus{fill:var(--surface);stroke:#7251a1;stroke-width:3;vector-effect:non-scaling-stroke}
 .insight-rolling-focus-7d{stroke:#138579}
 .insight-series-legend{display:flex;gap:14px;padding:9px 12px 0;color:var(--muted);font:11px var(--mono)}
