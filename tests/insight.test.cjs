@@ -8,6 +8,15 @@ function insight(){
  return window.BEGDInsight;
 }
 
+function scenarioReport(){return {date:'2026-11-12',plant_units:[
+ {name:'Gas Alpha',fuel:'Gas',present_capacity_mw:500,hourly:[{time:'14:00',mw:400},{time:'19:00',mw:420}]},
+ {name:'Coal Beta',fuel:'Coal',present_capacity_mw:300,hourly:[{time:'14:00',mw:250},{time:'19:00',mw:270}]},
+ {name:'Solar Gamma',fuel:'Solar',present_capacity_mw:100,hourly:[{time:'14:00',mw:80},{time:'19:00',mw:20}]},
+ ],imports:[
+  {name:'Bheramara HVDC',hourly:[{time:'14:00',mw:600},{time:'19:00',mw:550}]},
+  {name:'Tripura',hourly:[{time:'14:00',mw:100},{time:'19:00',mw:90}]},
+ ]};}
+
 test('fuel assumptions include editable defaults, nuclear and order-independent dual-fuel labels',()=>{
  const api=insight();
  for(const [fuel,value] of [['Solar',0],['Wind',0],['HFO',.7],['HSD',.7],['Gas/HFO',5.5],['HFO/Gas',5.5],['Hydro',3.5],['Coal',4.5],['Gas',5.5],['Gas/HSD',5.5],['HSD/Gas',5.5],['Nuclear',5.5]])assert.equal(api.inertiaFor({fuel}),value,fuel);
@@ -60,6 +69,41 @@ test('Insight markup discloses MW proxy, MVA limitation, threshold and sources',
  assert.equal((html.match(/data-inertia-delta="0\.1"/g)||[]).length,10);
  assert.match(html,/data-inertia-key="nuclear" value="5\.5"/);
  api.setInertia('gas',6.25);assert.match(api.markup({date:'2026-11-07'}),/data-inertia-key="gas" value="6\.25"/);
+});
+
+test('scenario lab exposes four presets and composable condition and contingency controls',()=>{
+ const html=insight().markup(scenarioReport());
+ for(const preset of ['largest','import','renewable','evening'])assert.match(html,new RegExp(`data-scenario-preset="${preset}"`));
+ for(const condition of ['actual','high-renewable','evening-peak'])assert.match(html,new RegExp(`name="insight-condition" value="${condition}"`));
+ assert.match(html,/id="insight-trip-largest"/);assert.match(html,/id="insight-import-loss"/);assert.match(html,/Bheramara HVDC/);
+});
+
+test('largest-unit trip removes the highest-output online generator at the selected hour',()=>{
+ const api=insight(),result=api.simulateScenario(scenarioReport(),'14:00',{largestUnitTrip:true});
+ assert.equal(result.largestUnit.name,'Gas Alpha');assert.equal(result.disturbanceMw,400);
+ assert.equal(result.baseline.h,(500*5.5+300*4.5)/900);
+ assert.equal(result.scenario.h,(300*4.5)/400);
+ assert.ok(result.rocofHzS>0);
+});
+
+test('import loss adds a power imbalance without assigning inertia to imports',()=>{
+ const api=insight(),result=api.simulateScenario(scenarioReport(),'14:00',{importLoss:true,importTarget:'largest'});
+ assert.deepEqual(JSON.parse(JSON.stringify(result.importRoutes.map(route=>route.name))),['Bheramara HVDC']);
+ assert.equal(result.disturbanceMw,600);assert.equal(result.scenario.h,result.baseline.h);
+ const expected=50*600/(2*result.scenario.numerator);assert.equal(result.rocofHzS,expected);
+});
+
+test('high-renewable condition proportionally replaces synchronous output and combines with both contingencies',()=>{
+ const api=insight(),condition=api.simulateScenario(scenarioReport(),'14:00',{condition:'high-renewable',highRenewableMw:200,solarSharePct:75});
+ assert.ok(condition.condition.h<condition.baseline.h);assert.ok(condition.condition.fuelCapacity.Solar>condition.baseline.fuelCapacity.Solar);assert.ok(condition.condition.fuelCapacity.Wind>0);
+ const combined=api.simulateScenario(scenarioReport(),'14:00',{condition:'high-renewable',highRenewableMw:200,largestUnitTrip:true,importLoss:true,importTarget:'largest'});
+ assert.equal(combined.events.length,2);assert.ok(combined.disturbanceMw>600);assert.ok(combined.scenario.h<combined.baseline.h);assert.ok(combined.rocofHzS>0);
+});
+
+test('evening peak removes solar and adds the configured thermal mix before a contingency',()=>{
+ const api=insight(),result=api.simulateScenario(scenarioReport(),'19:00',{condition:'evening-peak',eveningDemandIncreaseMw:1000,eveningThermalMw:1800,eveningGasSharePct:70,largestUnitTrip:true});
+ assert.equal(result.condition.fuelCapacity.Solar,undefined);assert.ok(result.condition.fuelCapacity.Gas>result.baseline.fuelCapacity.Gas);assert.ok(result.condition.fuelCapacity.Coal>result.baseline.fuelCapacity.Coal);
+ assert.equal(result.balanceDeltaMw,780);assert.equal(result.largestUnit.name,'Gas Alpha');assert.equal(result.disturbanceMw,420);
 });
 
 test('Insight stays directly addressable but is removed from dashboard navigation',()=>{
