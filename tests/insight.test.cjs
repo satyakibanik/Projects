@@ -49,6 +49,7 @@ test('largest-unit-loss RoCoF chart renders hourly series and archival gaps hone
  const api=insight(),points=api.hourly(scenarioReport()),html=api.rocofChart(points);
  assert.match(html,/Estimated RoCoF with the loss of the largest online unit/);
  assert.match(html,/Initial \|RoCoF\| · Hz\/s/);assert.match(html,/insight-rocof-line/);assert.match(html,/insight-hover-guide/);
+ assert.ok(html.indexOf('insight-hit')<html.indexOf('insight-hover-guide'));assert.ok(html.indexOf('insight-hover-guide')<html.indexOf('insight-rocof-focus'));
  assert.match(html,/How this RoCoF is calculated/);assert.match(html,/\|df\/dt\|/);assert.match(html,/Imports are assigned no inertia/);
  const scale=api.rocofScale([{largestTripRoCoF:.39},{largestTripRoCoF:.53}]);
  assert.ok(scale.min>0);assert.ok(scale.min<.39);assert.ok(scale.max>.53);
@@ -96,14 +97,14 @@ test('Insight markup discloses MW proxy, MVA limitation, threshold and sources',
  api.setInertia('gas',6.25);assert.match(api.markup({date:'2026-11-07'}),/data-inertia-key="gas" value="6\.25"/);
 });
 
-test('scenario lab exposes four presets and composable condition and contingency controls',()=>{
+test('scenario lab combines reported hour and modeled conditions without duplicate contingency presets',()=>{
  const html=insight().markup(scenarioReport());
- for(const preset of ['largest','import','renewable','evening'])assert.match(html,new RegExp(`data-scenario-preset="${preset}"`));
- assert.equal((html.match(/aria-pressed="false" data-scenario-preset=/g)||[]).length,4);
+ assert.doesNotMatch(html,/data-scenario-preset=/);assert.doesNotMatch(html,/insight-preset-grid/);
  for(const condition of ['actual','high-renewable','evening-peak'])assert.match(html,new RegExp(`name="insight-condition" value="${condition}"`));
  assert.match(html,/id="insight-trip-largest"/);assert.match(html,/id="insight-trip-unit-picker"/);assert.match(html,/top five generating units/);
- assert.match(html,/id="insight-hour-fieldset"/);assert.match(html,/id="insight-condition-fieldset"/);assert.match(html,/id="insight-preset-lock"/);
- assert.match(html,/id="insight-import-loss"/);assert.match(html,/Bheramara HVDC/);
+ assert.match(html,/id="insight-condition-fieldset"/);assert.match(html,/Reported operating hour/);assert.match(html,/Change the operating date above/);
+ assert.match(html,/id="insight-import-loss"/);assert.match(html,/id="insight-import-target-wrap"[^>]* hidden/);assert.match(html,/Bheramara HVDC/);
+ assert.doesNotMatch(html,/insight-scenario-summary/);
 });
 
 test('largest-unit trip removes the highest-output online generator at the selected hour',()=>{
