@@ -4,9 +4,9 @@
  const numberFormats=new Map(),dateFormat=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
  const fmt=(v,d=1)=>{if(!Number.isFinite(v))return '—';if(!numberFormats.has(d))numberFormats.set(d,new Intl.NumberFormat('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d}));return numberFormats.get(d).format(v);};
  const label=d=>dateFormat.format(new Date(d+'T08:00:00+06:00'));
- const series=[['domestic','Domestic gas','#21856c'],['lng','Regasified LNG','#bd7921'],['total','Total including LNG','#4f82cf']];
- const powerSeries=[['power_demand','Reported gas demand','#9a678e'],['power_supply','Gas supplied','#21856c']];
- const destinationSeries=[['power_supply','Power plants','#21856c'],['fertilizer_supply','Fertilizer factories','#4f82cf'],['others','Other consumers','#bd7921']];
+ const series=[['domestic','Domestic gas','#007f5f'],['lng','Regasified LNG','#c66a00'],['total','Total including LNG','#1e5aa8']];
+ const powerSeries=[['power_demand','Reported gas demand','#7a3e9d'],['power_supply','Gas supplied','#007f5f']];
+ const destinationSeries=[['power_supply','Power plants','#007f5f'],['fertilizer_supply','Fertilizer factories','#1e5aa8'],['others','Other consumers','#c66a00']];
  const windows=['7','30','60','90','365','all'];
  let bundle,pending,chartSequence=0;
  const charts=new Map();
@@ -41,14 +41,14 @@
   if(!rows.length)return '<p class="fuel-empty">No verified reports in this window. Choose another end date or a longer range.</p>';
   const W=950,H=290,L=130,R=28,T=24,B=48,precision=annual?3:1;
   const id='fuel-chart-'+chartSequence++,key=chartKey||id,title=fields.map(f=>f[1]).join(', ');
-  const layers=categorical?rows.map(r=>({id:key+':'+r.layerKey,name:r.label,color:r.color||fields[0][2]})):fields.map(([field,name,color])=>({id:key+':'+field,name,color}));
+  const layers=categorical?rows.map((r,index)=>({id:key+':'+r.layerKey,name:r.label,color:r.color||fields[0][2],pattern:index%3})):fields.map(([field,name,color],index)=>({id:key+':'+field,name,color,pattern:index%3}));
   const hiddenSet=new Set(hidden);
   if(categorical)rows=rows.filter(r=>!hiddenSet.has(key+':'+r.layerKey));
   else fields=fields.filter(([field])=>!hiddenSet.has(key+':'+field));
   const active=rows.length>0&&fields.length>0;
   const dense=!bars&&!annual&&!categorical&&rows.length>90;
   charts.set(id,{rows,fields,unit,precision,layers,key,dense,index:0});
-  let svg='';
+  let svg=`<defs>${layers.map((layer,index)=>{const patternId=`${id}-pattern-${index}`,stripe=layer.pattern===0?'':`<path d="M-2 2 2-2M0 8 8 0M6 10 10 6" stroke="#fff" stroke-opacity=".72" stroke-width="2"/>`,cross=layer.pattern===2?`<path d="M-2 6 2 10M0 0 8 8M6-2 10 2" stroke="#fff" stroke-opacity=".72" stroke-width="2"/>`:'';return `<pattern id="${patternId}" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${esc(layer.color)}"/>${stripe}${cross}</pattern>`}).join('')}</defs>`;
   if(active){
    const max=Math.max(1,...rows.flatMap(r=>fields.map(([field])=>Number.isFinite(r[field])?r[field]:0)))*1.12;
    const first=Date.parse(rows[0].date),last=Date.parse(rows.at(-1).date),multiYear=last-first>365*86400000;
@@ -56,17 +56,18 @@
    const y=value=>H-B-value/max*(H-T-B);
    for(let i=0;i<=4;i++){const value=max*i/4,yy=y(value);svg+=`<line class="fuel-grid" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-10}" y="${yy+4}" text-anchor="end">${annual&&value>=1000000?fmt(value/1000000,1)+'m':annual&&value>=1000?fmt(value/1000,0)+'k':fmt(value,0)}</text>`;}
    fields.forEach(([field,name,color],j)=>{
+    const layerIndex=layers.findIndex(layer=>layer.id===key+':'+field),patternId=`${id}-pattern-${layerIndex}`,layerKey=key+':'+field,dash=layerIndex%3===1?'7 3':layerIndex%3===2?'2 2':'';
     if(dense){
      const path=values=>{let d='',prev=null;values.forEach((value,i)=>{if(!Number.isFinite(value)){prev=null;return;}const r=rows[i],connected=prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000;d+=(connected?'L':'M')+x(r,i).toFixed(2)+','+y(value).toFixed(2)+' ';prev=r;});return d;};
-     svg+=`<path class="fuel-daily-line" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="1.5"/>`;
+     svg+=`<path class="fuel-daily-line" data-fuel-layer-shape="${esc(layerKey)}" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="2.5"${dash?` stroke-dasharray="${dash}"`:''}/>`;
      const reported=rows.map((r,i)=>Number.isFinite(r[field])?i:null).filter(i=>i!==null);
-     if(reported.length===1){const i=reported[0];svg+=`<circle cx="${x(rows[i],i)}" cy="${y(rows[i][field])}" r="2.5" fill="${color}"/>`;}
+     if(reported.length===1){const i=reported[0];svg+=`<circle data-fuel-layer-shape="${esc(layerKey)}" cx="${x(rows[i],i)}" cy="${y(rows[i][field])}" r="3.5" fill="${color}"/>`;}
      return;
     }
     let prev=null;
     rows.forEach((r,i)=>{if(!Number.isFinite(r[field])){prev=null;return;}const xx=x(r,i),yy=y(r[field]);
-     if(bars){const w=Math.min(180,(W-L-R)/rows.length*.68/fields.length);svg+=`<rect x="${xx+(j-fields.length/2)*w}" y="${yy}" width="${w-2}" height="${H-B-yy}" fill="${esc(r.color||color)}"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field],precision)} ${esc(unit)}</title></rect>`;}
-     else{if(prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000)svg+=`<line x1="${x(prev,i-1)}" y1="${y(prev[field])}" x2="${xx}" y2="${yy}" stroke="${color}" stroke-width="2.5"/>`;svg+=`<circle cx="${xx}" cy="${yy}" r="3.8" fill="${color}"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field])} ${esc(unit)}</title></circle>`;prev=r;}
+     if(bars){const w=Math.min(180,(W-L-R)/rows.length*.68/fields.length),shapeLayer=categorical?key+':'+r.layerKey:layerKey,barLayerIndex=categorical?layers.findIndex(layer=>layer.id===shapeLayer):layerIndex,fill=`url(#${id}-pattern-${Math.max(0,barLayerIndex)})`;svg+=`<rect data-fuel-layer-shape="${esc(shapeLayer)}" x="${xx+(j-fields.length/2)*w}" y="${yy}" width="${w-2}" height="${H-B-yy}" fill="${fill}" stroke="${esc(r.color||color)}" stroke-width=".6"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field],precision)} ${esc(unit)}</title></rect>`;}
+     else{if(prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000)svg+=`<line data-fuel-layer-shape="${esc(layerKey)}" x1="${x(prev,i-1)}" y1="${y(prev[field])}" x2="${xx}" y2="${yy}" stroke="${color}" stroke-width="3"${dash?` stroke-dasharray="${dash}"`:''}/>`;svg+=`<circle data-fuel-layer-shape="${esc(layerKey)}" cx="${xx}" cy="${yy}" r="4.2" fill="${color}" stroke="#fff" stroke-width="1.2"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field])} ${esc(unit)}</title></circle>`;prev=r;}
     });
    });
    const stride=Math.max(1,Math.ceil(rows.length/(annual?2:4)));
@@ -79,7 +80,7 @@
    });
   }else svg='<text class="fuel-no-layers" x="475" y="120" text-anchor="middle">No layers selected</text><text class="fuel-no-layers" x="475" y="180" text-anchor="middle">Select a layer below</text>';
   const actions=['gas-source','coal-production'].includes(key)?'':`<div class="fuel-layer-actions">${key==='gas-distribution'?'':'<span>Chart layers</span>'}<button type="button" data-fuel-layers="all" data-fuel-chart-id="${id}">All</button><button type="button" data-fuel-layers="none" data-fuel-chart-id="${id}">None</button></div>`;
-  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i style="background:${esc(layer.color)}"></i>${esc(layer.name)}</label>`).join('')}</div></div><p class="fuel-chart-help">Hover, tap or focus the chart to inspect exact daily values.</p>`;
+  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label data-fuel-layer-label="${esc(layer.id)}"><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i data-pattern="${layer.pattern}" style="--fuel-layer-color:${esc(layer.color)}"></i><span>${esc(layer.name)}</span></label>`).join('')}</div></div><p class="fuel-chart-help">Hover, tap or focus the chart to inspect exact daily values.</p>`;
  }
  function bindTooltips(){
   document.querySelectorAll('[data-fuel-chart]').forEach(chart=>{
@@ -109,6 +110,18 @@
    });
   });
  }
+ function bindLayerHighlights(){
+  document.querySelectorAll('[data-fuel-controls]').forEach(controls=>{
+   const chart=controls.previousElementSibling?.matches('[data-fuel-chart]')?controls.previousElementSibling:null;
+   if(!chart)return;
+   const clear=()=>chart.querySelectorAll('[data-fuel-layer-shape]').forEach(shape=>shape.classList.remove('is-highlighted','is-dimmed'));
+   controls.querySelectorAll('[data-fuel-layer-label]').forEach(label=>{
+    const highlight=()=>{const id=label.dataset.fuelLayerLabel;chart.querySelectorAll('[data-fuel-layer-shape]').forEach(shape=>{const active=shape.dataset.fuelLayerShape===id;shape.classList.toggle('is-highlighted',active);shape.classList.toggle('is-dimmed',!active);});};
+    label.addEventListener('pointerenter',highlight);label.addEventListener('pointerleave',clear);
+    label.addEventListener('focusin',highlight);label.addEventListener('focusout',event=>{if(!label.contains(event.relatedTarget))clear();});
+   });
+  });
+ }
  function historyNote(all,rows,end,range,fields){
   const available=all.filter(r=>fields.every(([key])=>Number.isFinite(r[key]))),first=available[0]?.date,last=available.at(-1)?.date;
   if(!first)return '<p class="fuel-note">No source history is available for these measures.</p>';
@@ -124,8 +137,8 @@
  function gasView(end,range,destinationRange,powerRange){
   const row=bundle.gas.find(r=>r.date===end),rows=selectRows(bundle.gas,end,range),destinationRows=selectRows(bundle.gas,end,destinationRange),powerRows=selectRows(bundle.gas,end,powerRange);
   const age=Math.max(0,Math.floor((Date.now()-Date.parse(end+'T08:00:00+06:00'))/86400000));
-  const production=[['state','State companies','State','#21856c'],['ioc','International operators','IOCs','#4f82cf'],['lng','Regasified LNG','LNG','#bd7921']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
-  const allocation=[['power_supply','Power plants','Power'],['fertilizer_supply','Fertilizer factories','Fertilizer'],['others','Other consumers','Others']].map(([key,name,short])=>({date:end,label:name,year:short,value:row[key],layerKey:key}));
+  const production=[['state','State companies','State','#007f5f'],['ioc','International operators','IOCs','#1e5aa8'],['lng','Regasified LNG','LNG','#c66a00']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
+  const allocation=[['power_supply','Power plants','Power','#007f5f'],['fertilizer_supply','Fertilizer factories','Fertilizer','#1e5aa8'],['others','Other consumers','Others','#c66a00']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
   return `<div class="fuel-toolbar"><div><span class="fuel-eyebrow">01 / DAILY GAS SNAPSHOT</span><h2>${end===bundle.gas.at(-1).date?'Latest available day':'Selected reporting day'}</h2></div><label>Gas period ending<select id="fuel-date" aria-label="Gas period ending">${bundle.gas.slice().reverse().map(r=>`<option value="${r.date}" ${r.date===end?'selected':''}>${label(r.date)}</option>`).join('')}</select></label></div>
    <p class="fuel-coverage" role="status"><strong>${label(end)} · ${age} day${age===1?'':'s'} since period end</strong> · Saved official data, not live gas telemetry.</p>
    <div><span class="fuel-eyebrow">SUPPLY SNAPSHOT · MMCFD</span><p class="fuel-note">These figures describe reported gas supply: total supply includes domestic production and regasified LNG; the power figure is the amount allocated to power plants.</p></div><div class="fuel-kpis">${[['Total gas supply',row.total,'Domestic gas + regasified LNG'],['Domestic gas',row.domestic,'State companies + international operators'],['Regasified LNG',row.lng,fmt(100*row.lng/row.total)+'% of total gas supply'],['Gas supplied to power plants',row.power_supply,fmt(100*row.power_supply/row.power_demand)+'% of reported gas demand']].map(([title,value,note])=>`<div class="fuel-kpi"><div>${title}</div><strong>${fmt(value)} <small>MMCFD</small></strong><p>${note}</p></div>`).join('')}</div>
@@ -191,7 +204,7 @@
    model.layers.forEach(layer=>action==='all'?hiddenLayers.delete(layer.id):hiddenLayers.add(layer.id));saveLayers();
    document.querySelector(`[data-fuel-controls="${model.key}"] [data-fuel-layers="${action}"]`)?.focus({preventScroll:true});
   }));
-  bindTooltips();
+  bindTooltips();bindLayerHighlights();
   if(focusTab)document.querySelector('#fuel-tab-'+tab)?.focus({preventScroll:true});
  }
  function saveLayers(){const u=new URL(location.href);if(hiddenLayers.size)u.searchParams.set('fuelHide',[...hiddenLayers].sort().join(','));else u.searchParams.delete('fuelHide');history.replaceState(history.state,'',u);draw();}

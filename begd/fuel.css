@@ -3,3 +3,16 @@
 .fuel-layer-controls{border-top:1px solid var(--line);margin-top:10px;padding-top:12px}.fuel-layer-actions{display:flex;align-items:center;gap:8px}.fuel-layer-actions>span{font:11px var(--mono);color:var(--muted);margin-right:5px}.fuel-layer-actions button{min-height:30px;padding:5px 11px;font-size:11px}.fuel-legend label{display:flex;align-items:center;gap:6px;cursor:pointer}.fuel-legend input{accent-color:var(--green);width:14px;height:14px;margin:0}.fuel-legend label:has(input:not(:checked)){opacity:.55}.fuel-no-layers{font-size:14px!important}.fuel-legend label:focus-within{outline:2px solid var(--blue);outline-offset:4px}
 
 .fuel-panel .fuel-legend{gap:4px 12px;margin:8px 0;font-size:13px;line-height:1.3}.fuel-panel .fuel-legend label{min-height:26px;padding:2px 0;gap:5px;font-size:13px!important;line-height:1.3!important}.fuel-panel .fuel-legend input{width:13px;height:13px;min-height:0;padding:0;flex:0 0 13px}.fuel-panel .fuel-legend i{width:8px;height:8px;flex:0 0 8px}.fuel-panel .more-information :is(p,strong,span,summary){font-size:14px!important;line-height:1.55!important;font-family:var(--body,system-ui)!important}.fuel-panel .more-information .fuel-history-note{border:0;margin:0;padding:0}.fuel-panel .more-information p{margin:8px 0}
+
+/* Patterned legend keys and hover focus make each fuel layer easier to track. */
+.fuel-legend label{min-height:32px;padding:4px 6px;border:1px solid transparent;border-radius:4px;gap:8px;transition:background-color .15s,border-color .15s,opacity .15s}
+.fuel-legend label:hover,.fuel-legend label:focus-within{background:color-mix(in srgb,var(--surface) 72%,var(--ink) 8%);border-color:var(--line)}
+.fuel-legend i{width:20px;height:12px;border-radius:2px;border:1px solid color-mix(in srgb,var(--fuel-layer-color) 72%,var(--ink));background-color:var(--fuel-layer-color);background-image:repeating-linear-gradient(135deg,transparent 0 4px,#fff 4px 5px);box-shadow:0 0 0 1px color-mix(in srgb,var(--surface) 80%,transparent)}
+.fuel-legend i[data-pattern="0"]{background-image:none}
+.fuel-legend i[data-pattern="2"]{background-image:repeating-linear-gradient(45deg,transparent 0 4px,#fff 4px 5px),repeating-linear-gradient(135deg,transparent 0 4px,#fff 4px 5px)}
+.fuel-chart [data-fuel-layer-shape]{transition:opacity .15s,stroke-width .15s}
+.fuel-chart [data-fuel-layer-shape].is-dimmed{opacity:.16}
+.fuel-chart [data-fuel-layer-shape].is-highlighted{opacity:1;stroke-width:4}
+html[data-theme="dark"] .fuel-legend i{background-image:repeating-linear-gradient(135deg,transparent 0 4px,#10191d 4px 5px)}
+html[data-theme="dark"] .fuel-legend i[data-pattern="0"]{background-image:none}
+html[data-theme="dark"] .fuel-legend i[data-pattern="2"]{background-image:repeating-linear-gradient(45deg,transparent 0 4px,#10191d 4px 5px),repeating-linear-gradient(135deg,transparent 0 4px,#10191d 4px 5px)}
