@@ -131,7 +131,7 @@ test('missing secondary check remains missing',()=>{
 test('gas lines do not bridge missing reporting days',()=>{
  const html=plot(rows,[['total','Total','#123456']]);
  assert.equal((html.match(/<circle /g)||[]).length,3);
- assert.equal((html.match(/stroke-width="2.5"/g)||[]).length,1);
+ assert.equal((html.match(/data-fuel-layer-shape="[^\"]+"[^>]*stroke-width="3"/g)||[]).length,1);
  assert.match(plot([],[]),/No verified reports/);
  assert.match(plot([{date:'2026-11-03',total:0}],[['total','Total','#123456']]),/0.0 MMCFD/);
 });
@@ -151,12 +151,12 @@ test('all saved GTCL dates remain visible even when Petrobangla has no report',a
 test('long histories have bounded SVG elements and preserve the entire daily series',()=>{
  const data=require('../begd/fuel-data.json').gas;
  const html=plot(data,[['total','Total','#123456'],['lng','LNG','#654321']]);
- assert.equal((html.match(/<path /g)||[]).length,2);
+ assert.equal((html.match(/class="fuel-daily-line"/g)||[]).length,2);
  assert.equal((html.match(/data-fuel-surface/g)||[]).length,1);
  assert.doesNotMatch(html,/<circle |data-fuel-point=/);
  assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
  assert.doesNotMatch(html,/fuel-average-line/);
- assert.match(html,/stroke-width="1.5"/);
+ assert.match(html,/class="fuel-daily-line"[^>]*stroke-width="2.5"/);
  assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
 });
 test('nearest date selection stays within the saved history',()=>{

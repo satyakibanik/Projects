@@ -24,7 +24,7 @@
  document.querySelector('#title').textContent='Grid news';
  document.querySelector('#subtitle').textContent='Bangladesh’s power sector · Latest coverage first';
  ['report-date-controls','date-status','day-sources','error'].forEach(id=>document.getElementById(id).hidden=true);
- document.querySelector('.header-meta .status').textContent='NEWS · TEST';
+ document.querySelector('.header-meta .status').textContent='NEWS';
  document.querySelector('.method').hidden=true;
  window.BEGDDataStatus?.set('news',[{label:'News data updated',value:bundle?.last_successful_refresh_at||bundle?.last_successful_refresh_date||bundle?.curated_on}]);
  if(!bundle){document.querySelector('#content').innerHTML='<p role="status">Loading news…</p>';try{pending ||= fetch('news-data.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error('News file unavailable');return r.json()});bundle=await pending;if(!Array.isArray(bundle?.articles)||!bundle.curated_on)throw Error('Invalid news catalog');}catch(e){pending=null;bundle=null;if(location.hash!=='#news')return;document.querySelector('#content').textContent='Could not load news. Reload to retry.';return;}}
