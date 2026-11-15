@@ -59,7 +59,7 @@ test('largest-unit-loss RoCoF chart renders hourly series and archival gaps hone
 
 test('scenario story visualizes inertia stages, disturbance composition and first-second slope',()=>{
  const api=insight(),result=api.simulateScenario(scenarioReport(),'14:00',{condition:'high-renewable',highRenewableMw:200,largestUnitTrip:true,importLoss:true,importTarget:'largest'}),html=api.scenarioStoryMarkup(result,'High renewable afternoon');
- for(const text of ['REPORTED STATE','OPERATING CONDITION','POST-CONTINGENCY','INITIAL RESPONSE','Disturbance composition','Generator trip','Import loss','First-second frequency slope','not a nadir forecast'])assert.ok(html.includes(text),text);
+ for(const text of ['REPORTED BASELINE','AFTER OPERATING CONDITION','AFTER CONTINGENCY','INITIAL RESPONSE','Disturbance composition','Generator trip','Import loss','First-second frequency slope','not a nadir forecast'])assert.ok(html.includes(text),text);
  assert.match(html,/Illustrative frequency path from 50 hertz to \d+\.\d{2} hertz/);
  assert.match(html,/Import loss · Bheramara HVDC/);
 });
