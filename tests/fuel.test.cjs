@@ -156,7 +156,7 @@ test('long histories have bounded SVG elements and preserve the entire daily ser
  assert.doesNotMatch(html,/<circle |data-fuel-point=/);
  assert.ok((html.match(/<\w+/g)||[]).length<100,'Long-term SVG must not grow one DOM element per daily value');
  assert.doesNotMatch(html,/fuel-average-line/);
- assert.match(html,/stroke-width="1.5"/);
+ assert.match(html,/class="fuel-daily-line"[^>]*stroke-width="2.5"/);
  assert.ok((html.match(/[ML]\d/g)||[]).length>=data.length*2,'Daily geometry retains every reported value');
 });
 test('nearest date selection stays within the saved history',()=>{
