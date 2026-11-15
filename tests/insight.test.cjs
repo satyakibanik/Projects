@@ -49,8 +49,16 @@ test('largest-unit-loss RoCoF chart renders hourly series and archival gaps hone
  const api=insight(),points=api.hourly(scenarioReport()),html=api.rocofChart(points);
  assert.match(html,/Estimated RoCoF with the loss of the largest online unit/);
  assert.match(html,/Initial \|RoCoF\| · Hz\/s/);assert.match(html,/insight-rocof-line/);
+ const scale=api.rocofScale([{largestTripRoCoF:.39},{largestTripRoCoF:.53}]);
+ assert.ok(scale.min>0);assert.ok(scale.min<.39);assert.ok(scale.max>.53);
  const archival=[{date:'2020-01-01',time:'00:00',h:4.5,capacity:400,plants:2,fuelCounts:{},fuelCapacity:{},fuelNumerator:{},largestTripRoCoF:null}];
  assert.match(api.rocofChart(archival),/Unit-level hourly output is unavailable/);
+});
+
+test('scenario story visualizes inertia stages, disturbance composition and first-second slope',()=>{
+ const api=insight(),result=api.simulateScenario(scenarioReport(),'14:00',{condition:'high-renewable',highRenewableMw:200,largestUnitTrip:true,importLoss:true,importTarget:'largest'}),html=api.scenarioStoryMarkup(result,'High renewable afternoon');
+ for(const text of ['REPORTED STATE','OPERATING CONDITION','POST-CONTINGENCY','INITIAL RESPONSE','Disturbance composition','Generator trip','Import loss','First-second frequency slope','not a nadir forecast'])assert.ok(html.includes(text),text);
+ assert.match(html,/Illustrative frequency path from 50 hertz to \d+\.\d{2} hertz/);
 });
 
 test('pre-aggregated legacy reports preserve fuel counts and capacity-weighted contributions',()=>{
