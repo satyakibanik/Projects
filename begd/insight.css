@@ -42,8 +42,8 @@ nav a[href="#insight"]{display:none}
 .insight-condition-card>label,.insight-condition-card>span{align-items:flex-start!important}
 .insight-condition-card>input[type=radio],.insight-condition-card>label>input[type=radio]{position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;clip-path:inset(50%)}
 .insight-condition-card:has(input:focus-visible){outline:2px solid var(--green);outline-offset:2px}
-.insight-condition-card label{display:grid;grid-template-columns:10px 1fr;align-items:start!important;gap:8px}
-.insight-condition-card label>input[type=radio]+span:before,.insight-condition-card>input[type=radio]+span:before{content:"";display:block;width:7px;height:7px;margin-top:3px;border:1px solid var(--muted);border-radius:1px;background:var(--surface)}
+.insight-condition-card label{display:block!important;padding-left:16px}
+.insight-condition-card label>input[type=radio]+span:before,.insight-condition-card>input[type=radio]+span:before{position:absolute;top:14px;left:12px;content:"";display:block;width:7px;height:7px;border:1px solid var(--muted);border-radius:1px;background:var(--surface)}
 .insight-condition-card:has(input:checked) label>input[type=radio]+span:before,.insight-condition-card:has(input:checked)>input[type=radio]+span:before{border-color:var(--blue);background:var(--blue);box-shadow:inset 0 0 0 1px var(--surface)}
 .insight-condition-card span{display:grid;gap:4px}
 .insight-condition-card strong{font:600 12px/1.3 var(--body)}
