@@ -48,7 +48,8 @@ test('hourly estimates largest-unit-loss RoCoF from post-trip stored energy',()=
 test('largest-unit-loss RoCoF chart renders hourly series and archival gaps honestly',()=>{
  const api=insight(),points=api.hourly(scenarioReport()),html=api.rocofChart(points);
  assert.match(html,/Estimated RoCoF with the loss of the largest online unit/);
- assert.match(html,/Initial \|RoCoF\| · Hz\/s/);assert.match(html,/insight-rocof-line/);
+ assert.match(html,/Initial \|RoCoF\| · Hz\/s/);assert.match(html,/insight-rocof-line/);assert.match(html,/insight-hover-guide/);
+ assert.match(html,/How this RoCoF is calculated/);assert.match(html,/\|df\/dt\|/);assert.match(html,/Imports are assigned no inertia/);
  const scale=api.rocofScale([{largestTripRoCoF:.39},{largestTripRoCoF:.53}]);
  assert.ok(scale.min>0);assert.ok(scale.min<.39);assert.ok(scale.max>.53);
  const archival=[{date:'2020-01-01',time:'00:00',h:4.5,capacity:400,plants:2,fuelCounts:{},fuelCapacity:{},fuelNumerator:{},largestTripRoCoF:null}];
@@ -59,6 +60,7 @@ test('scenario story visualizes inertia stages, disturbance composition and firs
  const api=insight(),result=api.simulateScenario(scenarioReport(),'14:00',{condition:'high-renewable',highRenewableMw:200,largestUnitTrip:true,importLoss:true,importTarget:'largest'}),html=api.scenarioStoryMarkup(result,'High renewable afternoon');
  for(const text of ['REPORTED STATE','OPERATING CONDITION','POST-CONTINGENCY','INITIAL RESPONSE','Disturbance composition','Generator trip','Import loss','First-second frequency slope','not a nadir forecast'])assert.ok(html.includes(text),text);
  assert.match(html,/Illustrative frequency path from 50 hertz to \d+\.\d{2} hertz/);
+ assert.match(html,/Import loss · Bheramara HVDC/);
 });
 
 test('pre-aggregated legacy reports preserve fuel counts and capacity-weighted contributions',()=>{
@@ -97,8 +99,11 @@ test('Insight markup discloses MW proxy, MVA limitation, threshold and sources',
 test('scenario lab exposes four presets and composable condition and contingency controls',()=>{
  const html=insight().markup(scenarioReport());
  for(const preset of ['largest','import','renewable','evening'])assert.match(html,new RegExp(`data-scenario-preset="${preset}"`));
+ assert.equal((html.match(/aria-pressed="false" data-scenario-preset=/g)||[]).length,4);
  for(const condition of ['actual','high-renewable','evening-peak'])assert.match(html,new RegExp(`name="insight-condition" value="${condition}"`));
- assert.match(html,/id="insight-trip-largest"/);assert.match(html,/id="insight-import-loss"/);assert.match(html,/Bheramara HVDC/);
+ assert.match(html,/id="insight-trip-largest"/);assert.match(html,/id="insight-trip-unit-picker"/);assert.match(html,/top five generating units/);
+ assert.match(html,/id="insight-hour-fieldset"/);assert.match(html,/id="insight-condition-fieldset"/);assert.match(html,/id="insight-preset-lock"/);
+ assert.match(html,/id="insight-import-loss"/);assert.match(html,/Bheramara HVDC/);
 });
 
 test('largest-unit trip removes the highest-output online generator at the selected hour',()=>{
@@ -107,6 +112,13 @@ test('largest-unit trip removes the highest-output online generator at the selec
  assert.equal(result.baseline.h,(500*5.5+300*4.5)/900);
  assert.equal(result.scenario.h,(300*4.5)/400);
  assert.ok(result.rocofHzS>0);
+});
+
+test('generator contingency can remove multiple selected units from the top five',()=>{
+ const api=insight(),available=api.simulateScenario(scenarioReport(),'14:00',{}),ids=available.tripCandidates.slice(0,2).map(unit=>String(unit.id));
+ const result=api.simulateScenario(scenarioReport(),'14:00',{largestUnitTrip:true,tripUnitIds:ids});
+ assert.deepEqual(JSON.parse(JSON.stringify(result.trippedUnits.map(unit=>unit.name))),['Gas Alpha','Coal Beta']);
+ assert.equal(result.disturbanceMw,650);assert.equal(result.scenario.capacity,100);assert.equal(result.scenario.h,0);
 });
 
 test('import loss adds a power imbalance without assigning inertia to imports',()=>{
