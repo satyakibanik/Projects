@@ -19,10 +19,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  };
  const checkFigures=async(label,downloadOne=false)=>{
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
-  for(let index=0;index<count;index++){
-   const button=actions.nth(index).getByRole('button',{name:'Download PNG',exact:true});
-   assert.ok(await button.evaluate(node=>node.isConnected&&!node.disabled&&node.getBoundingClientRect().width>0),label+' figure '+(index+1)+' download control');
-  }
+  const controls=await actions.evaluateAll(bars=>bars.map(bar=>{const button=bar.querySelector('button[aria-label="Download PNG"]'),bounds=button?.getBoundingClientRect();return {present:Boolean(button),enabled:Boolean(button&&!button.disabled),visible:Boolean(bounds?.width&&bounds?.height)}}));
+  assert.ok(controls.every(item=>item.present&&item.enabled&&item.visible),label+' every figure should expose a visible, enabled Download PNG control');
   console.log('Checked '+count+' '+label+' download controls'+(downloadOne?'':' without repeating the same export path'));
   if(downloadOne)await download(actions.first(),label+'-representative');
  };
