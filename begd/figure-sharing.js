@@ -49,18 +49,21 @@
       }
       return output;
     };
+    const properties=['color','background','background-color','background-image','border-color','border-top-color','border-right-color','border-bottom-color','border-left-color','outline-color','text-decoration-color','text-emphasis-color','text-shadow','box-shadow','column-rule-color','caret-color','accent-color','fill','stroke','stop-color','flood-color','lighting-color','filter','mask-image','-webkit-text-stroke-color'];
     const overrides=[];let pseudoId=0;const pseudoIds=new WeakMap();
-    for(const node of [root,...root.querySelectorAll('*')])for(const pseudo of [null,'::before','::after']){
-      const computed=doc.defaultView.getComputedStyle(node,pseudo||null),changes=[];
-      for(let i=0;i<computed.length;i++){
-        const property=computed.item(i),value=computed.getPropertyValue(property);
-        if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)changes.push([property,replacement]);}
-      }
-      if(!changes.length)continue;
-      if(!pseudo){for(const [property,value] of changes)node.style.setProperty(property,value,'important');}
-      else{
+    const nodes=[root,...root.querySelectorAll('*')];
+    for(const node of nodes){
+      const computed=doc.defaultView.getComputedStyle(node),changes=[];
+      for(const property of properties){const value=computed.getPropertyValue(property);if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)changes.push([property,replacement]);}}
+      for(const [property,value] of changes)node.style.setProperty(property,value,'important');
+      for(const pseudo of ['::before','::after']){
+        const pseudoStyle=doc.defaultView.getComputedStyle(node,pseudo),content=pseudoStyle.getPropertyValue('content');
+        if(content==='none'||content==='normal'||!content)continue;
+        const pseudoChanges=[];
+        for(const property of properties){const value=pseudoStyle.getPropertyValue(property);if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)pseudoChanges.push([property,replacement]);}}
+        if(!pseudoChanges.length)continue;
         let id=pseudoIds.get(node);if(!id){id=`h2c-color-${++pseudoId}`;pseudoIds.set(node,id);node.setAttribute('data-h2c-color',id);}
-        overrides.push(`[data-h2c-color="${id}"]${pseudo}{${changes.map(([property,value])=>`${property}:${value}!important`).join(';')}}`);
+        overrides.push(`[data-h2c-color="${id}"]${pseudo}{${pseudoChanges.map(([property,value])=>`${property}:${value}!important`).join(';')}}`);
       }
     }
     if(overrides.length){const style=doc.createElement('style');style.textContent=overrides.join('\n');doc.head.append(style);}

@@ -23,6 +23,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    await download(page.locator('.fuel-export-actions .figure-actions').first(),'fuel-ring');
   }
   for(const tab of ['regions','plants','imports','substations','operations','en-curve','realtime','forecast','trends']){
+   console.log('Exporting '+tab+' figures');
    await page.locator(`nav a[href="#${tab}"]`).click();
    const actions=page.locator('#content .figure-actions');await actions.first().waitFor();await page.waitForTimeout(350);
    if(tab==='plants'){
