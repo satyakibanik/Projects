@@ -97,4 +97,4 @@ jobs:
       - name: Wait for the local dashboard
         run: curl --fail --silent --show-error --retry 15 --retry-delay 1 --retry-connrefused http://127.0.0.1:18943/begd/ -o /dev/null
       - name: Export all configured figures
-        run: node tests/e2e/figure-sharing.cjs
+        run: node tests/e2e/figure-downloads.cjs
