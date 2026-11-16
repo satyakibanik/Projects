@@ -41,6 +41,30 @@ test('evening peak time follows matching observed demand rather than a fixed tim
  report.hourly=[{time:'19:30',demand_mw:16000}];assert.equal(note(report),'Generation side · time not available');
  assert.equal(note({summary:{}}),'Generation side');
 });
+test('substation expansion defaults to 30 days and offers the requested date windows',()=>{
+ const c=app();
+ const shell=vm.runInContext(`substationHistoryShell({name:'Kodda',voltage_class:'132 kV'})`,c);
+ assert.match(shell,/Kodda · 132 kV/);assert.match(shell,/data-substation-history-days="7"/);assert.match(shell,/data-substation-history-days="30" aria-pressed="true"/);assert.match(shell,/data-substation-history-days="365"/);
+ const rows=JSON.parse(vm.runInContext(`JSON.stringify(historyCalendar([{date:'2026-11-14',load_mw:284,min_kv:126,max_kv:138}],'2026-11-14',30))`,c));
+ assert.equal(rows.length,30);assert.equal(rows[0].date,'2026-10-16');assert.equal(rows.at(-1).date,'2026-11-14');assert.equal(rows.at(-1).load_mw,284);assert.equal(rows.at(-2).load_mw,undefined);
+});
+test('substation history charts use stacked load and voltage plots with independent voltage layers',()=>{
+ const c=app();
+ const rows=`[{history_index:0,label:'1 Nov 2026',load_mw:250,max_kv:138,min_kv:126},{history_index:1,label:'2 Nov 2026',load_mw:284,max_kv:139,min_kv:127}]`;
+ const load=vm.runInContext(`chart(${rows},[{key:'load_mw',name:'Maximum load',color:'#147d58'}],{unit:'MW',xKey:'history_index',xMax:1,contextLabel:'Operating date'})`,c);
+ const voltage=vm.runInContext(`chart(${rows},[{key:'max_kv',name:'Maximum kV',color:'#d88931'},{key:'min_kv',name:'Minimum kV',color:'#4e9acb'}],{unit:'kV',xKey:'history_index',xMax:1,contextLabel:'Operating date'})`,c);
+ assert.equal((load.match(/data-toggle-series=/g)||[]).length,1);assert.equal((voltage.match(/data-toggle-series=/g)||[]).length,2);assert.match(voltage,/data-toggle-series="max_kv"/);assert.match(voltage,/data-toggle-series="min_kv"/);assert.match(voltage,/Hover or focus the chart for values/);
+ const models=vm.runInContext('[...chartData.values()].map(model=>model.contextLabel)',c);assert.deepEqual([...models],['Operating date','Operating date']);
+});
+test('empty dashboard hash is treated as Overview while other views remain excluded',()=>{
+ const c=app();c.location={hash:''};assert.equal(vm.runInContext('isOverviewView()',c),true);
+ c.location.hash='#overview';assert.equal(vm.runInContext('isOverviewView()',c),true);
+ c.location.hash='#plants';assert.equal(vm.runInContext('isOverviewView()',c),false);
+});
+test('plant data sources are collapsed under More information',()=>{
+ const appSource=fs.readFileSync(path.join(root,'begd/app.js'),'utf8');
+ assert.match(appSource,/<details class="more-information plant-more-information"><summary>More information<\/summary><div class="plant-source-note">/);
+});
 test('region hover and keyboard exit restore all colors; zoom resets to fitted bounds',async()=>{
  const frame=new Element(),svg=new Element(),group={getBBox:()=>({x:900,y:0,width:4600,height:6000})},detail=new Element(),keys=['dhaka','cumilla'].map(name=>new Element({mapSelect:name[0].toUpperCase()+name.slice(1)})),regions=['dhaka','cumilla'].map(region=>new Element({region})),zoomIn=new Element(),zoomOut=new Element(),reset=new Element();
  frame.querySelector=s=>s==='svg'?svg:null;svg.querySelector=()=>group;frame.querySelectorAll=()=>regions;
