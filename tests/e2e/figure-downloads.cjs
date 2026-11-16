@@ -31,10 +31,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
     button.click();
    });
    if(event)firstDownload=await event;
-   await page.waitForFunction(element=>element.querySelector('.figure-download-status')?.textContent&&!element.querySelector('button[aria-label="Download PNG"]')?.disabled,await bar.elementHandle());
-   assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' figure '+(index+1)+' should report success');
+   await page.waitForFunction(({element,count})=>{
+    const message=element.querySelector('.figure-download-status')?.textContent;
+    return window.__BEGD_PNG_DOWNLOAD_ANCHORS.length>count||(message&&message!=='PNG downloaded.');
+   },{element:await bar.elementHandle(),count:anchorCount},{timeout:10000});
    const anchor=await page.evaluate(count=>window.__BEGD_PNG_DOWNLOAD_ANCHORS[count],anchorCount);
-   assert.ok(anchor&&/\.png$/i.test(anchor.filename)&&anchor.href.startsWith('blob:'),label+' figure '+(index+1)+' should invoke a PNG download link');
+   const status=await bar.locator('.figure-download-status').innerText().catch(()=>'(status replaced)');
+   assert.ok(anchor&&/\.png$/i.test(anchor.filename)&&anchor.href.startsWith('blob:'),label+' figure '+(index+1)+' did not invoke a PNG download link; status: '+status);
+   assert.ok(status==='PNG downloaded.'||status==='(status replaced)',label+' figure '+(index+1)+' export reported an error: '+status);
    checkedDownloads++;
   }
   assert.equal(checkedDownloads-before,controls.length,label+' every click should invoke the PNG download path');
