@@ -5,8 +5,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
  const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:18943/begd/';
  const download=async(bar,label)=>{
-  const event=page.waitForEvent('download');await bar.getByRole('button',{name:'Download PNG',exact:true}).click();
-  const file=await event,data=fs.readFileSync(await file.path());
+  const event=page.waitForEvent('download',{timeout:120000});await bar.getByRole('button',{name:'Download PNG',exact:true}).click();
+  let file;try{file=await event;}catch(error){const status=await bar.locator('.figure-download-status').innerText().catch(()=>'(no status)');throw new Error(label+' did not download within 120 seconds: '+status+' ('+error.message+')');}
+  const data=fs.readFileSync(await file.path());
   assert.equal(data.subarray(1,4).toString(),'PNG',label+' PNG signature');assert.ok(data.length>10000,label+' PNG size');
   assert.ok(data.readUInt32BE(16)>=2400,label+' PNG width');await file.saveAs(path.join(os.tmpdir(),'begd-'+label+'.png'));
   assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' download status');
