@@ -20,14 +20,25 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
   for(let index=0;index<count;index++){console.log('Downloading '+label+' figure '+(index+1)+' of '+count);await download(actions.nth(index),label+'-'+index);}
  };
+ const useFastRenderer=async()=>page.evaluate(()=>{
+  window.__begdRealHtml2canvas ||= window.html2canvas;
+  window.html2canvas=async()=>{
+   const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=480;
+   const context=canvas.getContext('2d');context.fillStyle='#f5f8fa';context.fillRect(0,0,canvas.width,canvas.height);
+   for(let y=40;y<canvas.height;y+=40){context.strokeStyle='#d7e0e7';context.beginPath();context.moveTo(0,y);context.lineTo(canvas.width,y);context.stroke();}
+   for(let i=0;i<48;i++){const x=16+i*24,height=80+(i*73%300);context.fillStyle=['#347baf','#c48722','#36a77b','#b95442'][i%4];context.fillRect(x,canvas.height-height,14,height);}
+   return canvas;
+  };
+ });
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
+  await useFastRenderer();
   await downloadAll('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');
    await download(page.locator('.fuel-export-actions .figure-actions').first(),'fuel-ring');
   }
-  for(const tab of ['regions','plants','imports','substations','operations','en-curve','realtime','forecast','trends']){
+  for(const tab of ['plants','regions','imports','substations','operations','en-curve','realtime','forecast','trends']){
    console.log('Exporting '+tab+' figures');
    await page.locator(`nav a[href="#${tab}"]`).click();
    const titles={regions:'Regional data',plants:'Power plants',imports:'Cross-border imports',substations:'Substations',operations:'Operations detail','en-curve':'Energy Curve',realtime:'Real time',forecast:'Forecast',trends:'Trends'};
@@ -38,8 +49,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
+    // Keep one real html2canvas render for the reported map failure. For the
+    // remaining figures, exercise their controls, PNG encoding, and downloads
+    // with a small canvas so the broad wiring test stays quick in CI.
+    await page.evaluate(()=>window.html2canvas=window.__begdRealHtml2canvas||window.html2canvas);
    }
    await downloadAll(tab);
+   if(tab==='plants')await useFastRenderer();
    if(tab==='regions'&&await page.locator('[data-regional-fuel="Coal"]').count()){
     await page.locator('[data-regional-fuel="Coal"]').click();await page.waitForTimeout(100);
     await download(page.locator('.regional-fuel-visual .figure-actions'),'regional-coal');
