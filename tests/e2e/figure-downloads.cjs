@@ -22,13 +22,15 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    return {present:Boolean(button),enabled:Boolean(button&&!button.disabled),visible:Boolean(bounds?.width&&bounds?.height)};
   }));
   assert.ok(controls.every(item=>item.present&&item.enabled&&item.visible),label+' every figure should expose a visible, enabled Download PNG control');
-  const before=checkedDownloads,expected=controls.length;
-  const events=Promise.all(Array.from({length:expected},()=>page.waitForEvent('download',{timeout:30000})));
-  await Promise.all(Array.from({length:expected},(_,index)=>bars.nth(index).getByRole('button',{name:'Download PNG',exact:true}).click()));
-  await events;
-  await page.waitForFunction(()=>[...document.querySelectorAll('#content .figure-actions')].every(bar=>bar.querySelector('.figure-download-status')?.textContent==='PNG downloaded.'&&!bar.querySelector('button[aria-label="Download PNG"]')?.disabled));
-  assert.equal(checkedDownloads-before,expected,label+' every click should trigger a browser download');
-  console.log('Batch-downloaded '+expected+' '+label+' figures');
+  const before=checkedDownloads;
+  for(let index=0;index<controls.length;index++){
+   const bar=bars.nth(index),button=bar.getByRole('button',{name:'Download PNG',exact:true}),event=page.waitForEvent('download',{timeout:10000});
+   await button.click();await event;
+   await page.waitForFunction(element=>element.querySelector('.figure-download-status')?.textContent==='PNG downloaded.'&&!element.querySelector('button[aria-label="Download PNG"]')?.disabled,await bar.elementHandle());
+   assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' figure '+(index+1)+' should report success');
+  }
+  assert.equal(checkedDownloads-before,controls.length,label+' every click should trigger a browser download');
+  console.log('Checked '+controls.length+' '+label+' figure downloads');
  };
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
