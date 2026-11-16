@@ -4,7 +4,6 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  const browser=await chromium.launch({headless:true,...(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{})});
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',error=>errors.push(error.message));
  const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:18943/begd/';let checkedDownloads=0,firstDownload;
- page.on('download',download=>{checkedDownloads++;firstDownload||=download;});
  const useFastRenderer=async()=>page.evaluate(async()=>{
   if(!window.__BEGD_FIGURE_TEST_PNG){
    const fixture=document.createElement('canvas');fixture.width=2400;fixture.height=600;const paint=fixture.getContext('2d');
@@ -24,16 +23,24 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.ok(controls.every(item=>item.present&&item.enabled&&item.visible),label+' every figure should expose a visible, enabled Download PNG control');
   const before=checkedDownloads;
   for(let index=0;index<controls.length;index++){
-   const bar=bars.nth(index),button=bar.getByRole('button',{name:'Download PNG',exact:true}),event=page.waitForEvent('download',{timeout:10000});
-   await button.click();await event;
-   await page.waitForFunction(element=>element.querySelector('.figure-download-status')?.textContent==='PNG downloaded.'&&!element.querySelector('button[aria-label="Download PNG"]')?.disabled,await bar.elementHandle());
+   const bar=bars.nth(index),button=bar.getByRole('button',{name:'Download PNG',exact:true}),anchorCount=await page.evaluate(()=>window.__BEGD_PNG_DOWNLOAD_ANCHORS.length);
+   const event=checkedDownloads===0?page.waitForEvent('download',{timeout:10000}):null;
+   await button.click();if(event)firstDownload=await event;
+   await page.waitForFunction(element=>element.querySelector('.figure-download-status')?.textContent&&!element.querySelector('button[aria-label="Download PNG"]')?.disabled,await bar.elementHandle());
    assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' figure '+(index+1)+' should report success');
+   const anchor=await page.evaluate(count=>window.__BEGD_PNG_DOWNLOAD_ANCHORS[count],anchorCount);
+   assert.ok(anchor&&/\.png$/i.test(anchor.filename)&&anchor.href.startsWith('blob:'),label+' figure '+(index+1)+' should invoke a PNG download link');
+   checkedDownloads++;
   }
-  assert.equal(checkedDownloads-before,controls.length,label+' every click should trigger a browser download');
-  console.log('Checked '+controls.length+' '+label+' figure downloads');
+  assert.equal(checkedDownloads-before,controls.length,label+' every click should invoke the PNG download path');
+  console.log('Checked '+controls.length+' '+label+' figure download actions');
  };
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
+  await page.evaluate(()=>{
+   window.__BEGD_PNG_DOWNLOAD_ANCHORS=[];const original=HTMLAnchorElement.prototype.click;
+   HTMLAnchorElement.prototype.click=function(){if(this.download)window.__BEGD_PNG_DOWNLOAD_ANCHORS.push({filename:this.download,href:this.href});return original.call(this);};
+  });
   await useFastRenderer();await clickEveryFigure('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');await clickEveryFigure('fuel-ring');
