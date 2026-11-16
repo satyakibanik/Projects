@@ -42,7 +42,7 @@ function setupCharts(view,wrappers=null) {
       const visible = peers().flatMap(peer=>chartData.get(peer.dataset.chart).series.filter(s=>peer.querySelector(`[data-toggle-series="${s.key}"]`).checked));
       const dated=model.comparisonTimeline?visible.filter(s=>s.key.startsWith('yesterday_')===(row.minute<1440)):visible;
       const ordered = model.enCurve ? dated.slice().reverse() : dated;
-      tooltip.innerHTML = `<strong>${esc(row.label||row.time)} · Bangladesh time</strong>` + ordered.map(s => `<div><span class="tooltip-series">${legendSwatch(s,Math.max(0,model.series.indexOf(s)))}<span>${esc(s.name)}</span></span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(s.unit||model.unit||'MW')}</b></div>`).join('');
+      tooltip.innerHTML = `<strong>${esc(row.label||row.time)} · ${esc(model.contextLabel||'Bangladesh time')}</strong>` + ordered.map(s => `<div><span class="tooltip-series">${legendSwatch(s,Math.max(0,model.series.indexOf(s)))}<span>${esc(s.name)}</span></span><b${s.key === 'shortage_mw' ? ' style="color:#ed4d4d"' : ''}>${fmt(row[s.key],2)} ${esc(s.unit||model.unit||'MW')}</b></div>`).join('');
       if (!ordered.length) tooltip.innerHTML += visible.length?'<div>No readings available for this date.</div>':'<div>No series selected</div>';
       tooltip.hidden = false;
       const fraction = model.x(row) / (model.width||800);
