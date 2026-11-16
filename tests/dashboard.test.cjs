@@ -194,6 +194,9 @@ test('the shared yesterday control extends fuel, shares, total imports and every
  vm.runInContext(`var gen={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0,nuclear_mw:5};var routes=['Bheramara HVDC','Tripura','Adani','Nepal'].map((name,i)=>({name,hourly:[{time:'00:00',mw:i+1}]}));currentDayData={today_date:'2026-01-01',demand_hourly:[],generation_hourly:[gen],imports:routes,realtime_history:{'2025-12-31':{generation_hourly:[{...gen,gas_mw:25}],imports:routes.slice().reverse()}},forecast_history:{}};realtimeYesterday=true`,c);
  const html=vm.runInContext('realTime()',c);
  assert(html.indexOf('id="realtime-yesterday"')<html.indexOf('realtime-grid'));
+ assert.match(html,/Renewable share = \(domestic hydro \+ solar \+ wind\) \/ total generation/);
+ assert.match(html,/Clean energy share = \(domestic hydro \+ solar \+ wind \+ nuclear\) \/ total generation/);
+ assert.match(html,/Liquid fuel is the ERP page's combined category; these hourly readings do not split HFO and HSD/);
  const models=vm.runInContext('[...chartData.values()]',c);
  const byScope=key=>models.find(m=>m.scope===key);
  const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].yesterday_gas_mw,25);assert.equal(fuel.rows[0].yesterday_solar_mw,0);assert.equal(fuel.rows[0].yesterday_nuclear_mw,5);
