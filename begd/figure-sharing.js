@@ -28,8 +28,62 @@
     for(const word of text.split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){result.push(line);line=word;}else line+=(line?' ':'')+word;}
     if(line)result.push(line);return result;
   }
+  function normalizeColorFunctions(doc,root){
+    const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;
+    const context=canvas.getContext('2d');if(!context)return;
+    const cache=new Map();
+    const resolveColor=value=>{
+      if(cache.has(value))return cache.get(value);
+      context.clearRect(0,0,1,1);context.fillStyle='rgba(0,0,0,0)';context.fillStyle=value;context.fillRect(0,0,1,1);
+      const [r,g,b,a]=context.getImageData(0,0,1,1).data;
+      const normalized=`rgba(${r},${g},${b},${Number((a/255).toFixed(4))})`;cache.set(value,normalized);return normalized;
+    };
+    const normalize=value=>{
+      let output='',cursor=0;
+      while(cursor<value.length){
+        const start=value.toLowerCase().indexOf('color(',cursor);if(start<0){output+=value.slice(cursor);break;}
+        output+=value.slice(cursor,start);let depth=1,end=start+6;
+        for(;end<value.length&&depth;end++){if(value[end]==='(')depth++;else if(value[end]===')')depth--;}
+        if(depth){output+=value.slice(start);break;}
+        output+=resolveColor(value.slice(start,end));cursor=end;
+      }
+      return output;
+    };
+    const normalizeDeclaration=declaration=>{
+      for(let i=0;i<declaration.length;i++){
+        const property=declaration.item(i),value=declaration.getPropertyValue(property);
+        if(!value.toLowerCase().includes('color('))continue;
+        const replacement=normalize(value);
+        if(replacement!==value)declaration.setProperty(property,replacement,declaration.getPropertyPriority(property));
+      }
+    };
+    const normalizeRules=rules=>{
+      for(const rule of rules){
+        if(rule.style)normalizeDeclaration(rule.style);
+        if(rule.cssRules)normalizeRules(rule.cssRules);
+        if(rule.styleSheet)try{normalizeRules(rule.styleSheet.cssRules);}catch{}
+      }
+    };
+    for(const sheet of doc.styleSheets)try{normalizeRules(sheet.cssRules);}catch{}
+    for(const node of [root,...root.querySelectorAll('*')]){
+      if(node.style)normalizeDeclaration(node.style);
+      for(const attribute of ['color','fill','stroke','stop-color','flood-color','lighting-color']){
+        const value=node.getAttribute(attribute);if(value?.toLowerCase().includes('color('))node.setAttribute(attribute,normalize(value));
+      }
+    }
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
+    // Browser download tests inject a deterministic PNG to check every button
+    // without repeatedly rasterizing large SVGs. Still run the Color 4 clone
+    // normalization on the power-plant map so its regression stays covered.
+    if(typeof Blob!=='undefined'&&root.__BEGD_FIGURE_TEST_PNG instanceof Blob){
+      if(target.matches('.plant-map-panel')){
+        const doc=document.implementation.createHTMLDocument(''),clone=target.cloneNode(true);doc.body.append(clone);normalizeColorFunctions(doc,clone);
+        root.__BEGD_FIGURE_TEST_NORMALIZED_COLOR=clone.style.getPropertyValue('outline-color');
+      }
+      return root.__BEGD_FIGURE_TEST_PNG;
+    }
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
     const captureScale=info.dashboard?2:4,outputScale=2;
@@ -66,6 +120,8 @@
         const bounds=clone.getBoundingClientRect();
         const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
         if(!info.dashboard&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
+        // html2canvas does not parse CSS Color 4 color(srgb ...) values.
+        normalizeColorFunctions(doc,clone);
       },
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.
