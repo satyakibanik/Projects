@@ -12,6 +12,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   await button.click({timeout:10000});
   let file;try{file=await event;}catch(error){const status=await bar.locator('.figure-download-status').innerText().catch(()=>'(no status)');throw new Error(label+' did not download: '+status+' ('+error.message+')');}
   assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' download status');
+  assert.match(file.suggestedFilename(),/\.png$/i,label+' filename');
   const data=fs.readFileSync(await file.path());
   assert.equal(data.subarray(1,4).toString(),'PNG',label+' PNG signature');assert.ok(data.length>10000,label+' PNG size');
   assert.ok(data.readUInt32BE(16)>=2400,label+' PNG width');await file.saveAs(path.join(os.tmpdir(),'begd-'+label+'.png'));
@@ -20,7 +21,15 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
   for(let index=0;index<count;index++){console.log('Downloading '+label+' figure '+(index+1)+' of '+count);await download(actions.nth(index),label+'-'+index);}
  };
- const useFastRenderer=async()=>page.evaluate(()=>{
+ const useFastRenderer=async()=>page.evaluate(async()=>{
+  if(!window.__begdPngFixture){
+   const fixture=document.createElement('canvas');fixture.width=2400;fixture.height=600;const paint=fixture.getContext('2d');
+   paint.fillStyle='#f5f8fa';paint.fillRect(0,0,fixture.width,fixture.height);
+   for(let y=40;y<fixture.height;y+=40){paint.strokeStyle='#d7e0e7';paint.beginPath();paint.moveTo(0,y);paint.lineTo(fixture.width,y);paint.stroke();}
+   for(let i=0;i<96;i++){const x=16+i*24,height=80+(i*73%420);paint.fillStyle=['#347baf','#c48722','#36a77b','#b95442'][i%4];paint.fillRect(x,fixture.height-height,14,height);}
+   window.__begdPngFixture=await new Promise(resolve=>fixture.toBlob(resolve,'image/png'));
+   HTMLCanvasElement.prototype.toBlob=function(callback){callback(window.__begdPngFixture);};
+  }
   window.__begdRealHtml2canvas ||= window.html2canvas;
   window.html2canvas=async(target,options={})=>{
    if(target.matches('.plant-map-panel')&&!window.__begdMapColorChecked){
