@@ -45,9 +45,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    console.log('Exporting '+tab+' figures');
    await page.locator(`nav a[href="#${tab}"]`).click();
    const titles={regions:'Regional data',plants:'Power plants',imports:'Cross-border imports',substations:'Substations',operations:'Operations detail','en-curve':'Energy Curve',realtime:'Real time',forecast:'Forecast',trends:'Trends'};
-   await page.waitForFunction(title=>document.querySelector('#title')?.textContent===title,titles[tab]);
+   if(tab==='trends')await page.locator('[data-trend-days="30"]').waitFor({timeout:90000});
+   else await page.waitForFunction(title=>document.querySelector('#title')?.textContent===title,titles[tab]);
    if(tab==='realtime')await page.locator('.realtime-dispatch-plots').waitFor({timeout:90000});
-   if(tab==='trends')await page.locator('.trends-chart').waitFor({timeout:90000});
    await page.locator('#content .figure-actions').first().waitFor();await page.waitForTimeout(600);
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
