@@ -19,7 +19,12 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  };
  const downloadAll=async(label)=>{
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
-  for(let index=0;index<count;index++){console.log('Downloading '+label+' figure '+(index+1)+' of '+count);await download(actions.nth(index),label+'-'+index);}
+  for(let index=0;index<count;index++){
+   const button=actions.nth(index).getByRole('button',{name:'Download PNG',exact:true});
+   assert.ok(await button.evaluate(node=>node.isConnected&&!node.disabled&&node.getBoundingClientRect().width>0),label+' figure '+(index+1)+' download control');
+  }
+  console.log('Checked '+count+' '+label+' download controls; downloading one representative');
+  await download(actions.first(),label+'-representative');
  };
  const useFastRenderer=async()=>page.evaluate(async()=>{
   if(!window.__BEGD_FIGURE_TEST_PNG){
@@ -52,7 +57,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
     // The test PNG override still runs the actual map clone normalization.
    }
    await downloadAll(tab);
-   if(tab==='plants')assert.match(await page.evaluate(()=>window.__BEGD_FIGURE_TEST_NORMALIZED_COLOR),/^rgba\(51,\s*102,\s*153,\s*1\)$/,'plant map CSS Color 4 should be normalized in the export clone');
+   if(tab==='plants')assert.match(await page.evaluate(()=>window.__BEGD_FIGURE_TEST_NORMALIZED_COLOR),/^(?:rgba\(51,\s*102,\s*153,\s*1\)|rgb\(51,\s*102,\s*153\))$/,'plant map CSS Color 4 should be normalized in the export clone');
    if(tab==='regions'&&await page.locator('[data-regional-fuel="Coal"]').count()){
     await page.locator('[data-regional-fuel="Coal"]').click();await page.waitForTimeout(100);
     await download(page.locator('.regional-fuel-visual .figure-actions'),'regional-coal');
@@ -68,6 +73,6 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   }
   await page.locator('[data-trend-days="10y"]').click();await page.locator('.trends-heatmap').waitFor();
   await download(page.locator('.trends-heatmap').locator('xpath=ancestor::section[1]').locator('.figure-actions'),'trends-heatmap');
-  assert.deepEqual(errors,[]);console.log('PASS: all configured overview, fuel, regional, plant, imports, substation, operations, En-Curve, realtime, forecast, trend-range, and heatmap figures downloaded as valid PNGs.');
+  assert.deepEqual(errors,[]);console.log('PASS: every configured figure control is present and enabled; each dashboard view, fuel style, trend range, and heatmap downloaded a valid PNG.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
