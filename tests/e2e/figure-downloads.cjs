@@ -14,7 +14,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  };
  const downloadAll=async(label)=>{
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
-  for(let index=0;index<count;index++)await download(actions.nth(index),label+'-'+index);
+  for(let index=0;index<count;index++){console.log('Downloading '+label+' figure '+(index+1)+' of '+count);await download(actions.nth(index),label+'-'+index);}
  };
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
@@ -26,9 +26,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   for(const tab of ['regions','plants','imports','substations','operations','en-curve','realtime','forecast','trends']){
    console.log('Exporting '+tab+' figures');
    await page.locator(`nav a[href="#${tab}"]`).click();
-   const readiness={regions:['Regional data','.region-map-panel'],plants:['Power plants','.plant-map-panel'],imports:['Cross-border imports','.interactive-chart'],substations:['Substations','.vb-combined'],operations:['Operations detail','.ewic-flow-panel'],'en-curve':['Energy Curve','.en-curve-chart'],realtime:['Real time','.realtime-dispatch-plots'],forecast:['Forecast','.forecast-subplot'],trends:['Trends','.trends-chart']}[tab];
-   await page.waitForFunction(({title,selector})=>document.querySelector('#title')?.textContent===title&&document.querySelector(selector),readiness);
-   await page.locator('#content .figure-actions').first().waitFor();await page.waitForTimeout(350);
+   const titles={regions:'Regional data',plants:'Power plants',imports:'Cross-border imports',substations:'Substations',operations:'Operations detail','en-curve':'Energy Curve',realtime:'Real time',forecast:'Forecast',trends:'Trends'};
+   await page.waitForFunction(title=>document.querySelector('#title')?.textContent===title,titles[tab]);
+   if(tab==='realtime')await page.locator('.realtime-dispatch-plots').waitFor({timeout:90000});
+   if(tab==='trends')await page.locator('.trends-chart').waitFor({timeout:90000});
+   await page.locator('#content .figure-actions').first().waitFor();await page.waitForTimeout(600);
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
