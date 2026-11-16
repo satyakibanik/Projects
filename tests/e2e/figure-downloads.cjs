@@ -8,11 +8,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   const button=bar.getByRole('button',{name:'Download PNG',exact:true});
   assert.ok(await button.evaluate(node=>node.isConnected&&!node.disabled&&node.getBoundingClientRect().width>0),label+' download control should be enabled and visible');
   await bar.locator('.figure-download-status').evaluate(node=>node.remove()).catch(()=>{});
-  const event=new Promise(resolve=>page.once('download',resolve));
-  await button.evaluate(node=>node.click());
-  await page.waitForFunction(node=>Boolean(node.querySelector('.figure-download-status')?.textContent),await bar.elementHandle(),{timeout:120000});
+  const event=page.waitForEvent('download',{timeout:120000});
+  await button.click({force:true,timeout:10000});
+  let file;try{file=await event;}catch(error){const status=await bar.locator('.figure-download-status').innerText().catch(()=>'(no status)');throw new Error(label+' did not download: '+status+' ('+error.message+')');}
   assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' download status');
-  const file=await event;
   const data=fs.readFileSync(await file.path());
   assert.equal(data.subarray(1,4).toString(),'PNG',label+' PNG signature');assert.ok(data.length>10000,label+' PNG size');
   assert.ok(data.readUInt32BE(16)>=2400,label+' PNG width');await file.saveAs(path.join(os.tmpdir(),'begd-'+label+'.png'));
