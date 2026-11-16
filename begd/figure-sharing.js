@@ -56,6 +56,9 @@
       const computed=doc.defaultView.getComputedStyle(node),changes=[];
       for(const property of properties){const value=computed.getPropertyValue(property);if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)changes.push([property,replacement]);}}
       for(const [property,value] of changes)node.style.setProperty(property,value,'important');
+      // Pseudo-elements do not participate in SVG rendering. Avoid extra
+      // computed-style calls across the many path nodes in detailed map charts.
+      if(node.namespaceURI==='http://www.w3.org/2000/svg')continue;
       for(const pseudo of ['::before','::after']){
         const pseudoStyle=doc.defaultView.getComputedStyle(node,pseudo),content=pseudoStyle.getPropertyValue('content');
         if(content==='none'||content==='normal'||!content)continue;
