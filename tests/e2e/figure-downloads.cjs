@@ -23,9 +23,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.ok(controls.every(item=>item.present&&item.enabled&&item.visible),label+' every figure should expose a visible, enabled Download PNG control');
   const before=checkedDownloads;
   for(let index=0;index<controls.length;index++){
-   const bar=bars.nth(index),button=bar.getByRole('button',{name:'Download PNG',exact:true}),anchorCount=await page.evaluate(()=>window.__BEGD_PNG_DOWNLOAD_ANCHORS.length);
+   const bar=bars.nth(index),anchorCount=await page.evaluate(()=>window.__BEGD_PNG_DOWNLOAD_ANCHORS.length);
    const event=checkedDownloads===0?page.waitForEvent('download',{timeout:10000}):null;
-   await button.click();if(event)firstDownload=await event;
+   await bar.evaluate(element=>{
+    const button=element.querySelector('button[aria-label="Download PNG"]');
+    if(!button||button.disabled)throw new Error('Download button disappeared or became disabled');
+    button.click();
+   });
+   if(event)firstDownload=await event;
    await page.waitForFunction(element=>element.querySelector('.figure-download-status')?.textContent&&!element.querySelector('button[aria-label="Download PNG"]')?.disabled,await bar.elementHandle());
    assert.equal(await bar.locator('.figure-download-status').innerText(),'PNG downloaded.',label+' figure '+(index+1)+' should report success');
    const anchor=await page.evaluate(count=>window.__BEGD_PNG_DOWNLOAD_ANCHORS[count],anchorCount);
