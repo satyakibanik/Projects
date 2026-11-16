@@ -28,6 +28,43 @@
     for(const word of text.split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){result.push(line);line=word;}else line+=(line?' ':'')+word;}
     if(line)result.push(line);return result;
   }
+  function normalizeColorFunctions(doc,root){
+    const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;
+    const context=canvas.getContext('2d');if(!context)return;
+    const cache=new Map();
+    const resolveColor=value=>{
+      if(cache.has(value))return cache.get(value);
+      context.clearRect(0,0,1,1);context.fillStyle='rgba(0,0,0,0)';context.fillStyle=value;context.fillRect(0,0,1,1);
+      const [r,g,b,a]=context.getImageData(0,0,1,1).data;
+      const normalized=`rgba(${r},${g},${b},${Number((a/255).toFixed(4))})`;cache.set(value,normalized);return normalized;
+    };
+    const normalize=value=>{
+      let output='',cursor=0;
+      while(cursor<value.length){
+        const start=value.toLowerCase().indexOf('color(',cursor);if(start<0){output+=value.slice(cursor);break;}
+        output+=value.slice(cursor,start);let depth=1,end=start+6;
+        for(;end<value.length&&depth;end++){if(value[end]==='(')depth++;else if(value[end]===')')depth--;}
+        if(depth){output+=value.slice(start);break;}
+        output+=resolveColor(value.slice(start,end));cursor=end;
+      }
+      return output;
+    };
+    const overrides=[];let pseudoId=0;const pseudoIds=new WeakMap();
+    for(const node of [root,...root.querySelectorAll('*')])for(const pseudo of [null,'::before','::after']){
+      const computed=doc.defaultView.getComputedStyle(node,pseudo||null),changes=[];
+      for(let i=0;i<computed.length;i++){
+        const property=computed.item(i),value=computed.getPropertyValue(property);
+        if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)changes.push([property,replacement]);}
+      }
+      if(!changes.length)continue;
+      if(!pseudo){for(const [property,value] of changes)node.style.setProperty(property,value,'important');}
+      else{
+        let id=pseudoIds.get(node);if(!id){id=`h2c-color-${++pseudoId}`;pseudoIds.set(node,id);node.setAttribute('data-h2c-color',id);}
+        overrides.push(`[data-h2c-color="${id}"]${pseudo}{${changes.map(([property,value])=>`${property}:${value}!important`).join(';')}}`);
+      }
+    }
+    if(overrides.length){const style=doc.createElement('style');style.textContent=overrides.join('\n');doc.head.append(style);}
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
@@ -66,6 +103,8 @@
         const bounds=clone.getBoundingClientRect();
         const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
         if(!info.dashboard&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
+        // html2canvas does not parse CSS Color 4 color(srgb ...) values.
+        normalizeColorFunctions(doc,clone);
       },
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.

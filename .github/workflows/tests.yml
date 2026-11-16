@@ -70,3 +70,31 @@ jobs:
       - run: node tests/browser/realtime-yesterday.cjs
       - run: node tests/browser/mobile-layers.cjs
       - run: node tests/browser/chart-touch.cjs
+  figure-exports:
+    name: Download every dashboard figure as a valid PNG
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm install --no-save --package-lock=false playwright@1.62.1
+      - run: npx playwright install --with-deps chromium
+      - name: Seed the preview with the latest published data
+        env:
+          BEGD_LIVE_BASE_URL: https://satyakibanik.github.io/Projects/begd
+        run: |
+          curl --fail --silent --show-error "$BEGD_LIVE_BASE_URL/live-data.js" -o begd/live-data.js
+          curl --fail --silent --show-error "$BEGD_LIVE_BASE_URL/current-day.json" -o begd/current-day.json
+          curl --fail --silent --show-error "$BEGD_LIVE_BASE_URL/trends-data.json" -o begd/trends-data.json
+          sed -i 's|<script src="app.js?v=|<script src="live-data.js"></script><script src="static-api.js?v=current-day-v2"></script><script src="app.js?v=|' begd/index.html
+      - name: Serve the checked out dashboard
+        run: python -m http.server 18943 --bind 127.0.0.1 --directory . >/tmp/begd-http.log 2>&1 &
+      - name: Wait for the local dashboard
+        run: curl --fail --silent --show-error --retry 15 --retry-delay 1 --retry-connrefused http://127.0.0.1:18943/begd/ -o /dev/null
+      - name: Export all configured figures
+        run: node tests/e2e/figure-sharing.cjs
