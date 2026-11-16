@@ -267,6 +267,24 @@ class ServerTests(unittest.TestCase):
         self.assertIsNone(result['erp_posted_at'])
         self.assertEqual(result['erp_posted_at_status'], 'not_exposed')
 
+    def test_current_day_nuclear_header_shifts_generation_import_columns(self):
+        today = dt.datetime.now(server.ZoneInfo('Asia/Dhaka')).date().isoformat()
+        generation_row = [today, '21:00', '100', '30', '10', '20', '5', '4', '1',
+                          '7', '8', '9', '10', '11', '']
+        generation_headers = [['Generation(MW)', 'Gas', 'Liquid Fuel', 'Coal',
+                               'Hydro', 'Solar', 'Wind', 'Nuclear',
+                               'Bheramara HVDC', 'Tripura', 'Adani', 'Nepal']]
+        tables = {
+            server.CURRENT_DEMAND_URL: [(today, '21:00', [today, '21:00', '100', '99', '1', ''])],
+            server.CURRENT_GENERATION_URL: ([(today, '21:00', generation_row)], generation_headers),
+            server.CURRENT_INDIA_IMPORT_URL: [(today, '21:00', [today, '21:00', '80', '', '90', '', '100', ''])],
+        }
+        with patch.object(server, 'parse_current_table', side_effect=lambda **kwargs: tables[kwargs['url']]):
+            result = server.fetch_current_day()
+        self.assertEqual(result['generation_hourly'][0]['nuclear_mw'], 7)
+        self.assertEqual(result['generation_hourly'][0]['hydro_mw'], 5)
+        self.assertEqual(next(route for route in result['imports'] if route['name'] == 'Nepal')['hourly'][0]['mw'], 11)
+
     def test_current_day_cache_hit(self):
         with patch.object(server, 'current_day_cache', {'today_date': '2026-10-15'}), patch.object(server, 'current_day_cache_time', 100), patch.object(server.time, 'time', return_value=101), patch.object(server, 'fetch_current_day') as fetch:
             self.assertEqual(server.get_current_day()['today_date'], '2026-10-15')

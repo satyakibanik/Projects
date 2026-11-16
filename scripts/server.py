@@ -100,7 +100,7 @@ def parse_number(value):
         return None
 
 
-def parse_current_table(*, minimum_cells, url, params=None):
+def parse_current_table(*, minimum_cells, url, params=None, include_headers=False):
     query = urlencode(params or {})
     source_url = f"{url}?{query}" if query else url
     parser = DataTableParser()
@@ -120,7 +120,12 @@ def parse_current_table(*, minimum_cells, url, params=None):
         records.append((row_date, time_match.group(1).zfill(5), row))
     if not records:
         raise LookupError("The ERP table contains no hourly readings")
-    return sorted(records, key=lambda item: (item[0], item[1]))
+    records = sorted(records, key=lambda item: (item[0], item[1]))
+    if include_headers:
+        headers = [row for row in parser.rows
+                   if row and not re.fullmatch(r"\d{2}-\d{2}-\d{4}", row[0])]
+        return records, headers
+    return records
 
 
 def fetch_current_day():
@@ -132,6 +137,7 @@ def fetch_current_day():
     def generation_rows():
         return parse_current_table(
             minimum_cells=13, url=CURRENT_GENERATION_URL,
+            include_headers=True,
         )
 
     def import_rows():
@@ -144,8 +150,21 @@ def fetch_current_day():
         generation_future = pool.submit(generation_rows)
         import_future = pool.submit(import_rows)
         demand = demand_future.result()
-        generation = generation_future.result()
-        imported = import_future.result()
+    generation_result = generation_future.result()
+    # Older tests and callers may supply only records. Production parsing also
+    # returns the table headers so a newly published Nuclear column can shift
+    # the import-route indexes without silently corrupting them.
+    if (isinstance(generation_result, tuple) and len(generation_result) == 2
+            and isinstance(generation_result[1], list)):
+        generation, generation_headers = generation_result
+    else:
+        generation, generation_headers = generation_result, []
+    imported = import_future.result()
+
+    generation_header_text = " ".join(
+        cell for row in generation_headers for cell in row
+    ).lower()
+    has_nuclear = "nuclear" in generation_header_text
 
     today = datetime.datetime.now(ZoneInfo("Asia/Dhaka")).date().isoformat()
     latest_dates = {
@@ -172,15 +191,25 @@ def fetch_current_day():
 
     fuel_fields = (("gas_mw", 3), ("liquid_mw", 4), ("coal_mw", 5),
                    ("hydro_mw", 6), ("solar_mw", 7), ("wind_mw", 8))
+    if has_nuclear:
+        fuel_fields += (("nuclear_mw", 9),)
+    route_offset = 1 if has_nuclear else 0
+    expected_cells = 15 if has_nuclear else 14
     fuel_hourly = []
     route_generation = {"Bheramara HVDC": {}, "Tripura": {}, "Adani": {}, "Nepal": {}}
     for time_label, row in generation:
+        # Reject malformed source rows instead of shifting every value. The ERP
+        # table normally includes a trailing Remarks cell, even when it is blank.
+        if len(row) != expected_cells:
+            continue
         fuel_row = {"time": time_label, "total_mw": parse_number(row[2])}
         for key, index in fuel_fields:
             fuel_row[key] = parse_number(row[index])
         fuel_hourly.append(fuel_row)
-        for route, index in (("Bheramara HVDC", 9), ("Tripura", 10),
-                             ("Adani", 11), ("Nepal", 12)):
+        for route, index in (("Bheramara HVDC", 9 + route_offset),
+                             ("Tripura", 10 + route_offset),
+                             ("Adani", 11 + route_offset),
+                             ("Nepal", 12 + route_offset)):
             route_generation[route][time_label] = parse_number(row[index])
 
     route_imports = {"Bheramara HVDC": {}, "Tripura": {}, "Adani": {}}

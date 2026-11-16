@@ -1,7 +1,7 @@
 const $=s=>document.querySelector(s), fmt=(n,d=0)=>n==null?'—':Number(n).toLocaleString('en-US',{maximumFractionDigits:d}), esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shortDate=d=>d?new Date(`${d}T12:00:00+06:00`).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'}):'unavailable';
 function restoreScrollPosition(x,y){if(typeof window==='undefined'||typeof window.scrollTo!=='function')return;const restore=()=>window.scrollTo(x,y);if(typeof window.requestAnimationFrame==='function')window.requestAnimationFrame(restore);else restore();}
-const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',LiquidFuel:'#9c755f'};
+const colors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Imports:'#b07aa1',Wind:'#76b7b2',Nuclear:'#8b5bc7',LiquidFuel:'#9c755f'};
 let data, request=0, operatingDateRequest=0, pendingOperatingDateScroll=null, operatingDateScrollLock=null, previousForecastPromise=Promise.resolve();
 let currentDayData=null, currentDayRequest=0, currentDayError=null, currentDayChartUpdatedAt=null;
 let realtimeYesterday=false, dailyEventCategory='';
@@ -520,7 +520,9 @@ function realtimeShares(generation,routes,importRows){
   const total=valid(row.total_mw)&&row.total_mw>0?row.total_mw:null;
   const completeImports=expectedRoutes.every(name=>routes.find(route=>route.name===name)?.hourly?.some(point=>point.time===row.time&&valid(point.mw)));
   const imported=byTime.get(row.time)?.total_import_mw,renewable=[row.hydro_mw,row.solar_mw,row.wind_mw];
-  return {time:row.time,import_dependence_pct:total&&completeImports&&valid(imported)?imported/total*100:null,renewable_share_pct:total&&renewable.every(valid)?renewable.reduce((sum,value)=>sum+value,0)/total*100:null};
+  const renewableMw=renewable.every(valid)?renewable.reduce((sum,value)=>sum+value,0):null;
+  const nuclearMw=valid(row.nuclear_mw)?row.nuclear_mw:0;
+  return {time:row.time,import_dependence_pct:total&&completeImports&&valid(imported)?imported/total*100:null,renewable_share_pct:total&&renewableMw!==null?renewableMw/total*100:null,clean_energy_share_pct:total&&renewableMw!==null?(renewableMw+nuclearMw)/total*100:null};
  });
 }
 function realTime(){
@@ -539,7 +541,7 @@ function realTime(){
   '<h3>Reported load shedding</h3>'+realtimePlot(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],yesterdayRows,{syncGroup:'realtime-dispatch',height:160,key:'realtime-shedding'})+
   '<p class="note">Substation-side load shedding = demand − supply at the same timestamp. Yesterday’s comparison uses the previous calendar day of the snapshot in Bangladesh time.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
- const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind]].map(([key,name,color])=>({key,name,color,family:'fuel',fuelIcon:({'Gas':'gas-factory.png','Liquid fuel':'HFO.png',Coal:'coal.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png'})[name]}));
+ const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind],['nuclear_mw','Nuclear',colors.Nuclear]].filter(([key])=>key!=='nuclear_mw'||[...generation,...previousGeneration].some(row=>Number.isFinite(row[key]))).map(([key,name,color])=>({key,name,color,family:'fuel',fuelIcon:({'Gas':'gas-factory.png','Liquid fuel':'HFO.png',Coal:'coal.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png',Nuclear:'nuclear-plant.png'})[name]}));
  const showGeneration=generation.length||(realtimeYesterday&&previousGeneration.length);
  const generationDate=`Generation ERP page · ${dateFor('generation')} · ${generation.length} current readings`;
  const fuelTypePanel=showGeneration?panel('Generation by fuel type',generationDate,realtimePlot(generation,fuelTypeSeries,previousGeneration,{familyLegend:{family:'fuel',label:'All fuel types'},key:'realtime:gas_mw'})):'';
@@ -551,8 +553,8 @@ function realTime(){
  const totalImportsPanel=routeNames.length?panel('Total imports',importCaption,realtimePlot(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}],previousImportRows,{key:'realtime:total_import_mw'})):'';
  const importsByRoutePanel=routeNames.length?panel('Imports by route',importCaption,realtimePlot(importRows,importSeries,previousImportRows,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true,key:'realtime:import_0'})):'';
  const shareRows=realtimeShares(generation,routes,importRows),previousShareRows=realtimeShares(previousGeneration,previousRoutes,previousImportRows);
- const shareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'}];
- const sharePanel=showGeneration?panel('Import dependence (%) & renewable share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Imported renewables are not classified',realtimePlot(shareRows,shareSeries,previousShareRows,{unit:'%',key:'realtime:import_dependence_pct'}),'%'):'';
+ const shareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'},{key:'clean_energy_share_pct',name:'Clean energy share (%)',color:colors.Nuclear}];
+ const sharePanel=showGeneration?panel('Import dependence (%), renewable share (%) & clean energy share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Clean energy share = domestic hydro + solar + wind + nuclear / total generation · Imported renewables are not classified',realtimePlot(shareRows,shareSeries,previousShareRows,{unit:'%',key:'realtime:import_dependence_pct'}),'%'):'';
  const refreshNote=currentDayData.delivery==='static'?'Checks for newer published snapshots every three minutes; site builds are scheduled every 15 minutes and may be delayed.':'Checks ERP readings every three minutes.';
  const oldSnapshot=currentDayData.delivery==='static'&&Date.now()-Date.parse(currentDayData.updated_at)>90*60000;
  const refreshWarning=(currentDayData.snapshot_refresh_failed?' Could not check for newer data; showing the last available readings.':'')+(oldSnapshot?' This snapshot is over 90 minutes old; a newer publication may be pending.':'');

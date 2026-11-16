@@ -154,6 +154,17 @@ class RealtimeHistoryTests(unittest.TestCase):
         full[0]['wind_mw'] = None
         self.assertFalse(erp.complete(full, 'generation_detail'))
 
+    def test_detail_parser_supports_nuclear_and_shifted_routes(self):
+        body = b'<tr><th>Generation</th><th>Gas</th><th>Liquid Fuel</th><th>Coal</th><th>Hydro</th><th>Solar</th><th>Wind</th><th>Nuclear</th><th>Bheramara</th><th>Tripura</th><th>Adani</th><th>Nepal</th></tr><tr><td>27-10-2026</td><td>00:00</td><td>100</td><td>30</td><td>20</td><td>15</td><td>10</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td><td>6</td><td>4</td></tr>'
+        rows, _ = erp.parse_table(body, 'generation_detail', '2026-10-27')
+        self.assertEqual(rows[0]['nuclear_mw'], 3)
+        self.assertEqual(rows[0]['bheramara_mw'], 2)
+        self.assertEqual(rows[0]['nepal_mw'], 4)
+        full = [dict(rows[0], time=t) for t in daily.HOURS]
+        self.assertTrue(erp.complete(full, 'generation_detail'))
+        full[0]['nuclear_mw'] = None
+        self.assertFalse(erp.complete(full, 'generation_detail'))
+
     def test_history_keeps_india_import_page_authoritative_and_nepal_from_generation(self):
         generation = [dict(date='2025-12-31', time='00:00', total_mw=100, nepal_mw=4, adani_mw=999)]
         india_body = b'<tr><td>31-12-2025</td><td>00:00</td><td>1</td><td>999</td><td>2</td><td>999</td><td>3</td><td>999</td></tr>'

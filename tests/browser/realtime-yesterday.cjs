@@ -8,7 +8,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
   for(const width of [390,1440]){
    const context=await browser.newContext({viewport:{width,height:844},isMobile:width===390,hasTouch:width===390});
    let snapshot={...fixture.current_day,today_date:'2026-01-01',source_dates:{demand:'2026-01-01'},demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:96,shed_mw:3}],forecast_history:{'2025-12-31':{demand_hourly:[{time:'00:00',demand_mw:90,supply_mw:90,shed_mw:0},{time:'23:00',demand_mw:110,supply_mw:101,shed_mw:8}]}}};
-   const generation={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0};
+   const generation={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0,nuclear_mw:5};
    const imports=['Bheramara HVDC','Tripura','Adani','Nepal'].map((name,i)=>({name,hourly:[{time:'00:00',mw:i+1}]}));
    snapshot.generation_hourly=[generation];snapshot.imports=imports;
    Object.assign(snapshot.forecast_history['2025-12-31'],{generation_hourly:[{time:'00:00',total_mw:100}],pgcb_forecast:{date:'2025-12-31',hourly:[{time:'00:00',demand_mw:95,generation_mw:96}]}});
@@ -23,7 +23,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
    await summary.click();assert.notEqual(await panel.getAttribute('open'),null);
    const fuelPanel=page.locator('.panel').filter({has:page.getByRole('heading',{name:'Generation by fuel type',exact:true})});
    assert.equal(await fuelPanel.locator('.series-end-icon').count(),0);
-   assert.equal(await fuelPanel.locator('.series-fuel-icon').count(),6);
+   assert.equal(await fuelPanel.locator('.series-fuel-icon').count(),7);
    await checkbox.check();
    assert.equal(await fuelPanel.locator('.series-end-icon').count(),0);
    assert.notEqual(await panel.getAttribute('open'),null,'Opening yesterday collapsed forecasts');
