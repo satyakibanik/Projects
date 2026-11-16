@@ -26,7 +26,9 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   for(const tab of ['regions','plants','imports','substations','operations','en-curve','realtime','forecast','trends']){
    console.log('Exporting '+tab+' figures');
    await page.locator(`nav a[href="#${tab}"]`).click();
-   const actions=page.locator('#content .figure-actions');await actions.first().waitFor();await page.waitForTimeout(350);
+   const readiness={regions:['Regional data','.region-map-panel'],plants:['Power plants','.plant-map-panel'],imports:['Cross-border imports','.interactive-chart'],substations:['Substations','.vb-combined'],operations:['Operations detail','.ewic-flow-panel'],'en-curve':['Energy Curve','.en-curve-chart'],realtime:['Real time','.realtime-dispatch-plots'],forecast:['Forecast','.forecast-subplot'],trends:['Trends','.trends-chart']}[tab];
+   await page.waitForFunction(({title,selector})=>document.querySelector('#title')?.textContent===title&&document.querySelector(selector),readiness);
+   await page.locator('#content .figure-actions').first().waitFor();await page.waitForTimeout(350);
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
