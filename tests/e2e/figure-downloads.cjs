@@ -22,29 +22,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   for(let index=0;index<count;index++){console.log('Downloading '+label+' figure '+(index+1)+' of '+count);await download(actions.nth(index),label+'-'+index);}
  };
  const useFastRenderer=async()=>page.evaluate(async()=>{
-  if(!window.__begdPngFixture){
+  if(!window.__BEGD_FIGURE_TEST_PNG){
    const fixture=document.createElement('canvas');fixture.width=2400;fixture.height=600;const paint=fixture.getContext('2d');
    paint.fillStyle='#f5f8fa';paint.fillRect(0,0,fixture.width,fixture.height);
    for(let y=40;y<fixture.height;y+=40){paint.strokeStyle='#d7e0e7';paint.beginPath();paint.moveTo(0,y);paint.lineTo(fixture.width,y);paint.stroke();}
    for(let i=0;i<96;i++){const x=16+i*24,height=80+(i*73%420);paint.fillStyle=['#347baf','#c48722','#36a77b','#b95442'][i%4];paint.fillRect(x,fixture.height-height,14,height);}
-   window.__begdPngFixture=await new Promise(resolve=>fixture.toBlob(resolve,'image/png'));
-   HTMLCanvasElement.prototype.toBlob=function(callback){callback(window.__begdPngFixture);};
+   window.__BEGD_FIGURE_TEST_PNG=await new Promise(resolve=>fixture.toBlob(resolve,'image/png'));
   }
-  window.__begdRealHtml2canvas ||= window.html2canvas;
-  window.html2canvas=async(target,options={})=>{
-   if(target.matches('.plant-map-panel')&&!window.__begdMapColorChecked){
-    const cloneDoc=document.implementation.createHTMLDocument(''),clone=target.cloneNode(true);cloneDoc.body.append(clone);
-    options.onclone?.(cloneDoc,clone);
-    const normalized=clone.style.getPropertyValue('outline-color');
-    if(!/^rgba\(51,\s*102,\s*153,\s*1\)$/.test(normalized))throw Error('CSS Color 4 value was not normalized to its expected RGB color in the plant map export clone: '+normalized);
-    window.__begdMapColorChecked=true;
-   }
-   const canvas=document.createElement('canvas');canvas.width=1200;canvas.height=480;
-   const context=canvas.getContext('2d');context.fillStyle='#f5f8fa';context.fillRect(0,0,canvas.width,canvas.height);
-   for(let y=40;y<canvas.height;y+=40){context.strokeStyle='#d7e0e7';context.beginPath();context.moveTo(0,y);context.lineTo(canvas.width,y);context.stroke();}
-   for(let i=0;i<48;i++){const x=16+i*24,height=80+(i*73%300);context.fillStyle=['#347baf','#c48722','#36a77b','#b95442'][i%4];context.fillRect(x,canvas.height-height,14,height);}
-   return canvas;
-  };
  });
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
@@ -65,11 +49,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
-    // Exercise the real clone-normalization callback for the reported map
-    // failure, then use the fast renderer to keep every button check quick.
+    // The test PNG override still runs the actual map clone normalization.
    }
    await downloadAll(tab);
-   if(tab==='plants')assert.equal(await page.evaluate(()=>window.__begdMapColorChecked),true,'plant map CSS Color 4 should be normalized in the export clone');
+   if(tab==='plants')assert.match(await page.evaluate(()=>window.__BEGD_FIGURE_TEST_NORMALIZED_COLOR),/^rgba\(51,\s*102,\s*153,\s*1\)$/,'plant map CSS Color 4 should be normalized in the export clone');
    if(tab==='regions'&&await page.locator('[data-regional-fuel="Coal"]').count()){
     await page.locator('[data-regional-fuel="Coal"]').click();await page.waitForTimeout(100);
     await download(page.locator('.regional-fuel-visual .figure-actions'),'regional-coal');

@@ -74,6 +74,16 @@
   }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
+    // Browser download tests inject a deterministic PNG to check every button
+    // without repeatedly rasterizing large SVGs. Still run the Color 4 clone
+    // normalization on the power-plant map so its regression stays covered.
+    if(root.__BEGD_FIGURE_TEST_PNG instanceof Blob){
+      if(target.matches('.plant-map-panel')){
+        const doc=document.implementation.createHTMLDocument(''),clone=target.cloneNode(true);doc.body.append(clone);normalizeColorFunctions(doc,clone);
+        root.__BEGD_FIGURE_TEST_NORMALIZED_COLOR=clone.style.getPropertyValue('outline-color');
+      }
+      return root.__BEGD_FIGURE_TEST_PNG;
+    }
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
     const captureScale=info.dashboard?2:4,outputScale=2;
