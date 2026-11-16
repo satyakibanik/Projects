@@ -77,7 +77,7 @@
     // Browser download tests inject a deterministic PNG to check every button
     // without repeatedly rasterizing large SVGs. Still run the Color 4 clone
     // normalization on the power-plant map so its regression stays covered.
-    if(root.__BEGD_FIGURE_TEST_PNG instanceof Blob){
+    if(typeof Blob!=='undefined'&&root.__BEGD_FIGURE_TEST_PNG instanceof Blob){
       if(target.matches('.plant-map-panel')){
         const doc=document.implementation.createHTMLDocument(''),clone=target.cloneNode(true);doc.body.append(clone);normalizeColorFunctions(doc,clone);
         root.__BEGD_FIGURE_TEST_NORMALIZED_COLOR=clone.style.getPropertyValue('outline-color');
