@@ -49,27 +49,28 @@
       }
       return output;
     };
-    const properties=['color','background','background-color','background-image','border-color','border-top-color','border-right-color','border-bottom-color','border-left-color','outline-color','text-decoration-color','text-emphasis-color','text-shadow','box-shadow','column-rule-color','caret-color','accent-color','fill','stroke','stop-color','flood-color','lighting-color','filter','mask-image','-webkit-text-stroke-color'];
-    const overrides=[];let pseudoId=0;const pseudoIds=new WeakMap();
-    const nodes=[root,...root.querySelectorAll('*')];
-    for(const node of nodes){
-      const computed=doc.defaultView.getComputedStyle(node),changes=[];
-      for(const property of properties){const value=computed.getPropertyValue(property);if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)changes.push([property,replacement]);}}
-      for(const [property,value] of changes)node.style.setProperty(property,value,'important');
-      // Pseudo-elements do not participate in SVG rendering. Avoid extra
-      // computed-style calls across the many path nodes in detailed map charts.
-      if(node.namespaceURI==='http://www.w3.org/2000/svg')continue;
-      for(const pseudo of ['::before','::after']){
-        const pseudoStyle=doc.defaultView.getComputedStyle(node,pseudo),content=pseudoStyle.getPropertyValue('content');
-        if(content==='none'||content==='normal'||!content)continue;
-        const pseudoChanges=[];
-        for(const property of properties){const value=pseudoStyle.getPropertyValue(property);if(value.toLowerCase().includes('color(')){const replacement=normalize(value);if(replacement!==value)pseudoChanges.push([property,replacement]);}}
-        if(!pseudoChanges.length)continue;
-        let id=pseudoIds.get(node);if(!id){id=`h2c-color-${++pseudoId}`;pseudoIds.set(node,id);node.setAttribute('data-h2c-color',id);}
-        overrides.push(`[data-h2c-color="${id}"]${pseudo}{${pseudoChanges.map(([property,value])=>`${property}:${value}!important`).join(';')}}`);
+    const normalizeDeclaration=declaration=>{
+      for(let i=0;i<declaration.length;i++){
+        const property=declaration.item(i),value=declaration.getPropertyValue(property);
+        if(!value.toLowerCase().includes('color('))continue;
+        const replacement=normalize(value);
+        if(replacement!==value)declaration.setProperty(property,replacement,declaration.getPropertyPriority(property));
+      }
+    };
+    const normalizeRules=rules=>{
+      for(const rule of rules){
+        if(rule.style)normalizeDeclaration(rule.style);
+        if(rule.cssRules)normalizeRules(rule.cssRules);
+        if(rule.styleSheet)try{normalizeRules(rule.styleSheet.cssRules);}catch{}
+      }
+    };
+    for(const sheet of doc.styleSheets)try{normalizeRules(sheet.cssRules);}catch{}
+    for(const node of [root,...root.querySelectorAll('*')]){
+      if(node.style)normalizeDeclaration(node.style);
+      for(const attribute of ['color','fill','stroke','stop-color','flood-color','lighting-color']){
+        const value=node.getAttribute(attribute);if(value?.toLowerCase().includes('color('))node.setAttribute(attribute,normalize(value));
       }
     }
-    if(overrides.length){const style=doc.createElement('style');style.textContent=overrides.join('\n');doc.head.append(style);}
   }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
