@@ -191,13 +191,16 @@ test('yesterday extends the timeline with ERP supply and reported shedding, pres
 });
 test('the shared yesterday control extends fuel, shares, total imports and every route with exact-date readings',()=>{
  const c=app();
- vm.runInContext(`var gen={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0};var routes=['Bheramara HVDC','Tripura','Adani','Nepal'].map((name,i)=>({name,hourly:[{time:'00:00',mw:i+1}]}));currentDayData={today_date:'2026-01-01',demand_hourly:[],generation_hourly:[gen],imports:routes,realtime_history:{'2025-12-31':{generation_hourly:[{...gen,gas_mw:25}],imports:routes.slice().reverse()}},forecast_history:{}};realtimeYesterday=true`,c);
+ vm.runInContext(`var gen={time:'00:00',total_mw:100,gas_mw:30,liquid_mw:20,coal_mw:30,hydro_mw:10,solar_mw:0,wind_mw:0,nuclear_mw:5};var routes=['Bheramara HVDC','Tripura','Adani','Nepal'].map((name,i)=>({name,hourly:[{time:'00:00',mw:i+1}]}));currentDayData={today_date:'2026-01-01',demand_hourly:[],generation_hourly:[gen],imports:routes,realtime_history:{'2025-12-31':{generation_hourly:[{...gen,gas_mw:25}],imports:routes.slice().reverse()}},forecast_history:{}};realtimeYesterday=true`,c);
  const html=vm.runInContext('realTime()',c);
  assert(html.indexOf('id="realtime-yesterday"')<html.indexOf('realtime-grid'));
+ assert.match(html,/Renewable share = \(domestic hydro \+ solar \+ wind\) \/ total generation/);
+ assert.match(html,/Clean energy share = \(domestic hydro \+ solar \+ wind \+ nuclear\) \/ total generation/);
+ assert.match(html,/Liquid fuel is the ERP page's combined category; these hourly readings do not split HFO and HSD/);
  const models=vm.runInContext('[...chartData.values()]',c);
  const byScope=key=>models.find(m=>m.scope===key);
- const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].yesterday_gas_mw,25);assert.equal(fuel.rows[0].yesterday_solar_mw,0);
- const shares=byScope('realtime:import_dependence_pct');assert.equal(shares.rows[0].yesterday_import_dependence_pct,10);assert.equal(shares.rows[0].yesterday_renewable_share_pct,10);assert.equal(shares.unit,'%');
+ const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].yesterday_gas_mw,25);assert.equal(fuel.rows[0].yesterday_solar_mw,0);assert.equal(fuel.rows[0].yesterday_nuclear_mw,5);
+ const shares=byScope('realtime:import_dependence_pct');assert.equal(shares.rows[0].yesterday_import_dependence_pct,10);assert.equal(shares.rows[0].yesterday_renewable_share_pct,10);assert.equal(shares.rows[0].yesterday_clean_energy_share_pct,15);assert.equal(shares.unit,'%');
  const total=byScope('realtime:total_import_mw');assert.equal(total.rows[0].yesterday_total_import_mw,10);
  const imports=byScope('realtime:import_0');assert.equal(imports.series.filter(s=>s.key.startsWith('yesterday_')).length,4);
  for(const item of imports.series.filter(s=>!s.key.startsWith('yesterday_')))assert.equal(imports.rows[0]['yesterday_'+item.key],imports.rows[1][item.key],'Route order changed the comparison');
@@ -213,8 +216,11 @@ test('historical shares require matching routes, positive total generation and c
  assert.equal(evaluate(gen,[],imports).import_dependence_pct,null);
  assert.equal(vm.runInContext(`realtimeImportRows([{name:'Nepal',hourly:[{time:'00:00',mw:0}]}],['Nepal'])[0].total_import_mw`,c),null);
  assert.equal(evaluate(gen,[],imports).renewable_share_pct,0);
+ assert.equal(evaluate(gen,[],imports).clean_energy_share_pct,0);
+ assert.equal(evaluate([{...gen[0],nuclear_mw:5}],[],imports).clean_energy_share_pct,5);
  assert.equal(evaluate([{...gen[0],total_mw:0}],[],imports).renewable_share_pct,null);
  assert.equal(evaluate([{...gen[0],wind_mw:null}],[],imports).renewable_share_pct,null);
+ assert.equal(evaluate([{...gen[0],wind_mw:null}],[],imports).clean_energy_share_pct,null);
 });
 test('comparison tooltips show only the inspected date, without empty rows for the other day',()=>{
  const tooltip={style:{},classList:{remove(){}},getBoundingClientRect:()=>({width:300})},cursor={setAttribute(){},removeAttribute(){}};

@@ -29,6 +29,9 @@ def parse_table(body, kind, expected_date=None):
     text = body.decode('utf-8', errors='replace')
     parser.feed(text)
     headers = ' '.join(' '.join(row) for row in parser.rows if 'Demand' in ' '.join(row) or 'Generation' in ' '.join(row))
+    header_text = ' '.join(' '.join(row) for row in parser.rows
+                           if row and not re.fullmatch(r'\d{2}-\d{2}-\d{4}', row[0]))
+    has_nuclear = kind == 'generation_detail' and 'Nuclear' in header_text
     if kind == 'demand' and ('Substation Side' not in headers or 'Supply' not in headers):
         raise ValueError('Expected explicitly identified substation-side demand/supply table')
     if kind == 'generation_demand' and ('Generation Side' not in headers or 'Demand' not in headers):
@@ -37,7 +40,8 @@ def parse_table(body, kind, expected_date=None):
         raise ValueError('Expected national generation table')
     records = {}
     for row in parser.rows:
-        if len(row) < (13 if kind in ('generation', 'generation_detail') else 8 if kind == 'imports' else 6):
+        minimum = 14 if has_nuclear else 13 if kind in ('generation', 'generation_detail') else 8 if kind == 'imports' else 6
+        if len(row) < minimum:
             continue
         try:
             day = dt.datetime.strptime(row[0], '%d-%m-%Y').date().isoformat()
@@ -55,6 +59,8 @@ def parse_table(body, kind, expected_date=None):
             fields = [('demand_mw', 2), ('generation_mw', 3), ('shed_mw', 4)]
         if kind == 'generation_detail':
             fields = [('total_mw', 2), ('gas_mw', 3), ('liquid_mw', 4), ('coal_mw', 5), ('hydro_mw', 6), ('solar_mw', 7), ('wind_mw', 8), ('bheramara_mw', 9), ('tripura_mw', 10), ('adani_mw', 11), ('nepal_mw', 12)]
+            if has_nuclear:
+                fields = fields[:7] + [('nuclear_mw', 9)] + [(name, index + 1) for name, index in fields[7:]]
         if kind == 'imports':
             fields = [('bheramara_mw', 2), ('tripura_mw', 4), ('adani_mw', 6)]
         for name, index in fields:
@@ -82,6 +88,8 @@ def complete(rows, kind):
     keys = ['demand_mw'] if kind in ('demand', 'generation_demand') else ['generation_mw']
     if kind == 'generation_detail':
         keys = ['total_mw', 'gas_mw', 'liquid_mw', 'coal_mw', 'hydro_mw', 'solar_mw', 'wind_mw', 'bheramara_mw', 'tripura_mw', 'adani_mw', 'nepal_mw']
+        if any('nuclear_mw' in row for row in exact):
+            keys.insert(7, 'nuclear_mw')
     if kind == 'imports':
         keys = ['bheramara_mw', 'tripura_mw', 'adani_mw']
     return [r['time'] for r in exact] == HOURS and all(r.get(key) is not None for r in exact for key in keys)
