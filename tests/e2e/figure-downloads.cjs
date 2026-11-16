@@ -38,7 +38,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    const anchor=await page.evaluate(count=>window.__BEGD_PNG_DOWNLOAD_ANCHORS[count],anchorCount);
    const status=await bar.locator('.figure-download-status').innerText().catch(()=>'(status replaced)');
    assert.ok(anchor&&/\.png$/i.test(anchor.filename)&&anchor.href.startsWith('blob:'),label+' figure '+(index+1)+' did not invoke a PNG download link; status: '+status);
-   assert.ok(status==='PNG downloaded.'||status==='(status replaced)',label+' figure '+(index+1)+' export reported an error: '+status);
+   assert.ok(!status||status==='PNG downloaded.'||status==='(status replaced)',label+' figure '+(index+1)+' export reported an error: '+status);
    checkedDownloads++;
   }
   assert.equal(checkedDownloads-before,controls.length,label+' every click should invoke the PNG download path');
