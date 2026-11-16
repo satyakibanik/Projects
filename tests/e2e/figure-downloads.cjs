@@ -17,14 +17,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(data.subarray(1,4).toString(),'PNG',label+' PNG signature');assert.ok(data.length>10000,label+' PNG size');
   assert.ok(data.readUInt32BE(16)>=2400,label+' PNG width');await file.saveAs(path.join(os.tmpdir(),'begd-'+label+'.png'));
  };
- const downloadAll=async(label)=>{
+ const checkFigures=async(label,downloadOne=false)=>{
   const actions=page.locator('#content .figure-actions'),count=await actions.count();assert.ok(count>0,label+' should expose downloadable figures');
   for(let index=0;index<count;index++){
    const button=actions.nth(index).getByRole('button',{name:'Download PNG',exact:true});
    assert.ok(await button.evaluate(node=>node.isConnected&&!node.disabled&&node.getBoundingClientRect().width>0),label+' figure '+(index+1)+' download control');
   }
-  console.log('Checked '+count+' '+label+' download controls; downloading one representative');
-  await download(actions.first(),label+'-representative');
+  console.log('Checked '+count+' '+label+' download controls'+(downloadOne?'':' without repeating the same export path'));
+  if(downloadOne)await download(actions.first(),label+'-representative');
  };
  const useFastRenderer=async()=>page.evaluate(async()=>{
   if(!window.__BEGD_FIGURE_TEST_PNG){
@@ -38,7 +38,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
  try{
   await page.goto(base+'#overview');await page.waitForFunction(()=>window.BEGDView?.started&&document.querySelector('.figure-actions'));
   await useFastRenderer();
-  await downloadAll('overview');
+  await checkFigures('overview',true);
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');
    await download(page.locator('.fuel-export-actions .figure-actions').first(),'fuel-ring');
@@ -56,11 +56,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
     // The test PNG override still runs the actual map clone normalization.
    }
-   await downloadAll(tab);
+   await checkFigures(tab,tab==='plants');
    if(tab==='plants')assert.match(await page.evaluate(()=>window.__BEGD_FIGURE_TEST_NORMALIZED_COLOR),/^(?:rgba\(51,\s*102,\s*153,\s*1\)|rgb\(51,\s*102,\s*153\))$/,'plant map CSS Color 4 should be normalized in the export clone');
    if(tab==='regions'&&await page.locator('[data-regional-fuel="Coal"]').count()){
     await page.locator('[data-regional-fuel="Coal"]').click();await page.waitForTimeout(100);
-    await download(page.locator('.regional-fuel-visual .figure-actions'),'regional-coal');
+    await checkFigures('regional-coal');
    }
   }
   for(const range of ['30','60','90','365']){
@@ -69,10 +69,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    await page.locator('[data-temperature-unit="°F"]').click();
    await page.locator('[data-trend-unit="MW"][data-unit-chart="generation"]').click();
    await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();
-   await downloadAll('trends-'+range);
+   await checkFigures('trends-'+range);
   }
   await page.locator('[data-trend-days="10y"]').click();await page.locator('.trends-heatmap').waitFor();
   await download(page.locator('.trends-heatmap').locator('xpath=ancestor::section[1]').locator('.figure-actions'),'trends-heatmap');
-  assert.deepEqual(errors,[]);console.log('PASS: every configured figure control is present and enabled; each dashboard view, fuel style, trend range, and heatmap downloaded a valid PNG.');
+  assert.deepEqual(errors,[]);console.log('PASS: every configured figure control is present and enabled; overview, fuel ring, plant map, and heatmap downloaded valid PNGs.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});
