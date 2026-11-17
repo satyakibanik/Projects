@@ -23,6 +23,10 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    await page.goto('https://begd.test/begd/index.html#trends');
    await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('65 of 65'));
    assert.equal(await page.locator('[data-event-rows] tr').count(),50);
+   assert.equal(await page.locator('#operational-event-category option').first().innerText(),'All categories (65)');
+   assert.equal(await page.locator('#operational-event-category option[value="scheduled"]').innerText(),'Scheduled Shutdown (S/D) (64)');
+   assert.equal(await page.locator('#operational-event-category option[value="restored"]').innerText(),'Restored (1)');
+   assert.equal(await page.locator('#operational-event-category option[value="trip"]').innerText(),'Tripped (Automatic Trip) (0)');
    assert.equal(await page.locator('[data-event-coverage]').count(),0);
    assert.match(await page.locator('[data-event-rows]').innerText(),/<full> & source/);
    await page.locator('[data-event-next]').click();assert.equal(await page.locator('[data-event-rows] tr').count(),15);
@@ -35,6 +39,7 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    for(const days of [60,90,365]){
     await page.locator(`[data-trend-days="${days}"]`).click();
     await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('1 of 66'));
+    assert.equal(await page.locator('#operational-event-category option[value="trip"]').innerText(),'Tripped (Automatic Trip) (1)');
     assert.match(await page.locator('[data-event-rows]').innerText(),/Older generator Tripped/);
    }
    await page.locator('[data-trend-days="10y"]').click();assert.equal(await page.locator('#operational-event-explorer').count(),0);

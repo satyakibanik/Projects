@@ -296,6 +296,9 @@ test('daily Operations table uses the same categories as the Trends Explorer',()
  vm.runInContext(fs.readFileSync(path.join(root,'begd/operational-events.js'),'utf8'),c);
  const html=vm.runInContext(`data={operations:{events:[{outage_time:'08:00',restoration_time:'—',description:'Grid Forced S/D Due to CB tripped <source>'},{description:'Unspecified note'}]}};operations()`,c);
  assert.match(html,/Filter daily event log by category/);
+ assert.match(html,/<option value="">All categories \(2\)<\/option>/);
+ assert.match(html,/<option value="forced">Forced Shutdown \(1\)<\/option>/);
+ assert.match(html,/<option value="review">Unclassified \/ Source Fragment \(1\)<\/option>/);
  assert.match(html,/<td class="event-category">Forced Shutdown<\/td>/);
  assert.match(html,/<td class="event-category">Unclassified \/ Source Fragment<\/td>/);
  assert.match(html,/&lt;source&gt;/);assert.doesNotMatch(html,/<source>/);
@@ -314,9 +317,19 @@ test('daily event category filter keeps the chart mounted and updates matching r
 test('daily event filter persists where available and resets for a report without that category',()=>{
  const c=app();vm.runInContext(fs.readFileSync(path.join(root,'begd/operational-events.js'),'utf8'),c);
  let html=vm.runInContext(`dailyEventCategory='trip';data={operations:{events:[{description:'Unit Tripped'},{description:'Grid Forced S/D'}]}};operations()`,c);
- assert.match(html,/<option value="trip" selected>/);assert.match(html,/data-event-category="forced" hidden/);assert.match(html,/1 of 2 entries shown/);
+ assert.match(html,/<option value="trip" selected>Tripped \(Automatic Trip\) \(1\)<\/option>/);assert.match(html,/All categories \(2\)/);assert.match(html,/data-event-category="forced" hidden/);assert.match(html,/1 of 2 entries shown/);
  html=vm.runInContext(`data={operations:{events:[{description:'Grid Forced S/D'}]}};operations()`,c);
  assert.equal(vm.runInContext('dailyEventCategory',c),'');assert.match(html,/1 of 1 entries shown/);
+});
+test('site hit count remains hidden until the live counter request succeeds',()=>{
+ const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8');
+ const css=fs.readFileSync(path.join(root,'begd/theme.css'),'utf8');
+ const script=fs.readFileSync(path.join(root,'begd/site-counter.js'),'utf8');
+ assert.match(html,/<strong id="site-hit-count"><\/strong>/);
+ assert.doesNotMatch(html,/<strong id="site-hit-count">4,700<\/strong>/);
+ assert.match(css,/\.site-hit-counter strong\{[^}]*visibility:hidden/);
+ assert.match(css,/\.site-hit-counter strong\[data-loaded="true"\]\{visibility:visible\}/);
+ assert.match(script,/display\.dataset\.loaded = 'true'/);
 });
 
 test('fresh workbook fetches pass the latest EWIC readings and P1 logs into matching, including same-ID refreshes',async()=>{
