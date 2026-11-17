@@ -135,3 +135,7 @@ main :target{scroll-margin-top:150px}
 }
 
 .operating-date-bar #date-status{min-height:calc(4.65em + 6px)}
+
+/* Keep the counter slot stable without showing its value before it has loaded. */
+.site-hit-counter strong{display:inline-block;min-width:4ch;text-align:right;visibility:hidden}
+.site-hit-counter strong[data-loaded="true"]{visibility:visible}

@@ -64,6 +64,23 @@ test('pulse counts outage and restoration endpoints separately without a period 
  assert.match(html,/event-lanes-scroll/);
 });
 
+test('every daily event view dropdown shows counts for each category and the total',()=>{
+ const {api}=viewer();
+ const html=api.render([
+  {outage_time:'01:00',description:'Unit A Scheduled S/D'},
+  {outage_time:'02:00',description:'Unit B Tripped'},
+  {outage_time:'03:00',description:'Unit C Forced S/D'}
+ ],[]);
+ for(const view of ['lanes','density','dial']){
+  const select=html.match(new RegExp(`<select id="event-${view}-category"[^]*?<\\/select>`))?.[0];
+  assert.ok(select,`${view} category selector exists`);
+  assert.match(select,/All categories \(3\)/);
+  assert.match(select,/Forced Shutdown \(1\)/);
+  assert.match(select,/Scheduled Shutdown \(S\/D\) \(1\)/);
+  assert.match(select,/Tripped \(Automatic Trip\) \(1\)/);
+ }
+});
+
 test('pulse click locks selection against hover/focus until an outside click or Escape',()=>{
  const {api,listeners,panels}=viewer();api.render([{outage_time:'01:00',restoration_time:'02:00'}],[]);
  const selection={innerHTML:''},nodes=[],panel={dataset:{},querySelectorAll(){return nodes},querySelector(s){return s==='.event-density-selection'?selection:null}};

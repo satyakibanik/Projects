@@ -245,9 +245,11 @@
   const pulseEvents = events => pulseCategory ? events.filter(event => eventCategory(event) === pulseCategory) : events;
   function categoryFilterMarkup(events, view) {
     const categories = [...new Map(events.map(event => [eventCategory(event), window.BEGDOperationalEvents?.categoryLabel(event.description) || 'Unclassified / Source Fragment'])).entries()].sort((a,b) => a[1].localeCompare(b[1]));
+    const counts = new Map(categories.map(([key]) => [key, 0]));
+    events.forEach(event => counts.set(eventCategory(event), (counts.get(eventCategory(event)) || 0) + 1));
     if (pulseCategory && !categories.some(([id]) => id === pulseCategory)) pulseCategory = '';
     const id = `event-${view}-category`;
-    return `<div class="event-pulse-filter"><label for="${id}">Event category<select id="${id}" data-event-category-filter${view === 'density' ? ' data-pulse-category' : ''}><option value="">All categories</option>${categories.map(([key,label]) => `<option value="${esc(key)}"${key === pulseCategory ? ' selected' : ''}>${esc(label)}</option>`).join('')}</select></label><span role="status">${pulseEvents(events).length} of ${events.length} log entries · category filters events only</span></div>`;
+    return `<div class="event-pulse-filter"><label for="${id}">Event category<select id="${id}" data-event-category-filter${view === 'density' ? ' data-pulse-category' : ''}><option value="">All categories (${events.length})</option>${categories.map(([key,label]) => `<option value="${esc(key)}"${key === pulseCategory ? ' selected' : ''}>${esc(label)} (${counts.get(key) || 0})</option>`).join('')}</select></label><span role="status">${pulseEvents(events).length} of ${events.length} log entries · category filters events only</span></div>`;
   }
   const eventLegend = `<div class="event-mark-legend"><span><i class="event-mark-outage"></i>Outage/event time</span><span><i class="event-mark-period"></i>Outage–restoration period</span><span><i class="event-mark-restoration"></i>Restoration-only time</span><span><i class="event-mark-unplaced"></i>No reported time</span></div>`;
   function filteredEventView(view, rows, events) {

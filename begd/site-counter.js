@@ -16,6 +16,6 @@
       }
     })
     .catch(() => {
-      // Keep the seeded value visible if the counter service is unavailable.
+      // Leave the count hidden if the counter service is unavailable.
     });
 })();
