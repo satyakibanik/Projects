@@ -1,0 +1,634 @@
+{
+  "researched": "2026-11-17",
+  "organizations": [
+    {
+      "id": "government",
+      "name": "Government of Bangladesh",
+      "sector": "Governance",
+      "role": "The national government oversees the portfolios shown here. Electricity, fuels and mineral resources fall under MPEMR, while nuclear organizations sit within the Ministry of Science and Technology portfolio.",
+      "links": [],
+      "parent": null,
+      "publicData": "The ministry and division profiles list publications for their respective sectors."
+    },
+    {
+      "id": "mpemr",
+      "name": "Ministry of Power, Energy and Mineral Resources (MPEMR)",
+      "sector": "Governance",
+      "role": "Oversees national policy for electricity, energy and mineral resources. The Power Division handles electricity, while EMRD covers gas, petroleum and mineral resources.",
+      "links": [
+        {
+          "label": "Ministry portal",
+          "url": "https://mpemr.gov.bd/"
+        }
+      ],
+      "parent": "government",
+      "publicData": "The Power Division and EMRD portals provide information on the ministry’s structure and responsibilities."
+    },
+    {
+      "id": "power-division",
+      "name": "Power Division",
+      "sector": "Electricity",
+      "role": "Coordinates electricity policy and the public bodies responsible for generation, transmission and distribution. It publishes power-sector plans and annual system-loss figures by utility.",
+      "links": [
+        {
+          "label": "Power Division",
+          "url": "https://powerdivision.gov.bd/"
+        }
+      ],
+      "parent": "mpemr",
+      "publicData": "Annual system loss by utility, agency lists and power-sector plans."
+    },
+    {
+      "id": "emrd",
+      "name": "Energy and Mineral Resources Division (EMRD)",
+      "sector": "Fuel & minerals",
+      "role": "Oversees policy and administration for gas, petroleum and mineral resources. Its portfolio includes Petrobangla, Bangladesh Petroleum Corporation and the Hydrocarbon Unit.",
+      "links": [
+        {
+          "label": "EMRD",
+          "url": "https://emrd.gov.bd/"
+        }
+      ],
+      "parent": "mpemr",
+      "publicData": "Gas and petroleum policy, official notices and project publications."
+    },
+    {
+      "id": "most",
+      "name": "Ministry of Science and Technology (MoST)",
+      "sector": "Nuclear",
+      "role": "Provides the administrative portfolio for Bangladesh’s nuclear organizations. These include BAEC, the Rooppur project owner, and BAERA, which handles nuclear safety regulation.",
+      "links": [
+        {
+          "label": "MoST",
+          "url": "https://most.gov.bd/"
+        }
+      ],
+      "parent": "government",
+      "publicData": "Agency directory, laws and project-related notices."
+    },
+    {
+      "id": "berc",
+      "name": "Bangladesh Energy Regulatory Commission (BERC)",
+      "sector": "Regulation",
+      "role": "Regulates Bangladesh’s electricity, gas and petroleum sectors under statute. Its work includes licensing, tariff decisions and regulatory orders.",
+      "links": [
+        {
+          "label": "BERC",
+          "url": "https://berc.org.bd/"
+        }
+      ],
+      "parent": "government",
+      "relationship": "Statutory regulator with an administrative link to EMRD.",
+      "publicData": "Orders, tariff decisions, regulations and licensing material."
+    },
+    {
+      "id": "bpdb",
+      "name": "Bangladesh Power Development Board (BPDB)",
+      "sector": "Electricity",
+      "role": "Buys and sells electricity in bulk, generates power and distributes electricity to retail customers in its own service areas. It publishes installed capacity and generation statistics by producer category.",
+      "links": [
+        {
+          "label": "BPDB",
+          "url": "https://bpdb.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Key statistics list installed generating capacity and producer categories. Annual reports are a source for fiscal-year generation, power purchases and distribution figures where reported."
+    },
+    {
+      "id": "power-grid",
+      "name": "Power Grid Bangladesh PLC",
+      "sector": "Electricity",
+      "role": "Operates Bangladesh’s national high-voltage transmission network. Formerly known as PGCB, it houses the National Load Dispatch Centre and publishes corporate yearbooks and project information on the network.",
+      "links": [
+        {
+          "label": "Power Grid Bangladesh",
+          "url": "https://pgcb.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Daily operating workbooks and hourly ERP readings cover grid operations. Corporate yearbooks and project pages provide additional transmission network and project information."
+    },
+    {
+      "id": "nldc",
+      "name": "National Load Dispatch Centre (NLDC)",
+      "sector": "Electricity",
+      "role": "Operates and dispatches the national grid within Power Grid Bangladesh. Its daily operating workbooks provide readings on generation, demand, load shedding and cross-border flows.",
+      "links": [
+        {
+          "label": "Power Grid Bangladesh",
+          "url": "https://pgcb.gov.bd/"
+        }
+      ],
+      "parent": "power-grid",
+      "relationship": "Grid dispatch centre within Power Grid Bangladesh.",
+      "publicData": "Daily operating workbooks and hourly ERP readings cover national generation and demand, regional evening-peak load shedding, plant output, substation load and voltage, cross-border flows and grid event logs."
+    },
+    {
+      "id": "breb",
+      "name": "Bangladesh Rural Electrification Board (BREB)",
+      "sector": "Electricity",
+      "role": "Supports rural electrification through 80 Palli Bidyut Samities. BREB publishes board-level operating statistics, while the samities provide local distribution and customer services.",
+      "links": [
+        {
+          "label": "BREB",
+          "url": "https://reb.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Board-level operating statistics and totals, including rural electrification and the 80 Palli Bidyut Samities. The service charter directory links to individual PBS documents."
+    },
+    {
+      "id": "desco",
+      "name": "Dhaka Electric Supply Company Limited (DESCO)",
+      "sector": "Electricity",
+      "role": "Distributes electricity in its Dhaka-area service territory. Its technical and commercial statistics cover substations, energy purchased and sold, system losses and customers.",
+      "links": [
+        {
+          "label": "DESCO",
+          "url": "https://desco.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Annual technical and commercial statistics include demand, substations, energy purchased and sold, losses and customers."
+    },
+    {
+      "id": "dpdc",
+      "name": "Dhaka Power Distribution Company Limited (DPDC)",
+      "sector": "Electricity",
+      "role": "Distributes electricity in its Dhaka and Narayanganj service territory. Its corporate reports are an entry point for information on energy purchases and sales, losses, customers and metering.",
+      "links": [
+        {
+          "label": "DPDC",
+          "url": "https://dpdc.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Corporate reports are the source for figures on electricity purchases and sales, customers, system losses and meters where published."
+    },
+    {
+      "id": "wzpdcl",
+      "name": "West Zone Power Distribution Company Limited (WZPDCL)",
+      "sector": "Electricity",
+      "role": "Distributes electricity in western and southwestern Bangladesh. Its utility reports cover network performance, and its portal provides net-metering guidance.",
+      "links": [
+        {
+          "label": "WZPDCL",
+          "url": "https://wzpdcl.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "The portal publishes net-metering guidance. Corporate reports are the source for figures on electricity sales, customers, losses and network projects where published."
+    },
+    {
+      "id": "nesco",
+      "name": "Northern Electricity Supply PLC (NESCO)",
+      "sector": "Electricity",
+      "role": "Distributes electricity in northern Bangladesh. Its annual reports are an entry point for energy sales, customer counts, system losses and network projects.",
+      "links": [
+        {
+          "label": "NESCO",
+          "url": "https://nesco.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "The annual report archive is the source for fiscal-year figures on electricity sales, energy input, customers, system losses and project progress where reported."
+    },
+    {
+      "id": "apscl",
+      "name": "Ashuganj Power Station Company Limited (APSCL)",
+      "sector": "Electricity",
+      "role": "A public electricity generator in the Power Division portfolio. Its Ashuganj station and unit records describe generating capacity and annual output.",
+      "links": [
+        {
+          "label": "APSCL",
+          "url": "https://apscl.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Ashuganj station and unit descriptions, rated capacity and annual generation."
+    },
+    {
+      "id": "egcb",
+      "name": "Electricity Generation Company of Bangladesh Limited (EGCB)",
+      "sector": "Electricity",
+      "role": "A public electricity generator with conventional and renewable projects. Its project and portfolio pages describe plant status and unit capacities.",
+      "links": [
+        {
+          "label": "EGCB",
+          "url": "https://egcb.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Plant portfolio, project status and unit capacities, including renewable projects."
+    },
+    {
+      "id": "nwpgcl",
+      "name": "North-West Power Generation Company Limited (NWPGCL)",
+      "sector": "Electricity",
+      "role": "A public electricity generator in the Power Division portfolio. Its station and project pages describe plants, partnerships and joint ventures.",
+      "links": [
+        {
+          "label": "NWPGCL",
+          "url": "https://nwpgcl.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Station and project details, owner/operator information and joint-venture disclosures."
+    },
+    {
+      "id": "rpcl",
+      "name": "Rural Power Company Limited (RPCL)",
+      "sector": "Electricity",
+      "role": "A public electricity generator in the Power Division portfolio. Its plant and project pages provide information on fuels, installed capacity and development status.",
+      "links": [
+        {
+          "label": "RPCL",
+          "url": "https://rpcl.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Plant portfolio, project descriptions, fuel and installed capacity."
+    },
+    {
+      "id": "cpgcbl",
+      "name": "Coal Power Generation Company Bangladesh Limited (CPGCBL)",
+      "sector": "Electricity",
+      "role": "A public electricity generator responsible for the Matarbari coal power project. Its project pages describe generating units, capacity and commissioning milestones.",
+      "links": [
+        {
+          "label": "CPGCBL",
+          "url": "https://cpgcbl.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Matarbari project and unit descriptions, commissioning and capacity updates."
+    },
+    {
+      "id": "brpl",
+      "name": "B-R Powergen Limited (BRPL)",
+      "sector": "Electricity",
+      "role": "A public electricity generator in the Power Division portfolio. Its station profiles and company publications describe plant capacities and project progress.",
+      "links": [
+        {
+          "label": "BRPL",
+          "url": "https://brpowergen.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Station profiles, project progress and capacity figures in company publications."
+    },
+    {
+      "id": "sreda",
+      "name": "Sustainable and Renewable Energy Development Authority (SREDA)",
+      "sector": "Electricity",
+      "role": "Promotes renewable energy and energy efficiency. It maintains renewable project and capacity records and provides guidance on grid connections and net metering.",
+      "links": [
+        {
+          "label": "SREDA",
+          "url": "https://sreda.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Renewable project and capacity records, on-grid/off-grid classification, net-metering data and guidance."
+    },
+    {
+      "id": "power-cell",
+      "name": "Power Cell",
+      "sector": "Electricity",
+      "role": "Provides policy and technical support for the power sector. It publishes studies on topics such as utility reliability and customer satisfaction.",
+      "links": [
+        {
+          "label": "Power Cell",
+          "url": "https://powercell.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Public sector studies, including a utility reliability and customer satisfaction study covering SAIDI and SAIFI."
+    },
+    {
+      "id": "ocei",
+      "name": "Office of the Chief Electric Inspector (OCEI)",
+      "sector": "Electricity",
+      "role": "Administers electrical inspections and safety oversight. Its services include guidance on inspection procedures, licensing and electrical safety rules.",
+      "links": [
+        {
+          "label": "OCEI",
+          "url": "https://ocei.portal.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Inspection service information, licensing and electrical safety rules."
+    },
+    {
+      "id": "beprc",
+      "name": "Bangladesh Energy and Power Research Council (BEPRC)",
+      "sector": "Electricity",
+      "role": "Supports research in energy and electric power. It publishes research material and calls for projects.",
+      "links": [
+        {
+          "label": "BEPRC",
+          "url": "https://eprc.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Research publications and project calls."
+    },
+    {
+      "id": "bpmi",
+      "name": "Bangladesh Power Management Institute (BPMI)",
+      "sector": "Electricity",
+      "role": "Provides training for the power sector and publishes training and sector resources.",
+      "links": [
+        {
+          "label": "BPMI",
+          "url": "https://bpmi.gov.bd/"
+        }
+      ],
+      "parent": "power-division",
+      "publicData": "Training and sector publications."
+    },
+    {
+      "id": "baec",
+      "name": "Bangladesh Atomic Energy Commission (BAEC)",
+      "sector": "Nuclear",
+      "role": "Owns the Rooppur Nuclear Power Plant project and the company designated to operate it, NPCBL. Its planning and development records describe the project’s ownership and development.",
+      "links": [
+        {
+          "label": "BAEC",
+          "url": "https://baec.gov.bd/"
+        }
+      ],
+      "parent": "most",
+      "publicData": "Rooppur project ownership and development history."
+    },
+    {
+      "id": "baera",
+      "name": "Bangladesh Atomic Energy Regulatory Authority (BAERA)",
+      "sector": "Regulation",
+      "role": "Regulates nuclear and radiation safety, including licensing oversight. It publishes regulations, licensing information and notices about its regulatory work.",
+      "links": [
+        {
+          "label": "BAERA",
+          "url": "https://baera.gov.bd/"
+        }
+      ],
+      "parent": "most",
+      "relationship": "Nuclear safety regulator within the Ministry of Science and Technology portfolio.",
+      "publicData": "Nuclear regulations, licensing framework and public regulatory notices."
+    },
+    {
+      "id": "npcbl",
+      "name": "Nuclear Power Plant Company Bangladesh Limited (NPCBL)",
+      "sector": "Nuclear",
+      "role": "A BAEC-owned company designated to operate Rooppur under the Nuclear Power Plant Act, 2015. Its project and financial reports document development and operating milestones.",
+      "links": [
+        {
+          "label": "NPCBL",
+          "url": "https://npcbl.gov.bd/"
+        }
+      ],
+      "parent": "baec",
+      "relationship": "Owned by BAEC.",
+      "publicData": "Rooppur project progress, annual and audited financial reports, and operator information."
+    },
+    {
+      "id": "bapex",
+      "name": "Bangladesh Petroleum Exploration and Production Company Limited (BAPEX)",
+      "sector": "Fuel & minerals",
+      "role": "Explores for and produces petroleum and natural gas within the Petrobangla group. Field and well updates describe exploration and domestic production projects.",
+      "links": [
+        {
+          "label": "BAPEX",
+          "url": "https://www.bapex.com.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company updates are a source for field and well projects, exploration milestones and production figures where reported."
+    },
+    {
+      "id": "bgfcl",
+      "name": "Bangladesh Gas Fields Company Limited (BGFCL)",
+      "sector": "Fuel & minerals",
+      "role": "Produces natural gas within the Petrobangla group. Company publications are an entry point for gas field profiles and production totals.",
+      "links": [
+        {
+          "label": "BGFCL",
+          "url": "https://www.bgfcl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company publications are a source for gas field profiles and production totals where reported."
+    },
+    {
+      "id": "sgfl",
+      "name": "Sylhet Gas Fields Limited (SGFL)",
+      "sector": "Fuel & minerals",
+      "role": "Produces natural gas within the Petrobangla group. Its company material covers fields, gas output, condensate and related projects.",
+      "links": [
+        {
+          "label": "SGFL",
+          "url": "https://www.sgfl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company publications are a source for gas field output, condensate figures and project updates where reported."
+    },
+    {
+      "id": "gtcl",
+      "name": "Gas Transmission Company Limited (GTCL)",
+      "sector": "Fuel & minerals",
+      "role": "Operates the national gas transmission network. Its daily reports track gas entering and leaving the system and support cross-checks of national gas deliveries.",
+      "links": [
+        {
+          "label": "GTCL",
+          "url": "https://gtcl.gov.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Daily gas intake and offtake reports. The report format identifies the meter points, reporting period and units used for each reading."
+    },
+    {
+      "id": "tgtdcl",
+      "name": "Titas Gas Transmission and Distribution Company Limited (TGTDCL)",
+      "sector": "Fuel & minerals",
+      "role": "Distributes natural gas in the Titas service area. Company reports are an entry point for gas purchases and sales by customer class, including power where reported.",
+      "links": [
+        {
+          "label": "Titas Gas",
+          "url": "https://www.titasgas.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company reports are a source for annual gas purchases and sales by customer class, including power-sector customers where listed."
+    },
+    {
+      "id": "bgdcl",
+      "name": "Bakhrabad Gas Distribution Company Limited (BGDCL)",
+      "sector": "Fuel & minerals",
+      "role": "Distributes natural gas in the Bakhrabad service area. Company reports are an entry point for gas purchases, sales, customer mix and service coverage.",
+      "links": [
+        {
+          "label": "BGDCL",
+          "url": "https://bgdcl.gov.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company reports are a source for annual gas purchases, sales, customer mix and service coverage where reported."
+    },
+    {
+      "id": "jgtdsl",
+      "name": "Jalalabad Gas Transmission and Distribution System Limited (JGTDSL)",
+      "sector": "Fuel & minerals",
+      "role": "Transmits and distributes gas within the Jalalabad system. Its reports are an entry point for service territory and annual gas sales by customer class.",
+      "links": [
+        {
+          "label": "Jalalabad Gas",
+          "url": "https://www.jalalabadgas.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company publications are a source for service territory and annual gas sales by customer class where reported."
+    },
+    {
+      "id": "pgcl",
+      "name": "Pashchimanchal Gas Company Limited (PGCL)",
+      "sector": "Fuel & minerals",
+      "role": "Distributes natural gas in its western service territory. Its annual reports and service information cover customers, sales categories and service coverage.",
+      "links": [
+        {
+          "label": "PGCL",
+          "url": "https://pgcl.gov.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Annual reports and service information are a source for gas sales by customer class and service coverage where reported."
+    },
+    {
+      "id": "kgdcl",
+      "name": "Karnaphuli Gas Distribution Company Limited (KGDCL)",
+      "sector": "Fuel & minerals",
+      "role": "Distributes natural gas in the Karnaphuli franchise. Its company reports are an entry point for service areas, customers and gas sales by category.",
+      "links": [
+        {
+          "label": "KGDCL",
+          "url": "https://kgdcl.gov.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company reports and service information are a source for annual gas sales, customer categories and service areas where reported."
+    },
+    {
+      "id": "sgcl",
+      "name": "Sundarban Gas Company Limited (SGCL)",
+      "sector": "Fuel & minerals",
+      "role": "Distributes natural gas in the Sundarban franchise. Its company material is an entry point for distribution projects, customer counts and sales.",
+      "links": [
+        {
+          "label": "SGCL",
+          "url": "https://sgcl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company publications are a source for annual sales, customer counts and distribution project updates where reported."
+    },
+    {
+      "id": "rpgcl",
+      "name": "Rupantarita Prakritik Gas Company Limited (RPGCL)",
+      "sector": "Fuel & minerals",
+      "role": "Handles LNG, CNG and LPG activities within the Petrobangla group. Its materials cover LNG imports, regasification and terminal projects.",
+      "links": [
+        {
+          "label": "RPGCL",
+          "url": "https://www.rpgcl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company notices and project pages are a source for LNG imports, regasification, terminal projects and CNG and LPG activities."
+    },
+    {
+      "id": "bcmcl",
+      "name": "Barapukuria Coal Mining Company Limited (BCMCL)",
+      "sector": "Fuel & minerals",
+      "role": "Operates the Barapukuria coal mine. Its published production and sales records provide context for domestic coal supply to the power sector.",
+      "links": [
+        {
+          "label": "BCMCL",
+          "url": "https://bcmcl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Annual coal production figures are available. Company reports are a source for coal sales and deliveries to the power sector where reported."
+    },
+    {
+      "id": "mgmcl",
+      "name": "Maddhapara Granite Mining Company Limited (MGMCL)",
+      "sector": "Fuel & minerals",
+      "role": "Produces granite within the Petrobangla group. Its production and sales records primarily relate to mining and construction.",
+      "links": [
+        {
+          "label": "MGMCL",
+          "url": "https://www.mgmcl.org.bd/"
+        }
+      ],
+      "parent": "petrobangla",
+      "publicData": "Company reports are a source for granite production and sales figures where reported."
+    },
+    {
+      "id": "bpc",
+      "name": "Bangladesh Petroleum Corporation (BPC)",
+      "sector": "Fuel & minerals",
+      "role": "Handles petroleum supply, including imports and liquid fuels used in power generation. Its records and price circulars provide context for product sales and fuel prices.",
+      "links": [
+        {
+          "label": "BPC",
+          "url": "https://bpc.gov.bd/"
+        }
+      ],
+      "parent": "emrd",
+      "publicData": "Price circulars provide petroleum product prices. Annual publications are a source for imports and sales by product where reported."
+    },
+    {
+      "id": "hcu",
+      "name": "Hydrocarbon Unit (HCU)",
+      "sector": "Fuel & minerals",
+      "role": "Provides technical analysis of the hydrocarbon sector for EMRD. Its Energy Scenario reports summarize fiscal-year production, sector consumption and fuel supply.",
+      "links": [
+        {
+          "label": "HCU",
+          "url": "https://hcu.gov.bd/"
+        }
+      ],
+      "parent": "emrd",
+      "publicData": "Energy Scenario reports with fiscal-year production, consumption by sector and fuel-sector summaries."
+    },
+    {
+      "id": "petrobangla",
+      "name": "Bangladesh Oil, Gas and Mineral Corporation (Petrobangla)",
+      "sector": "Fuel & minerals",
+      "role": "Oversees 13 companies spanning gas exploration, production, transmission and distribution, along with LNG, related fuels and mining. It publishes daily gas reports and consolidated annual sector totals.",
+      "links": [
+        {
+          "label": "Petrobangla",
+          "url": "https://petrobangla.org.bd/"
+        }
+      ],
+      "parent": "emrd",
+      "publicData": "Daily gas reports and annual sector totals. Figures on domestic production, LNG contribution and deliveries to the power sector are available where reported."
+    },
+    {
+      "id": "pbs",
+      "name": "Palli Bidyut Samities (PBS)",
+      "sector": "Electricity",
+      "role": "The 80 Palli Bidyut Samities distribute electricity locally within BREB’s rural electrification system. Individual service charters describe customer services and local coverage.",
+      "links": [
+        {
+          "label": "PBS service charters",
+          "url": "https://reb.gov.bd/pages/static-pages/6922e087933eb65569e276a1"
+        }
+      ],
+      "parent": "breb",
+      "publicData": "BREB publishes board-level totals and links to individual PBS service charters. Local customer counts, electricity sales and network totals are included where published."
+    }
+  ]
+}

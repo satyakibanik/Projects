@@ -8,11 +8,23 @@ from trends import build_trends, daily_summary
 
 
 class TrendsTests(unittest.TestCase):
+    def test_hourly_demand_preserves_exact_hours_and_conflicts(self):
+        report = {'date':'2026-10-29', 'hourly':[
+            {'time':'00:00', 'demand_mw':0},
+            {'time':'01:00', 'demand_mw':9400}, {'time':'01:00', 'demand_mw':9400},
+            {'time':'02:00', 'demand_mw':9200}, {'time':'02:00', 'demand_mw':9500},
+            {'time':'03:30', 'demand_mw':9800}, {'time':'04:00', 'demand_mw':-1},
+            {'time':'23:00', 'demand_mw':12000}, {'time':'24:00', 'demand_mw':10000},
+        ]}
+        profile = daily_summary(report)['hourly_demand_mw']
+        self.assertEqual(profile, [0, 9400] + [None]*21 + [12000])
+
     def test_regional_shedding_preserves_snapshots_zero_and_missing(self):
         row = daily_summary({'date':'2026-10-29', 'hourly':[{'shed_mw':100}],
-                             'regions':[{'name':'Dhaka','shed_mw':0}, {'name':'Khulna','shed_mw':20},
+                             'regions':[{'name':'Dhaka','shed_mw':0,'demand_mw':225}, {'name':'Khulna','shed_mw':20},
                                         {'name':'Sylhet','shed_mw':None}, {'name':'Rangpur','shed_mw':-2}]})
         self.assertEqual(row['regional_shed_mw'], {'Dhaka':0, 'Khulna':20, 'Sylhet':None, 'Rangpur':None})
+        self.assertEqual(row['regional_demand_mw'], {'Dhaka':225, 'Khulna':None, 'Sylhet':None, 'Rangpur':None})
         self.assertEqual(row['shed_peak_mw'],100)
         self.assertEqual(daily_summary({'date':'2026-10-29'})['regional_shed_mw'],{})
 
@@ -155,12 +167,13 @@ class NationalRecoveryTests(unittest.TestCase):
         p['E59']='Zone';p['G59']='Load-Shed';p['I59']='Demand'
         p['E60']='Dhaka';p['E61']='Chattogram'
         p['B17']='Dhaka Zone';p['G60']=0
-        p['B18']='Chattogram Zone';p['G61']=25
+        p['B18']='Chattogram Zone';p['G61']=25;p['I61']=100
         book['En-Curve']['B2']='bad ancillary date'
         stream=io.BytesIO();book.save(stream)
         report=extract_trend_workbook(stream.getvalue(),{'id':'5129','published_date':'2026-09-12','download_url':'https://erp.powergrid.gov.bd/report'})
         row=daily_summary(report)
         self.assertEqual(row['regional_shed_mw'],{'Dhaka':0,'Chattogram':25})
+        self.assertEqual(row['regional_demand_mw'],{'Dhaka':None,'Chattogram':100})
         self.assertEqual(row['date'],'2026-09-11');self.assertEqual(row['generation_mwh'],240000)
         self.assertEqual(row['demand_mwh'],245000);self.assertEqual(row['shed_peak_mw'],125)
         self.assertEqual(row['temperature_c'],33.7)

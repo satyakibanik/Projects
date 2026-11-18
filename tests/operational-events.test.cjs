@@ -28,9 +28,9 @@ test('clock parsing preserves midnight, accepts 24:00 and rejects invalid source
  const api=load();assert.equal(api.clockMinutes('00:00'),0);assert.equal(api.clockMinutes('24:00'),1440);
  for(const bad of ['—','24:30','25:00','12:99',''])assert.equal(api.clockMinutes(bad),null);
 });
-test('explorer mounts after entity histories and its script loads before trend initialization',()=>{
+test('explorer mounts in the Operations section and its script loads before trend initialization',()=>{
  const trends=fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),index=fs.readFileSync(path.join(__dirname,'../begd/index.html'),'utf8');
- assert.match(trends,/<div id="entity-histories"><\/div><div id="operational-event-explorer"><\/div>/);
+ assert.match(trends,/operations:'<div id="operational-event-explorer"><\/div>'/);
  assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),period,bundle\?\.end_date\)/);
  assert.ok(index.indexOf('src="operational-events.js')<index.indexOf('src="trends.js'));
 });

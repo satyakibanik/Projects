@@ -78,11 +78,15 @@ async function inspect(page,wrap){
           await page.evaluate(t=>location.hash=t,tab);await page.waitForTimeout(200);
           if(tab==='trends')await page.waitForSelector('[data-trend-layer]');
           if(tab==='realtime'&&await page.locator('#today-forecast-panel').getAttribute('open')===null)await page.locator('#today-forecast-panel > summary').click();
-          const charts=page.locator('.interactive-chart,.trends-chart');let count=0;
-          for(let i=0;i<await charts.count();i++){
-            const wrap=charts.nth(i);
-            if(await wrap.locator('[data-point]').count()===0&&await wrap.locator('[data-trend-svg]').count()===0)continue;
-            try{await inspect(page,wrap)}catch(error){throw new Error(`${width}px ${theme} ${tab} chart ${i}: ${error.message}`,{cause:error})}count++;
+          let count=0;
+          for(const section of tab==='trends'?['generation','load','fuel','imports']:[null]){
+            if(section)await page.locator(`[data-trend-section="${section}"]`).click();
+            const charts=page.locator('.interactive-chart:visible,.trends-chart:visible');
+            for(let i=0;i<await charts.count();i++){
+              const wrap=charts.nth(i);
+              if(await wrap.locator('[data-point]').count()===0&&await wrap.locator('[data-trend-svg]').count()===0)continue;
+              try{await inspect(page,wrap)}catch(error){throw new Error(`${width}px ${theme} ${tab} chart ${i}: ${error.message}`,{cause:error})}count++;
+            }
           }
           console.log('TOUCH PASS',width,theme,tab,count,'charts');
           if(tab==='trends'){
@@ -106,6 +110,7 @@ async function inspect(page,wrap){
     // Fine-pointer behavior remains hover/focus driven after touch support is loaded.
     const context=await browser.newContext({viewport:{width:1440,height:1000}});await context.route('**/*',serve);
     const page=await context.newPage();await page.goto('https://begd.test/begd/index.html#trends');await page.waitForSelector('[data-trend-layer]');
+    await page.locator('[data-trend-section="imports"]').click();
     const svg=page.locator('[data-trend-key="dependence-renewables"] svg'),tip=page.locator('[data-trend-key="dependence-renewables"] [role=tooltip]');
     // scrollIntoViewIfNeeded considers the viewport, but not the sticky date bar.
   // Center the chart so a preserved scroll position cannot put test taps behind it.

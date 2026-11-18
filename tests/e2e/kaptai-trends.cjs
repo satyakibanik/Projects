@@ -13,6 +13,7 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8772/begd/';
  const axis=()=>chart.locator('.trends-secondary-axis');
  try{
   await page.goto(base+'?v=2&date=2026-10-24&days=365#trends');
+  await page.locator('[data-trend-section="assets"]').click();
   await section.waitFor();await ready();
   assert.equal(await section.locator('[data-history-days="365"]').getAttribute('aria-pressed'),'true');
   assert.match(await chart.innerText(),/2025-10-25 – 2026-10-24/);
@@ -40,14 +41,16 @@ const base=process.env.BEGD_TEST_URL||'http://127.0.0.1:8772/begd/';
   const waterPath=()=>chart.locator('svg.trends-plot > path[stroke="#087e8b"]').getAttribute('d');
   const baseline=await waterPath();
   // The combined draft must retain the cost chart's group selector and fit.
+  await page.locator('[data-trend-section="fuel"]').click();
   const costs=page.locator('.bpdb-cost-trend');await costs.waitFor();
-  await costs.locator('[data-cost-trendline]').check();await ready();
+  await costs.locator('[data-cost-trendline]').check();
   await costs.locator('[data-cost-trendline-path]').waitFor();
-  await costs.locator('[data-trend-group]').check();await ready();
+  await costs.locator('[data-trend-group]').check();
   assert.equal(await costs.locator('[data-cost-trendline-path]').count(),0);
   assert.equal(await waterPath(),baseline);
-  await costs.locator('[data-trend-group]').uncheck();await ready();
+  await costs.locator('[data-trend-group]').uncheck();
   await costs.locator('[data-cost-trendline-path]').waitFor();
+  await page.locator('[data-trend-section="assets"]').click();await ready();
   assert.equal(await checkbox().isChecked(),true);assert.equal(await waterPath(),baseline);
   for(const metric of ['peak_generation_mw','capacity_factor_pct','puf_pct','utilization_ratio_pct','capacity']){
    const button=section.locator(`[data-history-metric-choice="${metric}"]`);

@@ -53,6 +53,7 @@ const parseNumber=text=>Number(text.replace(/,/g,''));
    await page.locator('.ewic-location-map [data-ewic-circuit]').first().waitFor();
    assert.equal(await coordinates.isVisible(),false,'Coordinate sources are in collapsed More information');
    await page.goto('https://begd.test/begd/index.html?v=2#trends');
+   await page.locator('[data-trend-section="assets"]').click();
    const selected=page.locator('#substations-history [data-history-metric-choice="voltage_range"]');await selected.waitFor();
    assert.equal(await selected.getAttribute('aria-pressed'),'true','Substation history starts on voltage range');
    assert(await page.locator('.trends-legend img[src$="import-export.png"]').count()>0,'Imports fuel legends include their logo');

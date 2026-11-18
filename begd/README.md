@@ -324,3 +324,21 @@ For each metric, the briefing calculates the historical median, median absolute 
 Missing values and missing reports stay missing. The calculation does not fill with zero or interpolate. Intraday ramps require consecutive hourly source readings. Historical data loads only in Overview and the successfully loaded bundle is cached for the page session. Anomaly flags describe statistical rarity; they do not establish operational cause or severity.
 
 Run the focused briefing tests with `node --test tests/briefing.test.cjs` and `python -m unittest tests.test_trends`.
+
+## Hourly demand and regional shedding persistence
+
+Recent Trends windows include a P4 demand heatmap and seasonal load-duration
+curves. The heatmap uses exact Bangladesh clock hours. The duration curves
+rank the available hourly generation-side demand values within each season
+and show sample coverage against the hours in the selected window. Missing
+or conflicting samples remain gaps. These charts do not use daily energy or
+ERP substation-side demand.
+
+The regional heatmap colors show reported load shed as a percentage of reported
+regional demand at the same evening peak. The readout shows both the percentage
+and the load shed in MW. A missing or zero demand makes the percentage unavailable.
+The regional persistence ranking divides evenings with positive P1 shedding
+by evenings with a reported value for each planning region. A zero is a
+reported evening without shedding. Missing snapshots are excluded from the
+denominator and marked separately in the matrix. Both fixed-height heatmaps show exact values above the plot on hover or tap.
+Use the arrow keys after focusing a heatmap to explore readings.

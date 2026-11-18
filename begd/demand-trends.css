@@ -1,0 +1,39 @@
+.demand-heatmap-detail { min-height: 1.5em; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.demand-heatmap-scale select.demand-heatmap-palette { max-width: 7.75rem; min-height: auto; padding: .15rem .25rem; font-size: .68rem; }
+.demand-heatmap-header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .4rem 1rem; margin-block: .75rem; }
+.demand-heatmap-header .demand-heatmap-detail, .demand-heatmap-header .demand-heatmap-scale { margin: 0; }
+.demand-heatmap-header .demand-heatmap-scale { margin-inline-start: auto; justify-content: flex-end; color: var(--muted); font-size: .75rem; }
+.demand-heatmap-grid { display: grid; grid-template-columns: 6.3rem minmax(0, 1fr); }
+.demand-heatmap-dates, .demand-heatmap-labels { position: relative; font-size: .75rem; font-variant-numeric: tabular-nums; }
+.demand-heatmap-dates span { position: absolute; right: .55rem; transform: translateY(-50%); white-space: nowrap; }
+.demand-heatmap-dates .first { top: 0 !important; transform: none; }
+.demand-heatmap-dates .last { top: 100% !important; transform: translateY(-100%); }
+.demand-heatmap-plot { position: relative; height: 384px; }
+.demand-heatmap-plot canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: crosshair; }
+.demand-heatmap-labels { grid-column: 2; height: 1.8rem; }
+.demand-heatmap-labels span { position: absolute; top: .35rem; transform: translateX(-50%); white-space: nowrap; }
+.demand-heatmap-crosshair { position: absolute; inset: 0; pointer-events: none; }
+.demand-heatmap-crosshair::before, .demand-heatmap-crosshair::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 1px 1px #202631a0; }
+.demand-heatmap-crosshair::before { left: var(--x); top: 0; bottom: 0; width: 1px; }
+.demand-heatmap-crosshair::after { top: var(--y); left: 0; right: 0; height: 1px; }
+.demand-heatmap-scale { display: flex; gap: .45rem; align-items: center; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.demand-heatmap-gradient { width: min(9rem, 25vw); height: .65rem; }
+.demand-heatmap-solid, .demand-heatmap-missing { width: .7rem; height: .65rem; }
+.demand-heatmap-swatch { display: inline-flex; align-items: center; gap: .3rem; white-space: nowrap; }
+.demand-heatmap-scale [data-highlight], .demand-heatmap-header .demand-heatmap-gradient { cursor: crosshair; }
+.demand-heatmap-header .demand-heatmap-gradient { height: .95rem; width: min(8rem, 20vw); }
+.demand-persistence-table caption { text-align: left; padding-block: .4rem; }
+.demand-persistence-table th, .demand-persistence-table td { text-align: right; font-variant-numeric: tabular-nums; }
+.demand-persistence-table th:first-child { text-align: left; white-space: nowrap; }
+.demand-persistence-table thead th { white-space: normal; }
+.demand-curve-description { max-width: 80ch; line-height: 1.5; }
+@media (max-width: 850px) {
+  .demand-heatmap-labels.regional { height: 4.4rem; }
+  .demand-heatmap-labels.regional span { writing-mode: vertical-rl; }
+}
+@media (max-width: 600px) {
+  .demand-heatmap-grid { grid-template-columns: 4.8rem minmax(0, 1fr); }
+  .demand-heatmap-dates, .demand-heatmap-labels { font-size: .65rem; }
+  .demand-heatmap-labels .minor { display: none; }
+  .demand-heatmap-labels.hourly span:last-child { transform: translateX(-85%); }
+}

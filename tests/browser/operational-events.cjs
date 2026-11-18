@@ -21,6 +21,7 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    });
    const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
    await page.goto('https://begd.test/begd/index.html#trends');
+   await page.locator('[data-trend-section="operations"]').click();
    await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('65 of 65'));
    assert.equal(await page.locator('[data-event-rows] tr').count(),50);
    assert.equal(await page.locator('#operational-event-category option').first().innerText(),'All categories (65)');
@@ -45,7 +46,9 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    await page.locator('[data-trend-days="10y"]').click();assert.equal(await page.locator('#operational-event-explorer').count(),0);
    await page.locator('[data-trend-days="30"]').click();assert.equal(requests,1,'range changes must reuse the event bundle');
    // Fail only the independent log request; the generation charts remain mounted.
-   fail=true;await page.reload();await page.getByRole('button',{name:'Retry event logs'}).waitFor();
+   fail=true;await page.reload();
+   await page.locator('[data-trend-section="operations"]').click();
+   await page.getByRole('button',{name:'Retry event logs'}).waitFor();
    assert.ok(await page.locator('[data-trend-chart]').count()>0);
    fail=false;await page.getByRole('button',{name:'Retry event logs'}).click();
    await page.waitForFunction(()=>document.querySelector('[data-event-result]')?.textContent.includes('65 of 65'));
