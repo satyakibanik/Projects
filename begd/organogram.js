@@ -66,9 +66,10 @@
     for (const branch of children.values()) branch.sort(sortByName);
 
     function mark(entry) {
+      if (entry.id === 'petrobangla') return 'PB';
       const acronym = entry.name.match(/\(([A-Za-z]{2,})\)$/)?.[1];
       if (acronym) return acronym.toUpperCase();
-      return {'government':'BD','power-grid':'GRID','petrobangla':'PB','power-division':'PD','power-cell':'PC'}[entry.id] || entry.id.toUpperCase();
+      return {'government':'BD','power-grid':'GRID','power-division':'PD','power-cell':'PC'}[entry.id] || entry.id.toUpperCase();
     }
 
     function linkedCount(entry) {
