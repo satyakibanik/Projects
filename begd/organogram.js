@@ -58,9 +58,13 @@
       return count ? `<small class="organogram-linked-count">${count} linked ${count === 1 ? 'organization' : 'organizations'}</small>` : '';
     }
 
+    const collapsed = new Set();
+    const filteredCollapsed = new Set();
+    let filtering = false;
+
     function renderTree() {
       const words = search.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
-      const filtering = words.length > 0 || Boolean(sector.value);
+      filtering = words.length > 0 || Boolean(sector.value);
       const matches = organizations.filter(item => {
         if (sector.value && item.sector !== sector.value) return false;
         const terms = [item.name,item.role,item.publicData,item.sector,item.relationship,...item.links.map(link => link.label)].join(' ').toLowerCase();
@@ -73,19 +77,32 @@
         ? `${matches.length} matching ${matches.length === 1 ? 'organization' : 'organizations'}`
         : 'No organizations match those filters.';
 
-      function branch(entries) {
+      function branch(entries, parent) {
         const visible = entries.filter(entry => visibleIds.has(entry.id));
         if (!visible.length) return '';
-        return `<ul class="organogram-tree">
-          ${visible.map(entry => `<li>
-            <button type="button" class="organogram-node${matchingIds.has(entry.id) ? '' : ' organogram-context'}"
-              data-org-open="${escape(entry.id)}" data-sector="${escape(entry.sector)}"
-              ${entry.id === selected ? 'aria-current="true"' : ''}>
-              <span class="organogram-mark" aria-hidden="true">${escape(mark(entry))}</span>
-              <span class="organogram-node-text"><strong>${escape(entry.name)}</strong><small>${escape(entry.sector)}</small></span>
-            </button>
-            ${branch(children.get(entry.id))}
-          </li>`).join('')}
+        const closed = filtering ? filteredCollapsed : collapsed;
+        const attributes = parent
+          ? ` id="org-children-${escape(parent)}"${closed.has(parent) ? ' hidden' : ''}`
+          : '';
+        return `<ul class="organogram-tree"${attributes}>
+          ${visible.map(entry => {
+            const id = escape(entry.id);
+            const descendants = branch(children.get(entry.id), entry.id);
+            return `<li>
+              <div class="organogram-tree-row">
+                <button type="button" class="organogram-node${matchingIds.has(entry.id) ? '' : ' organogram-context'}"
+                  data-org-open="${id}" data-sector="${escape(entry.sector)}"
+                  ${entry.id === selected ? 'aria-current="true"' : ''}>
+                  <span class="organogram-mark" aria-hidden="true">${escape(mark(entry))}</span>
+                  <span class="organogram-node-text"><strong>${escape(entry.name)}</strong><small>${escape(entry.sector)}</small></span>
+                </button>
+                ${descendants ? `<button type="button" class="organogram-toggle" data-org-toggle="${id}"
+                  aria-expanded="${!closed.has(entry.id)}" aria-controls="org-children-${id}"
+                  aria-label="Toggle organizations under ${escape(entry.name)}"><span aria-hidden="true"></span></button>` : ''}
+              </div>
+              ${descendants}
+            </li>`;
+          }).join('')}
         </ul>`;
       }
 
@@ -112,8 +129,23 @@
       if (focus) profile.querySelector('#organogram-name').focus();
     }
 
-    search.addEventListener('input', renderTree);
-    sector.addEventListener('change', renderTree);
+    function applyFilters() {
+      filteredCollapsed.clear();
+      renderTree();
+    }
+
+    search.addEventListener('input', applyFilters);
+    sector.addEventListener('change', applyFilters);
+    tree.addEventListener('click', event => {
+      const toggle = event.target.closest('[data-org-toggle]');
+      if (!toggle) return;
+      const closed = filtering ? filteredCollapsed : collapsed;
+      const id = toggle.dataset.orgToggle;
+      const isExpanded = closed.delete(id);
+      if (!isExpanded) closed.add(id);
+      toggle.setAttribute('aria-expanded', String(isExpanded));
+      document.getElementById(toggle.getAttribute('aria-controls')).hidden = !isExpanded;
+    });
     host.querySelector('.organogram').addEventListener('click', event => {
       const button = event.target.closest('[data-org-open]');
       if (!button) return;
