@@ -21,16 +21,6 @@
 [data-org-path] [aria-current] { padding: .35rem .45rem; font-weight: 600; }
 [data-org-path] button { padding: .35rem .45rem; min-height: 44px; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .organogram [hidden] { display: none !important; }
-[data-org-ancestry] { position: relative; padding-bottom: 1.15rem; }
-[data-org-ancestry]::after {
-  content: '';
-  position: absolute;
-  inset-inline-start: 2.55rem;
-  bottom: 0;
-  height: 1.15rem;
-  border-inline-start: 2px solid var(--org-muted);
-  pointer-events: none;
-}
 .organogram-profile {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -72,16 +62,50 @@
   white-space: nowrap;
 }
 .organogram-branches { margin-top: 1.25rem; }
-.organogram-search-results { margin-bottom: 1.25rem; }
-.organogram-search-results h2, .organogram-branches h2 { margin: 0 0 .65rem; font-size: 1.35rem; }
-.organogram-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .55rem; }
-.organogram-cards p { grid-column: 1 / -1; margin: 0; color: var(--org-muted); }
+.organogram-branches h2 { margin: 0 0 .65rem; font-size: 1.35rem; }
+.organogram [data-org-status] { margin: 0 0 .65rem; color: var(--org-muted); }
+.organogram-tree {
+  --org-indent: clamp(.8rem, 3vw, 2rem);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.organogram-tree .organogram-tree { margin-inline-start: calc(var(--org-indent) / 2); }
+.organogram-tree .organogram-tree > li {
+  position: relative;
+  padding-block-start: .5rem;
+  padding-inline-start: var(--org-indent);
+}
+.organogram-tree .organogram-tree > li::before,
+.organogram-tree .organogram-tree > li::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+.organogram-tree .organogram-tree > li::before {
+  inset-block: 0;
+  border-inline-start: 1px solid var(--org-muted);
+}
+.organogram-tree .organogram-tree > li:last-child::before { inset-block-end: auto; block-size: 2rem; }
+.organogram-tree .organogram-tree > li::after {
+  inset-block-start: 2rem;
+  inline-size: var(--org-indent);
+  border-block-start: 1px solid var(--org-muted);
+}
+.organogram-tree-row {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  width: min(100%, 39rem);
+}
 .organogram button.organogram-node {
   display: flex;
   align-items: center;
   gap: .6rem;
   min-width: 0;
   min-height: 52px;
+  flex: 1;
   padding: .65rem .8rem;
   color: var(--org-ink);
   background: var(--org-paper);
@@ -93,14 +117,39 @@
   text-transform: none;
   letter-spacing: normal;
 }
-.organogram button.organogram-node:hover, .organogram button.organogram-node:focus-visible {
+.organogram button.organogram-node:hover, .organogram button.organogram-node:focus-visible,
+.organogram button.organogram-toggle:hover, .organogram button.organogram-toggle:focus-visible {
   border-color: var(--org-muted);
   outline: 2px solid var(--org-muted);
   outline-offset: 1px;
 }
+.organogram button.organogram-toggle {
+  flex: 0 0 44px;
+  min-height: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--org-rule);
+  border-radius: 6px;
+  color: var(--org-ink);
+  background: var(--org-paper);
+}
+.organogram-toggle span {
+  display: block;
+  width: .55rem;
+  height: .55rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg);
+}
+.organogram-toggle[aria-expanded="true"] span { transform: translateY(-.15rem) rotate(45deg); }
 .organogram-node-text { min-width: 0; overflow-wrap: anywhere; }
 .organogram-node-text small { display: block; margin-top: .2rem; color: var(--org-muted) !important; }
-.organogram-node-arrow { margin-left: auto; font-size: 1.15rem; }
+.organogram button.organogram-node[aria-current="true"] {
+  border-color: var(--org-accent);
+  box-shadow: inset 0 0 0 1px var(--org-accent);
+}
+.organogram button.organogram-context { background: color-mix(in srgb, var(--org-muted) 8%, var(--org-paper)); }
 .organogram [data-sector="Governance"] { --org-accent: #315977; }
 .organogram [data-sector="Electricity"] { --org-accent: #216454; }
 .organogram [data-sector="Fuel & minerals"] { --org-accent: #81511b; }
@@ -117,6 +166,4 @@
   .organogram-profile-body { padding-top: .5rem; }
   .organogram-profile-body ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
   .organogram-profile { grid-template-columns: minmax(0, 1fr); }
-  .organogram-cards { grid-template-columns: minmax(0, 1fr); }
-  .organogram-parent { width: 100%; }
 }
