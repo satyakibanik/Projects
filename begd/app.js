@@ -189,6 +189,8 @@ function overviewSnapshotMarkup(){
  try{return overview();}
  finally{for(let id=previous+1;id<=chartId;id++)chartData.delete('plot-'+id);chartId=previous;}
 }
+const energyShareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'},{key:'clean_energy_share_pct',name:'Clean energy share (%)',color:colors.Nuclear}];
+const energyShareTitle='Import dependence (%), renewable share (%) & clean energy share (%)';
 function overviewEnergyCompositionCharts(){
  const curve=data.en_curve,sources=(curve?.sources||[]).filter(source=>source.key!=='shortage_mw'),sourceGroups=new Map(),importKeys=[];
  for(const source of sources){
@@ -210,7 +212,8 @@ function overviewEnergyCompositionCharts(){
   const imported=importKeys.length&&importKeys.every(key=>Number.isFinite(row[key]))?importKeys.reduce((sum,key)=>sum+row[key],0):null;
   const renewableValues=['Hydro','Solar','Wind'].map(name=>groupValue(row,name));
   const renewable=renewableValues.every(Number.isFinite)?renewableValues.reduce((sum,value)=>sum+value,0):null;
-  const output={time:row.time,import_dependence_pct:total>0&&Number.isFinite(imported)?imported/total*100:null,renewable_share_pct:total>0&&Number.isFinite(renewable)?renewable/total*100:null};
+  const nuclear=sourceGroups.has('Nuclear')?groupValue(row,'Nuclear'):0;
+  const output={time:row.time,import_dependence_pct:total>0&&Number.isFinite(imported)?imported/total*100:null,renewable_share_pct:total>0&&Number.isFinite(renewable)?renewable/total*100:null,clean_energy_share_pct:total>0&&Number.isFinite(renewable)&&Number.isFinite(nuclear)?(renewable+nuclear)/total*100:null};
   fuelSeries.forEach((series,index)=>{output[series.key]=groupValue(row,entries[index][0])});
   return output;
  });
@@ -218,8 +221,8 @@ function overviewEnergyCompositionCharts(){
  const hasFuelData=rows.some(row=>fuelSeries.some(series=>Number.isFinite(row[series.key])));
  const hasShareData=shareSourcesAvailable&&rows.some(row=>Number.isFinite(row.import_dependence_pct)||Number.isFinite(row.renewable_share_pct));
  const fuelBody=hasFuelData?chart(rows,fuelSeries,{unit:'MW',xMax:1440,xTicks,preserveGaps:true,key:'overview:energy-composition-fuels'}):'<p class="note">Half-hourly generation by fuel type is unavailable in this report.</p>';
- const shareBody=hasShareData?chart(rows,[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'}],{unit:'%',xMax:1440,xTicks,preserveGaps:true,key:'overview:energy-composition-shares'}):'<p class="note">Complete half-hourly import and renewable readings are unavailable in this report.</p>';
- return `<div class="grid realtime-grid energy-composition-charts">${panel('Generation by fuel type',`Half-hourly workbook output · ${esc(date)} · imports are excluded from the fuel series`,fuelBody,'MW · BST')}${panel('Import dependence (%) & renewable share (%)',`Half-hourly report share of total generation, including imports · Import dependence = imports / total generation · Renewable share = domestic hydro + solar + wind / total generation · Imported renewables are not classified · ${esc(date)}`,shareBody,'%')}</div>`;
+ const shareBody=hasShareData?chart(rows,energyShareSeries,{unit:'%',xMax:1440,xTicks,preserveGaps:true,key:'overview:energy-composition-shares'}):'<p class="note">Complete half-hourly import and renewable readings are unavailable in this report.</p>';
+ return `<div class="grid realtime-grid energy-composition-charts">${panel('Generation by fuel type',`Half-hourly workbook output · ${esc(date)} · imports are excluded from the fuel series`,fuelBody,'MW · BST')}${panel(energyShareTitle,`Half-hourly report share of total generation, including imports · Import dependence = imports / total generation · Renewable share = (domestic hydro + solar + wind) / total generation · Clean energy share = (domestic hydro + solar + wind + nuclear) / total generation · Imported renewables are not classified · ${esc(date)}`,shareBody,'%')}</div>`;
 }
 function overview(){
  const s=data.summary,sources=comparisonSources(),dispatch=comparedRows(data.hourly,sources,[{key:'demand_mw',name:'Demand'},{key:'generation_mw',name:'Generation'}]),shed=comparedRows(data.hourly,sources,[{key:'shed_mw',name:'Load shedding',bar:true}]);
@@ -553,8 +556,7 @@ function realTime(){
  const totalImportsPanel=routeNames.length?panel('Total imports',importCaption,realtimePlot(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}],previousImportRows,{key:'realtime:total_import_mw'})):'';
  const importsByRoutePanel=routeNames.length?panel('Imports by route',importCaption,realtimePlot(importRows,importSeries,previousImportRows,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true,key:'realtime:import_0'})):'';
  const shareRows=realtimeShares(generation,routes,importRows),previousShareRows=realtimeShares(previousGeneration,previousRoutes,previousImportRows);
- const shareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'},{key:'clean_energy_share_pct',name:'Clean energy share (%)',color:colors.Nuclear}];
- const sharePanel=showGeneration?panel('Import dependence (%), renewable share (%) & clean energy share (%)','Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = (domestic hydro + solar + wind) / total generation · Clean energy share = (domestic hydro + solar + wind + nuclear) / total generation · Imported renewables are not classified',realtimePlot(shareRows,shareSeries,previousShareRows,{unit:'%',key:'realtime:import_dependence_pct'}),'%'):'';
+ const sharePanel=showGeneration?panel(energyShareTitle,'Hourly share of total generation, including imports · Import dependence = total imports / total generation · Renewable share = (domestic hydro + solar + wind) / total generation · Clean energy share = (domestic hydro + solar + wind + nuclear) / total generation · Imported renewables are not classified',realtimePlot(shareRows,energyShareSeries,previousShareRows,{unit:'%',key:'realtime:import_dependence_pct'}),'%'):'';
  const refreshNote=currentDayData.delivery==='static'?'Checks for newer published snapshots every three minutes; site builds are scheduled every 15 minutes and may be delayed.':'Checks ERP readings every three minutes.';
  const oldSnapshot=currentDayData.delivery==='static'&&Date.now()-Date.parse(currentDayData.updated_at)>90*60000;
  const refreshWarning=(currentDayData.snapshot_refresh_failed?' Could not check for newer data; showing the last available readings.':'')+(oldSnapshot?' This snapshot is over 90 minutes old; a newer publication may be pending.':'');

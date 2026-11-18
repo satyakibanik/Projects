@@ -72,6 +72,28 @@
       }
     }
   }
+  function simplifySingleLayerLegends(clone){
+    const chartSelector='[data-chart], [data-trend-chart], [data-fuel-controls]';
+    const layerSelector='[data-toggle-series], [data-trend-layer], [data-fuel-layer]';
+    const charts=[...clone.querySelectorAll(chartSelector)];
+    if(clone.matches(chartSelector))charts.unshift(clone);
+    for(const chart of charts){
+      const selected=[...chart.querySelectorAll(layerSelector)].filter(input=>input.checked&&input.closest(chartSelector)===chart);
+      if(selected.length!==1)continue;
+      const input=selected[0],label=input.closest('label');
+      if(!label||label.closest('[hidden]'))continue;
+      const legends=[...chart.querySelectorAll('.legend,.trends-legend,.fuel-legend,.forecast-layer')]
+        .filter(legend=>legend.closest(chartSelector)===chart&&!legend.parentElement.closest('.legend,.trends-legend,.fuel-legend,.forecast-layer'));
+      if(!legends.length)continue;
+      const legend=clone.ownerDocument.createElement('div');
+      legend.className='legend';
+      legends[0].before(legend);
+      legend.append(label);
+      input.remove();
+      legends.forEach(item=>item.remove());
+      chart.querySelector('.fuel-layer-actions')?.remove();
+    }
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
     // Browser download tests inject a deterministic PNG to check every button
@@ -99,6 +121,7 @@
         doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
         clone.style.height='auto';clone.style.minHeight='0';clone.style.maxHeight='none';
+        simplifySingleLayerLegends(clone);
         clone.querySelectorAll('.en-curve-chart>svg.chart').forEach(svg=>{
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
           const extra=Math.max(0,ink.y+ink.height-view.y-view.height);

@@ -433,11 +433,22 @@ test('overview energy composition mirrors realtime fuel and share charts from En
  vm.runInContext(`data={date:'2026-11-05',en_curve:${JSON.stringify({date:'2026-11-05',sources,hourly:[first,incomplete,endpoint]})}}`,c);
  const html=vm.runInContext('overviewEnergyCompositionCharts()',c);
  const models=JSON.parse(vm.runInContext(`JSON.stringify([...chartData.values()].map(model=>({rows:model.rows,series:model.series.map(series=>({key:series.key,name:series.name})),unit:model.unit,xRight:model.plotBounds.right,xEnd:model.x(model.rows.at(-1))})))`,c));
- assert.match(html,/Generation by fuel type/);assert.match(html,/Import dependence \(%\) & renewable share \(%\)/);
+ assert.match(html,/Generation by fuel type/);assert.match(html,/Import dependence \(%\), renewable share \(%\) & clean energy share \(%\)/);
  assert.equal(models.length,2);assert.equal(models[0].unit,'MW');assert.equal(models[1].unit,'%');
  assert.deepEqual(models[0].series.map(series=>series.name),['Gas','Liquid fuel','Coal','Hydro','Solar','Wind']);
  assert.equal(models[0].rows[0].fuel_type_0,100);assert.equal(models[0].rows[0].fuel_type_1,30);
  assert.ok(Math.abs(models[1].rows[0].import_dependence_pct-27.5)<1e-9);assert.ok(Math.abs(models[1].rows[0].renewable_share_pct-15)<1e-9);
  assert.equal(models[1].rows[1].import_dependence_pct,null);assert.equal(models[1].rows[1].renewable_share_pct,null);
+ assert.equal(models[1].rows[0].clean_energy_share_pct,15,'Archives without a nuclear series use the renewable share');
+ assert.equal(models[1].rows[1].clean_energy_share_pct,null);
  assert.equal(models[0].xEnd,models[0].xRight,'the 24:00 workbook endpoint should land at the right edge');
+
+ const nuclearCurve={sources:[...sources,{key:'nuclear_mw',name:'Nuclear'}],hourly:[
+  {...first,nuclear_mw:20},{...first,time:'00:30',nuclear_mw:null}
+ ]};
+ vm.runInContext(`chartData.clear();data.en_curve=${JSON.stringify(nuclearCurve)};overviewEnergyCompositionCharts()`,c);
+ const shares=JSON.parse(vm.runInContext(`JSON.stringify([...chartData.values()].at(-1).rows)`,c));
+ assert.equal(shares[0].clean_energy_share_pct,20);
+ assert.equal(shares[0].renewable_share_pct,15);
+ assert.equal(shares[1].clean_energy_share_pct,null,'A missing reading in a reported nuclear series remains a gap');
 });

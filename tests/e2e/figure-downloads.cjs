@@ -50,6 +50,28 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    window.__BEGD_PNG_DOWNLOAD_ANCHORS=[];const original=HTMLAnchorElement.prototype.click;
    HTMLAnchorElement.prototype.click=function(){if(this.download)window.__BEGD_PNG_DOWNLOAD_ANCHORS.push({filename:this.download,href:this.href});return original.call(this);};
   });
+  const shareChart=page.locator('.interactive-chart').filter({has:page.locator('[data-toggle-series="clean_energy_share_pct"]')});
+  await shareChart.waitFor();
+  const layerLabels=await shareChart.evaluate(chart=>Array.from(chart.querySelectorAll('[data-series-label]'),label=>label.textContent.trim()));
+  assert.deepEqual(layerLabels,['Import dependence (%)','Renewable share (%)','Clean energy share (%)']);
+  for(const key of ['import_dependence_pct','renewable_share_pct'])await shareChart.locator(`[data-toggle-series="${key}"]`).uncheck();
+  const exportLegend=await shareChart.evaluate(async chart=>{
+   const render=window.html2canvas;
+   let legend;
+   try{
+    window.html2canvas=(target,options)=>render(target,{...options,onclone(doc,clone){
+     options.onclone(doc,clone);
+     legend=Array.from(clone.querySelectorAll('.legend label [data-series-label]'),label=>label.textContent.trim());
+     if(clone.querySelector('.legend input'))throw Error('The single-layer export legend should omit checkboxes');
+    }});
+    const png=await window.BEGDFigures.exportPNG(chart);
+    if(png.type!=='image/png'||!png.size)throw Error('The single-layer export should produce a PNG');
+    return legend;
+   }finally{window.html2canvas=render;}
+  });
+  assert.deepEqual(exportLegend,['Clean energy share (%)']);
+  assert.equal(await shareChart.locator('.legend input').count(),3,'Export must leave the interactive legend intact');
+  for(const key of ['import_dependence_pct','renewable_share_pct'])await shareChart.locator(`[data-toggle-series="${key}"]`).check();
   await useFastRenderer();await clickEveryFigure('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');await clickEveryFigure('fuel-ring');
