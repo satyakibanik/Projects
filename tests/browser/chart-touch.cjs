@@ -76,7 +76,7 @@ async function inspect(page,wrap){
         await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
         for(const tab of ['realtime','trends','overview','en-curve','imports','operations','forecast']){
           await page.evaluate(t=>location.hash=t,tab);await page.waitForTimeout(200);
-          if(tab==='trends')await page.waitForSelector('[data-trend-layer]');
+          if(tab==='trends')await page.locator('[data-trend-section="generation"]').waitFor();
           if(tab==='realtime'&&await page.locator('#today-forecast-panel').getAttribute('open')===null)await page.locator('#today-forecast-panel > summary').click();
           let count=0;
           for(const section of tab==='trends'?['generation','load','fuel','imports']:[null]){
