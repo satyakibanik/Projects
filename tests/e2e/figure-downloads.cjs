@@ -50,6 +50,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    window.__BEGD_PNG_DOWNLOAD_ANCHORS=[];const original=HTMLAnchorElement.prototype.click;
    HTMLAnchorElement.prototype.click=function(){if(this.download)window.__BEGD_PNG_DOWNLOAD_ANCHORS.push({filename:this.download,href:this.href});return original.call(this);};
   });
+  await page.setViewportSize({width:390,height:844});
   const shareChart=page.locator('.interactive-chart').filter({has:page.locator('[data-toggle-series="clean_energy_share_pct"]')});
   await shareChart.waitFor();
   const layerLabels=await shareChart.evaluate(chart=>Array.from(chart.querySelectorAll('[data-series-label]'),label=>label.textContent.trim()));
@@ -61,7 +62,13 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    try{
     window.html2canvas=(target,options)=>render(target,{...options,onclone(doc,clone){
      options.onclone(doc,clone);
-     legend=Array.from(clone.querySelectorAll('.legend label [data-series-label]'),label=>label.textContent.trim());
+     const seriesLabels=clone.querySelectorAll('.legend label [data-series-label]');
+     legend=Array.from(seriesLabels,label=>label.textContent.trim());
+     const text=doc.createRange();text.selectNodeContents(seriesLabels[0]);
+     if(text.getClientRects().length!==1)throw Error('The selected series name should fit on one line');
+     const plot=clone.querySelector('svg.chart');
+     const endpoint=Array.from(plot.querySelectorAll('text')).find(tick=>tick.textContent==='24:00');
+     if(endpoint.getBoundingClientRect().right>plot.getBoundingClientRect().right)throw Error('The final time tick should fit inside the SVG');
      if(clone.querySelector('.legend input'))throw Error('The single-layer export legend should omit checkboxes');
     }});
     const png=await window.BEGDFigures.exportPNG(chart);
@@ -72,6 +79,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.deepEqual(exportLegend,['Clean energy share (%)']);
   assert.equal(await shareChart.locator('.legend input').count(),3,'Export must leave the interactive legend intact');
   for(const key of ['import_dependence_pct','renewable_share_pct'])await shareChart.locator(`[data-toggle-series="${key}"]`).check();
+  await page.setViewportSize({width:1440,height:1000});
   await useFastRenderer();await clickEveryFigure('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');await clickEveryFigure('fuel-ring');

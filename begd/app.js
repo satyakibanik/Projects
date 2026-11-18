@@ -128,7 +128,7 @@ function chart(rows,series,options={}){
   }
   body+='</g>';
  }
- for(const tick of options.xTicks||[]){body+=`<text x="${x(tick)}" y="${H-7}" text-anchor="middle">${esc(tick.label)}</text>`;}
+ for(const tick of options.xTicks||[]){body+=`<text x="${x(tick)}" y="${H-7}" text-anchor="${tick.anchor||'middle'}">${esc(tick.label)}</text>`;}
  if(!options.xTicks)for(const h of (window.innerWidth<600?[0,8,16,23]:[0,6,12,18,23]))body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
  for(const item of plotSeries){
@@ -217,7 +217,7 @@ function overviewEnergyCompositionCharts(){
   fuelSeries.forEach((series,index)=>{output[series.key]=groupValue(row,entries[index][0])});
   return output;
  });
- const date=shortDate(curve?.date||data.date),xTicks=[{time:'00:00',label:'00:00'},{time:'06:00',label:'06:00'},{time:'12:00',label:'12:00'},{time:'18:00',label:'18:00'},{time:'24:00',label:'24:00'}];
+ const date=shortDate(curve?.date||data.date),xTicks=[{time:'00:00',label:'00:00'},{time:'06:00',label:'06:00'},{time:'12:00',label:'12:00'},{time:'18:00',label:'18:00'},{time:'24:00',label:'24:00',anchor:'end'}];
  const hasFuelData=rows.some(row=>fuelSeries.some(series=>Number.isFinite(row[series.key])));
  const hasShareData=shareSourcesAvailable&&rows.some(row=>Number.isFinite(row.import_dependence_pct)||Number.isFinite(row.renewable_share_pct));
  const fuelBody=hasFuelData?chart(rows,fuelSeries,{unit:'MW',xMax:1440,xTicks,preserveGaps:true,key:'overview:energy-composition-fuels'}):'<p class="note">Half-hourly generation by fuel type is unavailable in this report.</p>';
