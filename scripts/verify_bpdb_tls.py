@@ -1,4 +1,4 @@
-"""Complete BPDB's omitted issuer chain, verified against system roots and hostname."""
+"""Complete an omitted issuer chain and verify it against system roots and hostname."""
 import argparse
 from pathlib import Path
 import re
@@ -18,24 +18,27 @@ def issuer_url(text):
         raise ValueError('No certificate issuer URL')
     parsed = urlparse(match.group(1))
     if parsed.scheme not in ('http', 'https') or not (parsed.hostname == 'crt.sectigo.com' or re.fullmatch(r'[a-z0-9]+\.i\.lencr\.org', parsed.hostname or '')):
-        raise ValueError('Unexpected BPDB certificate issuer URL')
+        raise ValueError('Unexpected certificate issuer URL')
     # Issuer certificates are untrusted inputs until the complete signature chain
-    # and BPDB hostname validate against system roots below.
+    # and publisher hostname validate against system roots below.
     return match.group(1)
 
 
-def verified_bundle(output, ca_file=None):
-    roots = Path(ca_file or ssl.get_default_verify_paths().cafile or '/etc/ssl/certs/ca-certificates.crt')
-    if not roots.is_file():
+def verified_bundle(output, ca_file=None, *, host=HOST):
+    candidates = [ca_file] if ca_file else [
+        ssl.get_default_verify_paths().cafile, '/etc/ssl/certs/ca-certificates.crt', '/etc/ssl/cert.pem',
+    ]
+    roots = next((Path(path) for path in candidates if path and Path(path).is_file()), None)
+    if roots is None:
         raise ValueError('System CA roots are unavailable')
     def run(args, **kwargs):
         return subprocess.run(args, capture_output=True, timeout=30, **kwargs)
-    with tempfile.TemporaryDirectory(prefix='begd-bpdb-tls-') as directory:
+    with tempfile.TemporaryDirectory(prefix='begd-publisher-tls-') as directory:
         folder = Path(directory)
-        peer = run(['openssl', 's_client', '-connect', HOST+':443', '-servername', HOST, '-showcerts'], input=b'')
+        peer = run(['openssl', 's_client', '-connect', host+':443', '-servername', host, '-showcerts'], input=b'')
         certificates = re.findall(CERTIFICATE, peer.stdout, re.S)
         if not certificates:
-            raise ValueError('BPDB returned no TLS certificate')
+            raise ValueError(f'{host} returned no TLS certificate')
         leaf, chain = folder/'leaf.pem', folder/'chain.pem'
         leaf.write_bytes(certificates[0]+b'\n')
         chain.write_bytes(b'\n'.join(certificates[1:]))
@@ -49,14 +52,14 @@ def verified_bundle(output, ca_file=None):
                 context = ssl.create_default_context(cafile=str(roots))
                 if chain.stat().st_size:
                     context.load_verify_locations(cafile=str(chain))
-                with socket.create_connection((HOST, 443), timeout=20) as connection:
-                    with context.wrap_socket(connection, server_hostname=HOST):
+                with socket.create_connection((host, 443), timeout=20) as connection:
+                    with context.wrap_socket(connection, server_hostname=host):
                         pass
                 Path(output).write_bytes(roots.read_bytes()+b'\n'+chain.read_bytes())
-                print('Verified BPDB TLS chain and hostname:', HOST)
+                print('Verified TLS chain and hostname:', host)
                 return
             if depth == 4:
-                raise ValueError('Could not verify BPDB certificate chain: '+verification.stderr.decode().strip())
+                raise ValueError('Could not verify certificate chain: '+verification.stderr.decode().strip())
             text = run(['openssl', 'x509', '-in', str(current), '-noout', '-text'], check=True).stdout.decode()
             url = issuer_url(text)
             raw, issuer = folder/f'issuer-{depth}.crt', folder/f'issuer-{depth}.pem'

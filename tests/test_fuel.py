@@ -18,24 +18,55 @@ FIXTURES = ROOT / 'tests/fixtures/fuel'
 class FuelTests(unittest.TestCase):
     def test_fetch_preserves_curl_exit_and_complete_stderr(self):
         url = fuel.SOURCES['petrobangla']
-        message = b'curl: (60) SSL certificate problem: unable to get local issuer certificate\n' + b'diagnostic ' * 30
-        with patch.object(fuel.subprocess, 'run', side_effect=subprocess.CalledProcessError(60, ['curl'], stderr=message)) as run:
+        message = b'curl: (28) Operation timed out\n' + b'diagnostic ' * 30
+        with patch.object(fuel.subprocess, 'run', side_effect=subprocess.CalledProcessError(28, ['curl'], stderr=message)) as run:
             with self.assertRaises(fuel.FuelFetchError) as caught:
                 fuel.fetch(url)
         error = caught.exception
-        self.assertEqual(error.details(), {'url':url, 'curl_exit_code':60, 'stderr':message.decode()})
-        self.assertIn('unable to get local issuer certificate', str(error))
+        self.assertEqual(error.details(), {'url':url, 'curl_exit_code':28, 'stderr':message.decode()})
+        self.assertIn('Operation timed out', str(error))
         args = run.call_args.args[0]
         self.assertIn('--show-error', args)
         self.assertIn('=https', args)
         self.assertEqual(args[args.index('--retry')+1], '3')
-        self.assertIn('--retry-all-errors', args)
+        self.assertIn('--retry-connrefused', args)
         self.assertEqual(args[args.index('--retry-max-time')+1], '150')
         self.assertEqual(args[args.index('--connect-timeout')+1], '15')
         self.assertIn('--ipv4', args)
         self.assertIn('--http1.1', args)
         self.assertNotIn('--insecure', args)
         self.assertNotIn('-k', args)
+
+    def test_certificate_failure_retries_with_verified_publisher_chain(self):
+        url = fuel.SOURCES['petrobangla']
+        rejected = subprocess.CalledProcessError(60, ['curl'], stderr=b'missing issuer')
+        success = subprocess.CompletedProcess(['curl'], 0, b'listing')
+        with (
+            patch.object(fuel.subprocess, 'run', side_effect=[rejected, success]) as run,
+            patch.object(fuel, 'verified_bundle') as verify,
+        ):
+            self.assertEqual(fuel.fetch(url), b'listing')
+        bundle = verify.call_args.args[0]
+        self.assertEqual(verify.call_args.kwargs, {'host': 'petrobangla.org.bd'})
+        initial, retry = (call.args[0] for call in run.call_args_list)
+        self.assertNotIn('--cacert', initial)
+        self.assertEqual(retry[retry.index('--cacert')+1], str(bundle))
+        self.assertEqual(retry[-1], url)
+        self.assertNotIn('--insecure', retry)
+
+    def test_unverifiable_certificate_never_retries_download(self):
+        url = fuel.SOURCES['coal']
+        rejected = subprocess.CalledProcessError(60, ['curl'], stderr=b'missing issuer')
+        with (
+            patch.object(fuel.subprocess, 'run', side_effect=rejected) as run,
+            patch.object(fuel, 'verified_bundle', side_effect=ValueError('hostname mismatch')),
+        ):
+            with self.assertRaises(fuel.FuelFetchError) as caught:
+                fuel.fetch(url)
+        self.assertEqual(run.call_count, 1)
+        self.assertEqual(caught.exception.exit_code, 60)
+        self.assertIn('missing issuer', caught.exception.stderr)
+        self.assertIn('hostname mismatch', caught.exception.stderr)
 
     def test_collection_reports_latest_parsed_date_and_new_rows(self):
         seed = ROOT / 'begd/fuel-data.json'

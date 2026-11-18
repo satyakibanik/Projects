@@ -48,7 +48,7 @@ Rows retain original PDF URLs and SHA-256 hashes. SVG charts have corresponding 
 
 ## Collection and local use
 
-`scripts/fuel.py` collects the latest ten reports from each gas publisher during the existing Pages build, merges dates with the saved seed and Actions cache, and refreshes the annual coal table. Downloads use trusted HTTPS through system curl. Layout/column/range/reconciliation failures leave existing rows intact and publish a partial/failed source status. A collection timestamp describes the attempt; PDF period dates describe the actual data age. This is saved official data, not a live gas telemetry feed.
+`scripts/fuel.py` collects the latest ten reports from each gas publisher during the existing Pages build, merges dates with the saved seed and Actions cache, and refreshes the annual coal table. Downloads use trusted HTTPS through system curl. If a publisher omits an intermediate certificate, the collector reconstructs the chain to a system trust root and verifies the hostname before retrying. Layout/column/range/reconciliation failures leave existing rows intact and publish a partial/failed source status. A collection timestamp describes the attempt; PDF period dates describe the actual data age. This is saved official data, not a live gas telemetry feed.
 
 The Actions cache retains `.cache/fuel`, so historical reports accumulate across builds. The committed seed provides a baseline after cache eviction. Older accumulated rows beyond the committed seed depend on cache retention; backfill explicitly when needed:
 

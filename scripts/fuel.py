@@ -13,15 +13,19 @@ import math
 from pathlib import Path
 import re
 import subprocess
+import tempfile
 from urllib.parse import urlparse
 
 import pdfplumber
+
+from verify_bpdb_tls import verified_bundle
 
 REPORT_FILTER = '?filters=%7B%22reports_type%22%3A%20%226922d2b181fc96cef9e99f16%22%7D'
 SOURCES = {'petrobangla': 'https://petrobangla.org.bd/pages/reports' + REPORT_FILTER,
            'gtcl': 'https://gtcl.gov.bd/pages/reports' + REPORT_FILTER,
            'coal': 'https://bcmcl.org.bd/pages/static-pages/6922dd3c933eb65569e140ed',
            'emrd': 'https://emrddashboard.gov.bd/'}
+REPORT_HOSTS = {'petrobangla.org.bd', 'gtcl.gov.bd', 'bcmcl.org.bd'}
 BN = str.maketrans('০১২৩৪৫৬৭৮৯', '0123456789')
 
 
@@ -44,18 +48,37 @@ def error_details(exc):
 
 def fetch(url):
     host = urlparse(url).hostname or ''
-    if host not in {'petrobangla.org.bd', 'gtcl.gov.bd', 'bcmcl.org.bd'} and host != 'objectstorage.ap-dcc-gazipur-1.oraclecloud15.com':
+    if host not in REPORT_HOSTS and host != 'objectstorage.ap-dcc-gazipur-1.oraclecloud15.com':
         raise ValueError('Unexpected fuel source host')
-    # Use the platform trust store; never disable certificate verification.
+    command = ['curl', '--fail', '--silent', '--show-error', '--location',
+               '--ipv4', '--http1.1', '--connect-timeout', '15',
+               '--retry', '3', '--retry-connrefused', '--retry-delay', '2',
+               '--retry-max-time', '150', '--proto', '=https', '--proto-redir', '=https',
+               '--max-time', '45', '--max-filesize', '15000000']
+
+    def download(options=()):
+        return subprocess.run(
+            [*command, *options, url], check=True, capture_output=True,
+        ).stdout
+
     try:
-        return subprocess.run(['curl', '--fail', '--silent', '--show-error', '--location',
-                               '--ipv4', '--http1.1', '--connect-timeout', '15',
-                               '--retry', '3', '--retry-all-errors', '--retry-delay', '2',
-                               '--retry-max-time', '150',
-                               '--proto', '=https', '--proto-redir', '=https', '--max-time', '45',
-                               '--max-filesize', '15000000', url], check=True, capture_output=True).stdout
+        return download()
     except subprocess.CalledProcessError as exc:
-        raise FuelFetchError(url, exc.returncode, exc.stderr) from exc
+        if exc.returncode != 60 or host not in REPORT_HOSTS:
+            raise FuelFetchError(url, exc.returncode, exc.stderr) from exc
+        # Some publisher servers omit intermediates. Rebuild the path to a
+        # system root and verify the hostname before retrying with that bundle.
+        with tempfile.TemporaryDirectory(prefix='begd-fuel-tls-') as directory:
+            bundle = Path(directory) / 'publisher-ca.pem'
+            try:
+                verified_bundle(bundle, host=host)
+            except (OSError, ValueError, subprocess.SubprocessError) as recovery:
+                detail = exc.stderr.decode(errors='replace') if isinstance(exc.stderr, bytes) else str(exc.stderr or '')
+                raise FuelFetchError(url, exc.returncode, f'{detail.rstrip()}\nCertificate chain recovery failed: {recovery}') from recovery
+            try:
+                return download(('--cacert', str(bundle)))
+            except subprocess.CalledProcessError as retry:
+                raise FuelFetchError(url, retry.returncode, retry.stderr) from retry
 
 
 def number_line(text, pattern):
