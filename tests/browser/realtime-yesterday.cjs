@@ -1,7 +1,7 @@
 // Uses the offline site fixture; no ERP or forecast-model network requests.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {serve,fixture}=require('./fixture-site.cjs');
+const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{
@@ -60,7 +60,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
    assert.equal(await plots.first().locator('[data-point]').count(),1);
    // Returning to Real time rerenders while retaining the session choices.
    await checkbox.check();
-   await page.locator('nav a[href="#overview"]').click();await page.locator('nav a[href="#realtime"]').click();
+   await navigateDashboard(page,'overview');await navigateDashboard(page,'realtime');
    assert.equal(await checkbox.isChecked(),true);assert.equal(await panel.getAttribute('open'),null);
    // A fresh snapshot day uses only its exact previous date, never an older day.
    snapshot={...snapshot,today_date:'2026-01-02'};

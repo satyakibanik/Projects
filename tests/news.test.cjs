@@ -31,7 +31,7 @@ test('news catalog retains unique source-linked articles, explicit languages and
  assert.equal(d.refresh_mode,'saved-catalog');assert.equal(d.coverage_complete,false);
 });
 test('News appears between the Fuel divider and Organogram without a TEST label',()=>{
- const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8'),nav=html.match(/<nav aria-label="Dashboard views">([\s\S]*?)<\/nav>/)[1];
+ const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8'),nav=html.match(/<nav\b[^>]*aria-label="Dashboard views"[^>]*>([\s\S]*?)<\/nav>/)[1];
  assert.match(nav,/#forecast[\s\S]*?<hr class="nav-section-divider"[^>]*><a href="#news">[\s\S]*?News/);assert.doesNotMatch(nav,/TEST/);
  assert.match(fs.readFileSync(path.join(root,'begd/news.js'),'utf8'),/\.header-meta \.status'\)\.textContent='NEWS'/);
  const links=[...nav.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);assert.deepEqual(links.slice(-4),['forecast','fuel','news','organogram']);

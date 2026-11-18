@@ -25,4 +25,10 @@ async function serve(route){
   return route.fulfill({body:fs.readFileSync(file),contentType:mime[path.extname(file)]||'application/octet-stream'});
 }
 
-module.exports={serve,fixture};
+async function navigateDashboard(page, view) {
+  const menu = page.locator('#mobile-nav-toggle');
+  if (await menu.isVisible()) await menu.click();
+  await page.locator(`nav a[href="#${view}"]`).click();
+}
+
+module.exports={serve,fixture,navigateDashboard};

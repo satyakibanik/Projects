@@ -95,6 +95,31 @@ const tabs=['realtime','trends','overview','en-curve','regions','plants','import
     }
     console.log('AUDIT',JSON.stringify(results.at(-1)));
    }
+   if(width===390&&theme==='dark'){
+    await page.setViewportSize({width,height:560});
+    await page.goto('https://begd.test/begd/index.html?v=2&date=2026-01-15#overview');
+    await page.locator('#load-shedding-title').scrollIntoViewIfNeeded();
+    const menu=page.getByRole('button',{name:'Open dashboard menu'});
+    const drawer=page.getByRole('dialog',{name:'Dashboard menu'});
+    const scroll=await page.evaluate(()=>scrollY);
+    assert.ok(scroll>500,'Test the menu with the dashboard scrolled');
+    assert.ok((await menu.boundingBox()).y<32,'Menu stays in the top-left viewport while scrolling');
+    assert.equal(await page.getByRole('navigation',{name:'Dashboard views'}).isVisible(),false);
+    await menu.click();
+    assert.equal(await menu.getAttribute('aria-expanded'),'true');
+    await drawer.getByRole('link',{name:/Organogram/}).scrollIntoViewIfNeeded();
+    assert.ok(await drawer.locator('nav').evaluate(nav=>nav.scrollTop>0),'The drawer scrolls independently');
+    await page.keyboard.press('Escape');
+    await drawer.waitFor({state:'hidden'});
+    await page.waitForFunction(()=>document.activeElement?.id==='mobile-nav-toggle');
+    assert.equal(await page.evaluate(()=>scrollY),scroll,'Dismissing the drawer restores the same place');
+    await menu.click();
+    await drawer.getByRole('link',{name:/Organogram/}).click();
+    await drawer.waitFor({state:'hidden'});
+    await page.getByRole('heading',{name:'Organogram',exact:true}).waitFor();
+    assert.equal(await menu.getAttribute('aria-expanded'),'false');
+    assert.ok(await page.evaluate(()=>scrollY)<10,'Selecting a view returns to the top');
+   }
    assert.deepEqual(errors,[],`${width} ${theme}: browser errors`);
    await context.close();
   }

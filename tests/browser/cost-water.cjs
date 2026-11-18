@@ -1,7 +1,7 @@
 // Offline browser regressions for dated costs and expanded hourly hydro detail.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {serve,fixture}=require('./fixture-site.cjs');
+const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
 const report={...fixture.report,date:'2026-10-26',published_date:'2026-10-27',
  plant_units:[
   {name:'Karnaphuli Hydro PP Unit-1,2,3,4, 5',fuel:'Hydro',producer:'PDB',region:'Chattogram',status:'running',installed_capacity_mw:230,present_capacity_mw:230,peak_generation_mw:40,energy_mwh:720,hourly:[{time:'00:00',mw:20},{time:'01:00',mw:30},{time:'02:00',mw:40}]},
@@ -35,7 +35,7 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    await costInfo.locator('summary').click();
    assert.match(await costInfo.innerText(),/24 Oct 2026/);
    await picker.selectOption('2026-10-26');assert.match(await page.locator('.bpdb-cost-panel').innerText(),/CALCULATED/);
-   await page.locator('nav a[href="#trends"]').click();
+   await navigateDashboard(page,'trends');
    await page.locator('[data-trend-section="fuel"]').click();
    await page.locator('.bpdb-average-panel').waitFor();
    assert.equal(await page.locator('.bpdb-cost-trend svg.trends-plot').count(),2);
@@ -54,7 +54,7 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    await page.locator('[data-trend-days="7"]').click();
    assert.equal(await page.locator('[data-trend-days="7"]').getAttribute('aria-pressed'),'true');
    assert.match(await page.locator('.bpdb-cost-trend > .more-information').textContent(),/preceding 7 calendar days/);
-   await page.locator('nav a[href="#plants"]').click();
+   await navigateDashboard(page,'plants');
    await page.locator('[data-filter="name"]').fill('Karnaphuli Hydro');await page.locator('.plant-row').click();
    const axis=page.locator('.chart-secondary-axis'),water=page.locator('[data-toggle-series="water_level_ft_msl"]');
    await axis.waitFor();assert.match(await axis.getAttribute('aria-label'),/right axis \(ft MSL\)/);
