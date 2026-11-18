@@ -67,8 +67,10 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
      const text=doc.createRange();text.selectNodeContents(seriesLabels[0]);
      if(text.getClientRects().length!==1)throw Error('The selected series name should fit on one line');
      const plot=clone.querySelector('svg.chart');
-     const endpoint=Array.from(plot.querySelectorAll('text')).find(tick=>tick.textContent==='24:00');
-     if(endpoint.getBoundingClientRect().right>plot.getBoundingClientRect().right)throw Error('The final time tick should fit inside the SVG');
+     const ticks=Array.from(plot.querySelectorAll('text'));
+     const endpoint=ticks.find(tick=>tick.textContent==='24:00').getBoundingClientRect();
+     const preceding=ticks.find(tick=>tick.textContent==='18:00').getBoundingClientRect();
+     if(endpoint.right>plot.getBoundingClientRect().right||preceding.right>=endpoint.left)throw Error('The final time tick should fit inside the SVG with space after the preceding tick');
      if(clone.querySelector('.legend input'))throw Error('The single-layer export legend should omit checkboxes');
     }});
     const png=await window.BEGDFigures.exportPNG(chart);
