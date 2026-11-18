@@ -39,17 +39,21 @@
    if(group)group.items.push(item);else groups.push({point:item.point,items:[item]});
   }return groups;
  }
+ function plantValue({plant,location},key,getValue){
+  const reported=getValue(plant,key);
+  return key==='fuel'&&(!reported||reported==='—')?location.fuel??reported:reported;
+ }
  function detailsMarkup(items,columns,getValue){
   return items.map(({plant,location})=>`<article class="plant-map-card"><h3>${escape(plant.name)}</h3><dl>${columns.filter(([k])=>k!=='name').map(([k,label])=>{
-   const value=getValue(plant,k),number=['installed','present','peak'].includes(k);
+   const value=plantValue({plant,location},k,getValue),number=['installed','present','peak'].includes(k);
    return `<div><dt>${escape(label)}</dt><dd>${value==null?'—':number?escape(Number(value).toLocaleString('en-US',{maximumFractionDigits:1}))+' MW':escape(value)}</dd></div>`;
   }).join('')}</dl><p class="plant-map-location">${location.latitude.toFixed(6)}° N, ${location.longitude.toFixed(6)}° E · ${escape(location.source)}${location.approximate?' · approximate':''}</p>${osmURL(location.osm_id)?`<p class="plant-map-osm"><a href="${osmURL(location.osm_id)}" target="_blank" rel="noopener noreferrer">View on OpenStreetMap ↗</a></p>`:''}<button type="button" data-map-plant-detail="${encodeURIComponent(plant.name)}">Open plant details and hourly output</button></article>`).join('');
  }
- const fuelColors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Wind:'#76b7b2','Dual fuel':'#9c6eaf',Other:'#526a7d'};
+ const fuelColors={Gas:'#4e79a7',Coal:'#79706e',HFO:'#f28e2b',HSD:'#e15759',Hydro:'#59a14f',Solar:'#edc948',Wind:'#76b7b2',Nuclear:'#8b5bc7','Dual fuel':'#9c6eaf',Other:'#526a7d'};
  const fuel=value=>String(value||'').includes('/')?'Dual fuel':fuelColors[value]?value:'Other';
  let assets;
  async function load(){
-  if(!assets)assets=Promise.all(['bangladesh-boundary.geojson','plant-locations.json','plant-administrative-boundaries.geojson'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Plant map data unavailable');return r.json()})).catch(error=>{assets=null;throw error});
+  if(!assets)assets=Promise.all(['bangladesh-boundary.geojson','plant-locations.json?v=rooppur-v1','plant-administrative-boundaries.geojson'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Plant map data unavailable');return r.json()})).catch(error=>{assets=null;throw error});
   return assets;
  }
  async function create({frame,sidebar,summary,legend,columns,getValue,onDetails}){
@@ -80,7 +84,7 @@
    const screenScale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h),radius=5.5/screenScale;
    groups=groupNearby(markers,44/screenScale);layer.replaceChildren();
    groups.forEach((group,index)=>{
-    const multiple=group.items.length>1,color=multiple?'#19374b':fuelColors[fuel(getValue(group.items[0].plant,'fuel'))];
+    const multiple=group.items.length>1,color=multiple?'#19374b':fuelColors[fuel(plantValue(group.items[0],'fuel',getValue))];
     const label=multiple?`${group.items.length} nearby generating units: ${group.items.map(i=>i.plant.name).join(', ')}`:group.items[0].plant.name;
     const marker=make('g',{class:'plant-map-marker',tabindex:'0',role:'button','aria-label':label,'data-unit-count':group.items.length,transform:`translate(${group.point[0]} ${group.point[1]})`});
     marker.append(make('circle',{r:radius*(multiple?1.4:1),fill:color,stroke:'#fff','stroke-width':'1.5','vector-effect':'non-scaling-stroke'}));
@@ -129,7 +133,7 @@
    const resolved=resolvePlants(rows,catalog,geometry);markers=resolved.markers;
    summary.textContent=`${markers.length} of ${markers.length+resolved.unmapped.length+resolved.outside.length} plant entries mapped · selected report · nearby units are grouped`;
    if(resolved.unmapped.length||resolved.outside.length)summary.textContent+=` · not mapped: ${[...resolved.unmapped,...resolved.outside].map(p=>p.name).join(', ')}`;
-   const fuels=[...new Set(markers.map(m=>fuel(getValue(m.plant,'fuel'))))];legend.innerHTML=fuels.map(f=>`<span><i style="background:${fuelColors[f]}"></i>${escape(f)}</span>`).join('')+'<span><i style="background:#19374b"></i>Grouped units</span><span><i class="district-boundary-key"></i>District boundary</span><span><i class="division-boundary-key"></i>Division boundary</span>';
+   const fuels=[...new Set(markers.map(m=>fuel(plantValue(m,'fuel',getValue))))];legend.innerHTML=fuels.map(f=>`<span><i style="background:${fuelColors[f]}"></i>${escape(f)}</span>`).join('')+'<span><i style="background:#19374b"></i>Grouped units</span><span><i class="district-boundary-key"></i>District boundary</span><span><i class="division-boundary-key"></i>Division boundary</span>';
    repaint();idle();
   }};
  }
