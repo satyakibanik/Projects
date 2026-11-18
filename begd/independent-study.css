@@ -56,3 +56,33 @@
 .realtime-comparison-controls label{display:inline-flex;align-items:center;gap:8px;cursor:pointer}
 .realtime-comparison-controls .note{margin:0}
 .realtime-comparison-controls input{accent-color:var(--blue)}
+
+#independent-study-panel,
+.forecast-performance-panel {
+  margin-block-start: 32px;
+}
+.forecast-performance-panel .panel-head {
+  padding-inline: 24px;
+}
+.forecast-performance-chart {
+  margin-block-start: 24px;
+}
+.forecast-chart-description {
+  max-width: 75ch;
+  line-height: 1.55;
+}
+.forecast-performance-panel .toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+.forecast-performance-panel .toolbar label {
+  display: grid;
+  gap: 6px;
+  max-width: 100%;
+}
+@media (max-width: 760px) {
+  .forecast-performance-panel .panel-head {
+    padding-inline: 16px;
+  }
+}
