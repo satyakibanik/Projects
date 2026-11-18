@@ -30,11 +30,11 @@ test('news catalog retains unique source-linked articles, explicit languages and
  for(const a of d.articles){assert.match(a.url,/^https:\/\//);assert.ok(a.title&&a.source&&a.summary&&d.event_labels[a.event]);assert.ok(['en','bn'].includes(a.language));assert.ok(a.date>='2026-07-30'&&a.date<='2026-10-27');if(a.publication_time_verified){assert.ok(Number.isFinite(Date.parse(a.published_at)));assert.equal(a.published_at.slice(0,10),a.date);}}
  assert.equal(d.refresh_mode,'saved-catalog');assert.equal(d.coverage_complete,false);
 });
-test('News appears last after Fuel and a divider without a TEST label',()=>{
+test('News appears between the Fuel divider and Organogram without a TEST label',()=>{
  const html=fs.readFileSync(path.join(root,'begd/index.html'),'utf8'),nav=html.match(/<nav aria-label="Dashboard views">([\s\S]*?)<\/nav>/)[1];
  assert.match(nav,/#forecast[\s\S]*?<hr class="nav-section-divider"[^>]*><a href="#news">[\s\S]*?News/);assert.doesNotMatch(nav,/TEST/);
  assert.match(fs.readFileSync(path.join(root,'begd/news.js'),'utf8'),/\.header-meta \.status'\)\.textContent='NEWS'/);
- const links=[...nav.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);assert.equal(links.at(-1),'news');assert.equal(links.at(-2),'fuel');assert.equal(links.at(-3),'forecast');
+ const links=[...nav.matchAll(/href="#([^"]+)"/g)].map(m=>m[1]);assert.deepEqual(links.slice(-4),['forecast','fuel','news','organogram']);
 });
 test('news mounts without a workbook and limits the main feed to 20 cards',async()=>{
  const d=JSON.parse(fs.readFileSync(path.join(root,'begd/news-data.json'),'utf8'));

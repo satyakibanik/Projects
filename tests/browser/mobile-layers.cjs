@@ -53,15 +53,18 @@ async function checkLayer(page,selector,index,touch){
         await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
         for(const tab of ['realtime','trends','overview','en-curve','regions','plants','imports','substations','operations','forecast']){
           await page.evaluate(t=>location.hash=t,tab);await page.waitForTimeout(180);
-          if(tab==='trends')await page.waitForSelector('[data-trend-layer]');
+          if(tab==='trends')await page.locator('[data-trend-section="generation"]').waitFor();
           if(tab==='realtime'&&await page.locator('#today-forecast-panel').getAttribute('open')===null)await page.locator('#today-forecast-panel > summary').click();
           let count=0;
-          for(const selector of ['#content [data-toggle-series]','#content [data-toggle-family]','#content [data-trend-layer]','#content [data-trend-group]','#content [data-cost-trendline]']){
-            const total=await page.locator(selector).count();
-            for(let i=0;i<total;i++){
-              // Toggle off/on; reusing the same node also catches duplicate listeners.
-              await checkLayer(page,selector,i,width===390);
-              await checkLayer(page,selector,i,width===390);count+=2;
+          for(const section of tab==='trends'?['generation','load','fuel','imports']:[null]){
+            if(section)await page.locator(`[data-trend-section="${section}"]`).click();
+            for(const selector of ['#content [data-toggle-series]:visible','#content [data-toggle-family]:visible','#content [data-trend-layer]:visible','#content [data-trend-group]:visible','#content [data-cost-trendline]:visible']){
+              const total=await page.locator(selector).count();
+              for(let i=0;i<total;i++){
+                // Toggle off/on; reusing the same node also catches duplicate listeners.
+                await checkLayer(page,selector,i,width===390);
+                await checkLayer(page,selector,i,width===390);count+=2;
+              }
             }
           }
           console.log('PASS',width,theme,tab,count,'stable layer toggles');

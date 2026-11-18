@@ -1,0 +1,122 @@
+.organogram {
+  --org-paper: var(--surface, var(--bg));
+  --org-rule: var(--line);
+  --org-ink: var(--ink);
+  --org-muted: var(--muted);
+  --org-accent: #315977;
+}
+.organogram-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, 14rem); align-items: end; gap: .65rem; margin-bottom: .85rem; }
+.organogram-controls label { display: grid; gap: .3rem; min-width: 0; }
+.organogram-controls input, .organogram-controls select { width: 100%; min-height: 44px; }
+[data-org-path] { padding-bottom: .8rem; margin-bottom: 1rem; border-bottom: 1px solid var(--org-rule); }
+[data-org-path] ol { display: flex; flex-wrap: wrap; align-items: center; gap: .2rem .45rem; margin: 0; padding: 0; list-style: none; }
+[data-org-path] li { display: inline-flex; align-items: center; gap: .45rem; min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+[data-org-path] li + li::before { content: '›'; color: var(--muted); }
+[data-org-path] li[data-sector] button, [data-org-path] [aria-current] {
+  border-inline-start: 3px solid var(--org-accent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--org-accent) 13%, var(--org-paper));
+  color: var(--org-ink);
+}
+[data-org-path] [aria-current] { padding: .35rem .45rem; font-weight: 600; }
+[data-org-path] button { padding: .35rem .45rem; min-height: 44px; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
+.organogram [hidden] { display: none !important; }
+[data-org-ancestry] { position: relative; padding-bottom: 1.15rem; }
+[data-org-ancestry]::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 2.55rem;
+  bottom: 0;
+  height: 1.15rem;
+  border-inline-start: 2px solid var(--org-muted);
+  pointer-events: none;
+}
+.organogram-profile {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  border: 1px solid var(--org-rule);
+  border-radius: 6px;
+  background: var(--org-paper);
+}
+.organogram-profile-title {
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+.organogram-profile-title > div { min-width: 0; }
+.organogram-profile-title h2 { margin: .2rem 0 0; color: inherit; font-size: clamp(1.45rem, 2.5vw, 2.1rem); line-height: 1.12; overflow-wrap: anywhere; }
+.organogram-sector { font-weight: 600; color: var(--org-muted); }
+.organogram-profile-body { min-width: 0; padding: clamp(1rem, 2vw, 1.5rem); overflow-wrap: anywhere; }
+.organogram-profile-body h3 { margin: 0 0 .3rem; font-size: 1rem; }
+.organogram-profile-body p + h3 { margin-top: .85rem; }
+.organogram-profile-body p { margin: 0; line-height: 1.5; }
+.organogram-profile-body .organogram-relationship { margin-top: .55rem; color: var(--org-muted); }
+.organogram-profile-body ul { display: flex; flex-wrap: wrap; gap: .25rem .65rem; list-style: none; margin: .5rem 0 0; padding: 0; }
+.organogram-profile-body a { display: inline-flex; align-items: center; gap: .25rem; min-height: 44px; max-width: 100%; }
+.organogram-profile-body a span:first-child { min-width: 0; overflow-wrap: anywhere; }
+.organogram .organogram-mark {
+  box-sizing: border-box;
+  flex: 0 0 3.5rem;
+  inline-size: 3.5rem;
+  min-inline-size: 3.5rem;
+  block-size: 3.5rem;
+  display: grid;
+  place-items: center;
+  padding: .15rem;
+  border-radius: 4px;
+  color: #fff !important;
+  background: var(--org-accent);
+  font: 700 .69rem/1 system-ui, sans-serif;
+  font-size: .69rem !important;
+  white-space: nowrap;
+}
+.organogram-branches { margin-top: 1.25rem; }
+.organogram-search-results { margin-bottom: 1.25rem; }
+.organogram-search-results h2, .organogram-branches h2 { margin: 0 0 .65rem; font-size: 1.35rem; }
+.organogram-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .55rem; }
+.organogram-cards p { grid-column: 1 / -1; margin: 0; color: var(--org-muted); }
+.organogram button.organogram-node {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  min-width: 0;
+  min-height: 52px;
+  padding: .65rem .8rem;
+  color: var(--org-ink);
+  background: var(--org-paper);
+  border: 1px solid var(--org-rule);
+  border-radius: 6px;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.organogram button.organogram-node:hover, .organogram button.organogram-node:focus-visible {
+  border-color: var(--org-muted);
+  outline: 2px solid var(--org-muted);
+  outline-offset: 1px;
+}
+.organogram-node-text { min-width: 0; overflow-wrap: anywhere; }
+.organogram-node-text small { display: block; margin-top: .2rem; color: var(--org-muted) !important; }
+.organogram-node-arrow { margin-left: auto; font-size: 1.15rem; }
+.organogram [data-sector="Governance"] { --org-accent: #315977; }
+.organogram [data-sector="Electricity"] { --org-accent: #216454; }
+.organogram [data-sector="Fuel & minerals"] { --org-accent: #81511b; }
+.organogram [data-sector="Nuclear"] { --org-accent: #634e8a; }
+.organogram [data-sector="Regulation"] { --org-accent: #8f3957; }
+.organogram-linked-count { display: block; margin-top: .3rem; color: var(--org-muted); }
+@media (max-width: 700px) {
+  .organogram-controls { grid-template-columns: minmax(0, 1fr); }
+  .organogram-controls input, .organogram-controls select { font-size: 16px; }
+  [data-org-path] ol { display: grid; gap: .3rem; }
+  [data-org-path] li { display: flex; }
+  [data-org-path] [aria-current] { min-height: 44px; }
+  .organogram-profile-title { gap: .65rem; padding-bottom: .5rem; }
+  .organogram-profile-body { padding-top: .5rem; }
+  .organogram-profile-body ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .organogram-profile { grid-template-columns: minmax(0, 1fr); }
+  .organogram-cards { grid-template-columns: minmax(0, 1fr); }
+  .organogram-parent { width: 100%; }
+}

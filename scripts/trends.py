@@ -51,6 +51,17 @@ def time_minute(value):
     return parsed.hour * 60 + parsed.minute
 
 
+def hourly_demand_profile(rows):
+    """Return exact-clock-hour P4 demand, preserving gaps and rejecting conflicts."""
+    readings = [set() for _ in range(24)]
+    for row in rows:
+        minute = time_minute(row.get('time'))
+        demand = number(row.get('demand_mw'))
+        if minute is not None and minute % 60 == 0 and demand is not None:
+            readings[minute // 60].add(demand)
+    return [next(iter(values)) if len(values) == 1 else None for values in readings]
+
+
 def peak_demand_window(rows, start, end):
     candidates = [(time_minute(row.get('time')), number(row.get('demand_mw')), row)
                   for row in rows]
@@ -157,9 +168,11 @@ def daily_summary(report, forecast=None):
         'ramp_down_interval': largest_ramp(-1),
         'temperature_c': temperature(summary.get('temperature_c')),
         'water_level': water_level_summary(report),
+        'hourly_demand_mw': hourly_demand_profile(hourly),
         'demand_mwh': requirement, 'demand_basis': basis,
         'shed_peak_mw': max(shedding) if shedding else None,
         'regional_shed_mw': {region['name']: number(region.get('shed_mw')) for region in report.get('regions', [])},
+        'regional_demand_mw': {region['name']: number(region.get('demand_mw')) for region in report.get('regions', [])},
         'unserved_mwh': number(summary.get('unserved_mwh')),
         'imports_mwh': number(summary.get('import_mwh')),
         'fuels': {key: number(value) for key, value in (report.get('fuels') or {}).items()},

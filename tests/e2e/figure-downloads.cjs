@@ -14,7 +14,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   }
  });
  const clickEveryFigure=async label=>{
-  const bars=page.locator('#content .figure-actions'),count=await bars.count();assert.ok(count>0,label+' should expose downloadable figures');
+  const bars=page.locator('#content .figure-actions:visible'),count=await bars.count();assert.ok(count>0,label+' should expose downloadable figures');
   const controls=await bars.evaluateAll(elements=>elements.map(bar=>{
    bar.querySelector('.figure-download-status')?.remove();
    const button=bar.querySelector('button[aria-label="Download PNG"]'),bounds=button?.getBoundingClientRect();
@@ -60,7 +60,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    if(tab==='trends')await page.locator('[data-trend-days="30"]').waitFor({timeout:90000});
    else await page.waitForFunction(title=>document.querySelector('#title')?.textContent===title,titles[tab]);
    if(tab==='realtime')await page.locator('.realtime-dispatch-plots').waitFor({timeout:90000});
-   await page.locator('#content .figure-actions').first().waitFor();
+   await page.locator('#content .figure-actions:visible').first().waitFor();
    if(tab==='plants'){
     // Reproduce the CSS Color 4 value behind html2canvas's unsupported-color error.
     await page.locator('.plant-map-panel').evaluate(node=>node.style.setProperty('outline-color','color(srgb 0.2 0.4 0.6)'));
@@ -73,11 +73,15 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   }
   for(const range of ['30','60','90','365']){
    await page.locator(`[data-trend-days="${range}"]`).click();
+   await page.locator('[data-trend-section="generation"]').click();
    await page.locator('[data-trend-layer="Maximum temperature"]').check();
    await page.locator('[data-temperature-unit="°F"]').click();
    await page.locator('[data-trend-unit="MW"][data-unit-chart="generation"]').click();
-   await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();
-   await clickEveryFigure('trends-'+range);
+   for(const section of ['generation','load','fuel','imports','assets','operations']){
+    await page.locator(`[data-trend-section="${section}"]`).click();
+    if(section==='imports')await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();
+    if(await page.locator('#content .figure-actions:visible').count())await clickEveryFigure(`trends-${range}-${section}`);
+   }
   }
   await page.locator('[data-trend-days="10y"]').click();await page.locator('.trends-heatmap').waitFor();await clickEveryFigure('trends-10y');
   assert.ok(firstDownload,'at least one figure should trigger a download');

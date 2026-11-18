@@ -36,6 +36,7 @@ const cost=date=>({date,currency:'BDT',total_bdt:60000000,costs_bdt:{Gas:1000000
    assert.match(await costInfo.innerText(),/24 Oct 2026/);
    await picker.selectOption('2026-10-26');assert.match(await page.locator('.bpdb-cost-panel').innerText(),/CALCULATED/);
    await page.locator('nav a[href="#trends"]').click();
+   await page.locator('[data-trend-section="fuel"]').click();
    await page.locator('.bpdb-average-panel').waitFor();
    assert.equal(await page.locator('.bpdb-cost-trend svg.trends-plot').count(),2);
    const gas=page.locator('[data-trend-chart-key="bpdb-unit-cost"][data-trend-layer="Gas"]'),chart=page.locator('[data-trend-key="bpdb-unit-cost"]');

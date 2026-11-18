@@ -1,3 +1,9 @@
+.trends-section-picker { display: flex; flex-wrap: wrap; gap: .5rem; margin-block: 1.25rem 1rem; }
+.trends-section-picker button[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.trends-section-picker button:focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+.trends-section[hidden] { display: none !important; }
+.trends-section > .panel + .panel { margin-top: 1rem; }
+
 .trends-toolbar{display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:16px}.trends-toolbar [role=group]{display:flex;gap:8px;flex-wrap:wrap}.trends-toolbar button{min-width:64px}.trends-toolbar button[aria-pressed=true]{background:var(--green);color:#fff;border-color:var(--green)}.trends-toolbar>span,.trends-coverage{font-size:12px;color:var(--muted)}.trends-coverage{margin-bottom:20px}.trends-method{margin:0 0 24px;line-height:1.7;max-width:1100px}.trends-legend{display:flex;flex-wrap:wrap;gap:10px 20px;font-size:12px;margin-top:10px;color:var(--muted)}.trends-legend span{display:inline-flex;align-items:center;gap:7px}.trends-legend i{width:12px;height:10px;border-radius:2px}.trends-plot{max-height:none}html[data-theme=dark] .trends-toolbar button[aria-pressed=true]{color:var(--bg)}
 
 .trends-plot text{font-size:13px}.trends-toolbar button:focus-visible{outline:3px solid var(--green);outline-offset:3px}

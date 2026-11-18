@@ -31,7 +31,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    await page.locator(`nav a[href="#${tab}"]`).click();await page.waitForTimeout(400);await header();await coverage();
    if(tab==='regions'||tab==='plants'){const map=page.locator(tab==='regions'?'.region-map-panel':'.plant-map-panel');assert.equal(await map.getByRole('button',{name:'Copy figure',exact:true}).count(),0);assert.equal(await map.getByRole('button',{name:'Share figure on X.com',exact:true}).count(),0);}
    if(tab==='substations'){const box=page.getByRole('region',{name:'Scrollable substation load and voltage',exact:true});assert.ok(await box.evaluate(n=>n.clientHeight<=440&&n.scrollHeight>n.clientHeight));await box.evaluate(n=>n.scrollTop=400);assert.ok(await box.evaluate(n=>n.scrollTop>0));await page.locator('.vb-stats').evaluate(n=>n.open=true);await page.evaluate(()=>{const original=window.html2canvas;window.voltageOmissions=[];window.html2canvas=(target,options)=>original(target,{...options,onclone:(doc,clone)=>{options.onclone(doc,clone);window.voltageOmissions.push(clone.querySelectorAll('.vb-reading,.vb-stats').length);}});});}
-   const actions=page.locator('#content .figure-actions');assert.ok(await actions.count()>0,tab+' should expose downloadable figures');
+   const actions=page.locator('#content .figure-actions:visible');assert.ok(await actions.count()>0,tab+' should expose downloadable figures');
    if(tab==='plants'){
     // Keep a CSS Color 4 value in the cloned map subtree to guard the exact
     // html2canvas parser failure reported for the Power plant locations map.
@@ -42,12 +42,21 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    if(tab==='regions'){await page.locator('[data-regional-fuel=Coal]').click();await page.waitForTimeout(100);assert.equal(await page.locator('.regional-fuel-visual .figure-actions').count(),1);await download(page.locator('.regional-fuel-visual .figure-actions'),'regional-coal-icons');}
   }
   for(const range of (process.env.BEGD_FIGURE_SMOKE?['365']:['30','60','90','365'])){
-   await page.locator(`[data-trend-days="${range}"]`).click();await page.locator('[data-trend-layer="Maximum temperature"]').check();await page.locator('[data-temperature-unit="°F"]').click();await page.locator('[data-trend-unit="MW"][data-unit-chart="generation"]').click();await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();await coverage();
-   const plots=page.locator('#content .figure-actions');for(let i=0;i<await plots.count();i++)await download(plots.nth(i),`trends-${range}-${i}-icons`);
+   await page.locator(`[data-trend-days="${range}"]`).click();
+   await page.locator('[data-trend-section="generation"]').click();
+   await page.locator('[data-trend-layer="Maximum temperature"]').check();
+   await page.locator('[data-temperature-unit="°F"]').click();
+   await page.locator('[data-trend-unit="MW"][data-unit-chart="generation"]').click();
+   for(const section of ['generation','load','fuel','imports','assets','operations']){
+    await page.locator(`[data-trend-section="${section}"]`).click();
+    if(section==='imports')await page.locator('[data-trend-unit="MW"][data-unit-chart="imports"]').click();
+    await coverage();
+    const plots=page.locator('#content .figure-actions:visible');for(let i=0;i<await plots.count();i++)await download(plots.nth(i),`trends-${range}-${section}-${i}-icons`);
+   }
   }
   await page.locator('[data-trend-days="10y"]').click();await page.waitForSelector('.trends-heatmap');await coverage();await download(page.locator('.trends-heatmap').locator('xpath=ancestor::section[1]').locator('.figure-actions'),'heatmap-icons');
   for(const width of [1064,390]){await page.setViewportSize({width,height:858});await header();await page.screenshot({path:path.join(os.tmpdir(),`begd-icon-layout-${width}.png`),fullPage:true});}
-  await page.locator('#theme-toggle').click();await header();await download(page.locator('#content .figure-actions').first(),'mobile-dark-icons');await page.screenshot({path:path.join(os.tmpdir(),'begd-icon-mobile-dark.png'),fullPage:true});
+  await page.locator('#theme-toggle').click();await header();await download(page.locator('#content .figure-actions:visible').first(),'mobile-dark-icons');await page.screenshot({path:path.join(os.tmpdir(),'begd-icon-mobile-dark.png'),fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: in-site copy confirmation, no blank tab, delayed X.com handoff, failure fallbacks, exact dashboard message, fuel-control position, voltage omissions and '+(process.env.BEGD_FIGURE_SMOKE?'focused 365d/historical':'all figure/Trends')+' exports, mobile/dark layouts.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

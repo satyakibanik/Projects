@@ -5,6 +5,15 @@
   const format = value => value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits:2});
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
+  const sections={
+    generation:'Generation & demand',
+    load:'Load & shedding',
+    fuel:'Fuel mix & cost',
+    imports:'Imports',
+    assets:'Plants & substations',
+    operations:'Operations',
+  };
+  let activeSection='generation';
   let chartSerial=0,costTrendline=false;
   const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
@@ -208,6 +217,13 @@
   function controls() {
     return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
   }
+  function sectionViews(panels){
+    const buttons=Object.entries(sections).map(([id,label])=>
+      `<button type="button" id="trend-section-${id}" data-trend-section="${id}" aria-controls="trend-view-${id}" aria-pressed="${activeSection===id}">${escape(label)}</button>`).join('');
+    const views=Object.entries(panels).map(([id,body])=>
+      `<section class="trends-section" id="trend-view-${id}" aria-labelledby="trend-section-${id}"${activeSection===id?'':' hidden'}>${body}</section>`).join('');
+    return `<div class="trends-section-picker" role="group" aria-label="Trends sections">${buttons}</div>${views}`;
+  }
   function waterLevelRows(end,count) {
     return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
@@ -239,18 +255,25 @@
     const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('generation-demand')?.has(stableId(series.name))):null;
     const comparisonNote=(averaged?'7-day averages · ':'')+(generationUnit==='MW'?powerNote:'Daily energy · GWh')+' · generation includes imports · value axis fitted to visible data';
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${detailControls(detail)}${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
-    html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${unitControls('generation')}</div>`);
-    if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
+    let generation=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${unitControls('generation')}</div>`);
+    if(showTemperature)generation+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
+    const demandPanels=root.BEGDDemandTrends?.demandPanels(rows,plot);
+    generation+=demandPanels?.hourly||'';
+    let load=demandPanels?.duration||'';
     const regionNames=[...new Set(['Dhaka','Chattogram','Cumilla','Mymensingh','Sylhet','Khulna','Barishal','Rajshahi','Rangpur',...bundle.days.flatMap(row=>Object.keys(row.regional_shed_mw||{}))])].sort();
     const regionColors=['#4e79a7','#f28e2b','#59a14f','#b07aa1','#76b7b2','#edc948','#af7aa1','#9c755f','#d37295'];
     const shedSeries=[{name:'Reported load shedding',color:'#e15759',width:3,value:r=>r.shed_peak_mw},...regionNames.map((name,i)=>({name,color:regionColors[i%regionColors.length],dash:true,value:r=>r.regional_shed_mw?.[name]}))];
-    html+=panel('Reported load shedding','National: P4 daily maximum · Regions: P1 evening snapshots · MW',plot(rows,shedSeries,'Reported load shedding','MW',false,{selectAll:true})+'<p class="note">Regional evening snapshots and the national daily maximum cover different times. Missing regional readings remain gaps.</p>');
-    html+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
-    html+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:period})||'';
-    html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
-    html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
-    html+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
-    return html+'<div id="entity-histories"></div><div id="operational-event-explorer"></div>';
+    load+=panel('Reported load shedding','National: P4 daily maximum · Regions: P1 evening snapshots · MW',plot(rows,shedSeries,'Reported load shedding','MW',false,{selectAll:true})+'<p class="note">Regional evening snapshots and the national daily maximum cover different times. Missing regional readings remain gaps.</p>');
+    load+=root.BEGDDemandTrends?.sheddingPanel(rows,regionNames)||'';
+    load+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
+    let fuel=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
+    fuel+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:period})||'';
+    let imports=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
+    imports+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
+    return html+sectionViews({generation,load,fuel,imports,
+      assets:'<div id="entity-histories"></div>',
+      operations:'<div id="operational-event-explorer"></div>',
+    });
   }
   function tooltipRows(record,index) {
     const row=record.rows[index];
@@ -265,7 +288,7 @@
     const fullValues=(record.allSeries||record.series).map(s=>s.value(row));
     const complete=fullValues.every(finite)&&fullValues.reduce((a,b)=>a+b,0)>0;
     const sum=complete?fullValues.reduce((a,b)=>a+b,0):null;
-    let html=`<strong>${row.fiscal_year?'FY '+escape(row.fiscal_year):row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
+    let html=`<strong>${row.label?escape(row.label):row.fiscal_year?'FY '+escape(row.fiscal_year):row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
     if(row.window_days)html+=`<small>${row.window_days}-day average · temperature averages daily maxima</small>`;
     if(!tooltipSeries.length)html+='<small>No layers selected</small>';
     tooltipSeries.forEach((s,i)=>{
@@ -446,18 +469,29 @@
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
     setupTooltips(host);
+    root.BEGDDemandTrends?.bind(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
     root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),period,bundle?.end_date);
     bindControls(host);
-    document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
+    document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';
     document.querySelector('#source').textContent=period==='10y'?'Sources: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0; Power Division / Power Cell annual system-loss table. Each panel shows its own coverage.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
+    const sectionButtons=host.querySelectorAll('[data-trend-section]');
+    sectionButtons.forEach(button=>button.addEventListener('click',()=>{
+      activeSection=button.dataset.trendSection;
+      hideFloatingTooltip();
+      sectionButtons.forEach(sectionButton=>{
+        const active=sectionButton===button;
+        sectionButton.setAttribute('aria-pressed',active);
+        host.querySelector('#'+sectionButton.getAttribute('aria-controls')).hidden=!active;
+      });
+    }));
     host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
   }
   async function mount() {
     document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#trends'));
     document.querySelector('#title').textContent='Long-term trends';
-    document.querySelector('#subtitle').textContent='Visualize how the generation, demand, fuel mix, imports, and plants and substations portfolio looks like long term.';
+    document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';
     ['report-date-controls','date-status','day-sources','error'].forEach(id=>{document.getElementById(id).hidden=true});
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';

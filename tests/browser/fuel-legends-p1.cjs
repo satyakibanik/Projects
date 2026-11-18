@@ -19,6 +19,7 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   });
   const page=await context.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto('https://begd.test/begd/index.html?v=2#trends');
+  await page.locator('[data-trend-section="fuel"]').click();
   const avg=page.locator('[data-trend-key="bpdb-unit-cost"]');await avg.waitFor();
   await page.evaluate(t=>document.documentElement.dataset.theme=t,theme);
   const group=avg.locator('[data-trend-group]');await group.waitFor();
