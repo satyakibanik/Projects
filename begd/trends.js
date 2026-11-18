@@ -332,7 +332,7 @@
           other.querySelector('[role=tooltip]').hidden=true;
         }
         const bounds=svg.getBoundingClientRect();
-        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event);
+        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event,svg);
         else{tip.classList.remove('is-touch-tooltip');positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);}
       };
       const hide=()=>{if(touch?.pinned)return;for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
