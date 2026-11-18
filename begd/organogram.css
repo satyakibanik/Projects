@@ -5,7 +5,7 @@
   --org-muted: var(--muted);
   --org-accent: #315977;
 }
-.organogram-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, 14rem); align-items: end; gap: .65rem; margin-bottom: .85rem; }
+.organogram-controls { display: grid; grid-template-columns: minmax(0, 1fr) minmax(9rem, 14rem) minmax(7rem, 10rem); align-items: end; gap: .65rem; margin-bottom: .85rem; }
 .organogram-controls label { display: grid; gap: .3rem; min-width: 0; }
 .organogram-controls input, .organogram-controls select { width: 100%; min-height: 44px; }
 [data-org-path] { padding-bottom: .8rem; margin-bottom: 1rem; border-bottom: 1px solid var(--org-rule); }
@@ -21,6 +21,16 @@
 [data-org-path] [aria-current] { padding: .35rem .45rem; font-weight: 600; }
 [data-org-path] button { padding: .35rem .45rem; min-height: 44px; min-width: 0; white-space: normal; overflow-wrap: anywhere; text-align: left; }
 .organogram [hidden] { display: none !important; }
+[data-org-ancestry] { position: relative; padding-bottom: 1.15rem; }
+[data-org-ancestry]::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: 2.55rem;
+  bottom: 0;
+  height: 1.15rem;
+  border-inline-start: 2px solid var(--org-muted);
+  pointer-events: none;
+}
 .organogram-profile {
   display: grid;
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
@@ -62,8 +72,11 @@
   white-space: nowrap;
 }
 .organogram-branches { margin-top: 1.25rem; }
-.organogram-branches h2 { margin: 0 0 .65rem; font-size: 1.35rem; }
+.organogram-search-results { margin-bottom: 1.25rem; }
+.organogram-search-results h2, .organogram-branches h2 { margin: 0 0 .65rem; font-size: 1.35rem; }
 .organogram [data-org-status] { margin: 0 0 .65rem; color: var(--org-muted); }
+.organogram-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); gap: .55rem; }
+.organogram-cards p { grid-column: 1 / -1; margin: 0; color: var(--org-muted); }
 .organogram-tree {
   --org-indent: clamp(.8rem, 3vw, 2rem);
   list-style: none;
@@ -143,6 +156,7 @@
   transform: rotate(-45deg);
 }
 .organogram-toggle[aria-expanded="true"] span { transform: translateY(-.15rem) rotate(45deg); }
+.organogram-node-arrow { margin-inline-start: auto; font-size: 1.15rem; }
 .organogram-node-text { min-width: 0; overflow-wrap: anywhere; }
 .organogram-node-text small { display: block; margin-top: .2rem; color: var(--org-muted) !important; }
 .organogram button.organogram-node[aria-current="true"] {
@@ -166,4 +180,6 @@
   .organogram-profile-body { padding-top: .5rem; }
   .organogram-profile-body ul { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
   .organogram-profile { grid-template-columns: minmax(0, 1fr); }
+  .organogram-cards { grid-template-columns: minmax(0, 1fr); }
+  .organogram-parent { width: 100%; }
 }
