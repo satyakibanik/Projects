@@ -346,6 +346,9 @@ def main():
     shutil.copy2(ROOT / "index.html", output / "index.html")
     shutil.copy2(ROOT / "sitemap.xml", output / "sitemap.xml")
     shutil.copytree(DASHBOARD, output / "begd")
+    from publication_timing import BUNDLE, CACHE
+    if CACHE.is_file():
+        shutil.copy2(CACHE, output / "begd" / BUNDLE)
     write_data_bundle(output / "begd")
     write_news_bundle(output / "begd")
     write_fuel_bundle(output / "begd")

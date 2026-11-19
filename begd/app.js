@@ -912,7 +912,23 @@ function renderInsightView(){
  $('#source').textContent=`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;
  window.BEGDInsight?.mount(data);
 }
-render=function(){if(data&&location.hash==='#insight'){renderInsightView();return}renderDashboard()};
+function renderPublicationTiming() {
+ ewicChartObserver?.disconnect();plantDetailObserver?.disconnect();currentPlantMap=null;chartData.clear();
+ document.querySelectorAll('nav a.active').forEach(link=>link.classList.remove('active'));
+ $('#title').textContent='Source publication timing';
+ $('#subtitle').textContent='First observations from the Power Grid ERP real-time feeds and daily workbook archive.';
+ $('#data-updated').textContent='Upstream posting timestamps are unavailable. Observations use the dashboard collector’s clock.';
+ $('#data-updated').tabIndex=-1;
+ $('#report-date-controls').hidden=true;$('#date-status').hidden=true;$('#day-sources').hidden=true;$('#error').hidden=true;
+ document.querySelector('.header-meta .status').textContent='SOURCE TIMING';
+ $('#source').textContent='Source: Power Grid ERP';
+ window.BEGDPublicationTiming?.mount($('#content'));
+}
+render=function(){
+ if(location.hash==='#publication-timing'){renderPublicationTiming();return}
+ if(data&&location.hash==='#insight'){renderInsightView();return}
+ renderDashboard();
+};
 document.addEventListener('change',event=>{
  const category=event.target.closest?.('[data-daily-event-category]');
  if(category){filterDailyEvents(category);return}
@@ -935,7 +951,7 @@ document.addEventListener('click',event=>{
  const caption=explorer.querySelector('[data-regional-fuel-selected]');if(caption)caption.textContent=selectedRegionalFuel+' · generation by region, highest to lowest';
  const chart=explorer.querySelector('[data-regional-fuel-chart]');if(chart)chart.innerHTML=regionalFuelBarChart(selectedRegionalFuel);
 });
-async function load(reportId,resolvedReport=null){const id=++request;try{let next=resolvedReport;if(!next){const r=await fetch(`/api/report?id=${encodeURIComponent(reportId)}`,{cache:'no-store'});if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(body.error||'Report could not be loaded')}next=await r.json();}if(id!==request)return false;if(data&&data.report_id!==next.report_id){for(const day of ['yesterday','tomorrow','highest']){comparisonRequests[day]++;comparisonData[day]=null;$(`#${day}-status`).textContent=$(`#source-${day}`).checked?'Loading…':'Off'}}data=next;$('#report-date').value=data.date;previousForecastReport=null;$('#error').hidden=true;render();previousForecastPromise=loadPreviousForecast();for(const day of ['yesterday','tomorrow','highest'])if($(`#source-${day}`).checked&&$(`#${day}-status`).textContent==='Waiting for report')loadComparison(day);return true}catch(e){if(id!==request)return false;$('#error').hidden=['#news','#fuel','#organogram'].includes(location.hash);$('#error').textContent=e.message;if(!['#trends','#news','#fuel','#organogram'].includes(location.hash))$('#content').innerHTML='';return false}}
+async function load(reportId,resolvedReport=null){const id=++request;try{let next=resolvedReport;if(!next){const r=await fetch(`/api/report?id=${encodeURIComponent(reportId)}`,{cache:'no-store'});if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(body.error||'Report could not be loaded')}next=await r.json();}if(id!==request)return false;if(data&&data.report_id!==next.report_id){for(const day of ['yesterday','tomorrow','highest']){comparisonRequests[day]++;comparisonData[day]=null;$(`#${day}-status`).textContent=$(`#source-${day}`).checked?'Loading…':'Off'}}data=next;$('#report-date').value=data.date;previousForecastReport=null;$('#error').hidden=true;render();previousForecastPromise=loadPreviousForecast();for(const day of ['yesterday','tomorrow','highest'])if($(`#source-${day}`).checked&&$(`#${day}-status`).textContent==='Waiting for report')loadComparison(day);return true}catch(e){if(id!==request)return false;$('#error').hidden=['#news','#fuel','#organogram','#publication-timing'].includes(location.hash);$('#error').textContent=e.message;if(!['#trends','#news','#fuel','#organogram','#publication-timing'].includes(location.hash))$('#content').innerHTML='';return false}}
 async function loadPreviousForecast(){
  const id=++previousForecastRequest,reportId=data?.report_id;
  previousForecastReport=null;
@@ -1057,6 +1073,7 @@ async function refreshDateList(){
   else if(!reports.length)$('#date-status').textContent='No archived reports are available.';
   else if(!archive.complete)$('#date-status').textContent=`Loading report dates · ${fmt(archive.pages_loaded)} of ${fmt(archive.page_count)} pages`;
   if(!archive.complete&&!archive.error)window.setTimeout(refreshDateList,2500);
- }catch(error){if(!['#news','#fuel','#organogram'].includes(location.hash)){$('#error').hidden=false;$('#error').textContent=error.message;}$('#date-status').textContent='Report archive unavailable';setReportPickerBusy(false);}
+ }catch(error){if(!['#news','#fuel','#organogram','#publication-timing'].includes(location.hash)){$('#error').hidden=false;$('#error').textContent=error.message;}$('#date-status').textContent='Report archive unavailable';setReportPickerBusy(false);}
 }
+if(window.location?.hash==='#publication-timing')render();
 refreshDateList();
