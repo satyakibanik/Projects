@@ -20,6 +20,8 @@
     if(panel?.matches('.plant-detail'))source.push('Source: GenLog · hourly plant output · MW · Bangladesh time.');
     if(target.matches('.trends-generation-figure')&&panel?.nextElementSibling?.matches('.trends-temperature-note'))source.push(cleanText(panel.nextElementSibling));
     source.push(...[...target.querySelectorAll('.fuel-mix-segment')].map(node=>node.getAttribute('aria-label')));
+    const basemap=target.querySelector('.plant-basemap-credit:not([hidden])');
+    if(basemap)source.push(cleanText(basemap)+' · '+[...basemap.querySelectorAll('a')].map(link=>link.href).join(' · '));
     const footer=[...new Set([note,...source].filter(Boolean))];
     return {title:heading+(label&&label!==heading?' · '+label:''),context:cleanText(document.querySelector('#subtitle')),footer};
   }
@@ -28,7 +30,7 @@
     for(const word of text.split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){result.push(line);line=word;}else line+=(line?' ':'')+word;}
     if(line)result.push(line);return result;
   }
-  function normalizeColorFunctions(doc,root){
+  function normalizeColorFunctions(doc,root,resolveComputed=false){
     const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;
     const context=canvas.getContext('2d');if(!context)return;
     const cache=new Map();
@@ -65,7 +67,16 @@
       }
     };
     for(const sheet of doc.styleSheets)try{normalizeRules(sheet.cssRules);}catch{}
+    // color-mix() with theme variables resolves to color(srgb ...) only in computed styles.
+    const computedProperties=['color','background-color','background-image','border-top-color','border-right-color','border-bottom-color','border-left-color','box-shadow','text-shadow','outline-color'];
     for(const node of [root,...root.querySelectorAll('*')]){
+      if(resolveComputed&&node.style){
+        const computed=doc.defaultView.getComputedStyle(node);
+        for(const property of computedProperties){
+          const value=computed.getPropertyValue(property);
+          if(value.includes('color('))node.style.setProperty(property,normalize(value),'important');
+        }
+      }
       if(node.style)normalizeDeclaration(node.style);
       for(const attribute of ['color','fill','stroke','stop-color','flood-color','lighting-color']){
         const value=node.getAttribute(attribute);if(value?.toLowerCase().includes('color('))node.setAttribute(attribute,normalize(value));
@@ -98,6 +109,25 @@
       chart.querySelector('.fuel-layer-actions')?.remove();
     }
   }
+  async function inlinePlantIcons(clone){
+    const images=[...clone.querySelectorAll('.plant-slide-symbol image[href]')];
+    const sources=new Set(images.map(image=>image.getAttribute('href')));
+    const dataURLs=new Map(await Promise.all([...sources].map(async source=>{
+      const response=await fetch(new URL(source,document.baseURI)).catch(()=>null);
+      if(!response?.ok)return [source,null];
+      const blob=await response.blob();
+      const dataURL=await new Promise(resolve=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(reader.result);reader.onerror=()=>resolve(null);
+        reader.readAsDataURL(blob);
+      });
+      return [source,dataURL];
+    })));
+    for(const image of images){
+      const dataURL=dataURLs.get(image.getAttribute('href'));
+      if(dataURL)image.setAttribute('href',dataURL);
+    }
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
     // Browser download tests inject a deterministic PNG to check every button
@@ -118,7 +148,7 @@
     let contentBounds;
     const shot=await root.html2canvas(capture,{backgroundColor:background,scale:captureScale,logging:false,useCORS:target.matches('.plant-map-panel'),
       // Expand clipped chart/table containers only in the detached export document.
-      onclone:(doc,clone)=>{
+      onclone:async(doc,clone)=>{
         const style=doc.createElement('style');
         style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.forecast-subplot-controls label,.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend" "daylight legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "daylight" "legend"}}';
         doc.head.append(style);
@@ -148,7 +178,9 @@
         const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
         if(!info.dashboard&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
         // html2canvas does not parse CSS Color 4 color(srgb ...) values.
-        normalizeColorFunctions(doc,clone);
+        const plantMap=target.matches('.plant-map-panel');
+        normalizeColorFunctions(doc,clone,plantMap);
+        if(plantMap)await inlinePlantIcons(clone);
       },
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.

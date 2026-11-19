@@ -111,7 +111,7 @@
 .plant-basemap-tiles{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .plant-basemap-tiles img{position:absolute;max-width:none;visibility:hidden}
 .plant-basemap-tiles img.is-loaded{visibility:visible}
-.plant-basemap-credit{position:absolute;right:0;bottom:0;max-width:100%;padding:2px 5px;background:var(--surface);color:var(--ink);text-align:right;font:10px/1.4 var(--mono)}
+.plant-basemap-credit{position:absolute;left:0;bottom:0;max-width:75%;padding:2px 5px;background:var(--surface);color:var(--ink);font:10px/1.4 var(--mono)}
 .plant-basemap-credit a{color:var(--green)}
 .plant-map-frame.has-plant-basemap .plant-map-country{fill-opacity:.08}
 .plant-map-frame.has-plant-basemap .plant-map-boundary{stroke:#f3f7fa}
