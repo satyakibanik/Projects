@@ -135,7 +135,7 @@
         interval(track, row.eligible ? 'timing-plot-dot' : 'timing-plot-dot excluded', row.upper, row.upper);
       }
       for (const mark of row.marks || []) {
-        interval(track, 'timing-plot-dot workbook-' + mark.type, mark.time, mark.time);
+        interval(track, 'timing-plot-dot timing-mark-' + mark.type, mark.time, mark.time);
       }
       line.append(label, track);
       chart.append(line);
@@ -206,6 +206,83 @@
         range: marks.map(mark => mark.time), marks
       }];
     });
+  }
+
+  const HISTORY_DAYS = 60;
+
+  function archiveHistory(readings, workbook, feeds) {
+    const localDate = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Dhaka'});
+    const feedDates = Object.values(feeds).map(feed => {
+      const received = Date.parse(feed.last_poll?.received_at);
+      return Number.isFinite(received) ? localDate.format(received) : feed.last_poll?.latest_date;
+    });
+    const newest = [readings?.end_date, workbook?.end_date, ...feedDates]
+      .filter(Boolean).sort().at(-1);
+    const end = Date.parse(newest + 'T00:00:00Z');
+    const dates = Number.isFinite(end)
+      ? Array.from({length: HISTORY_DAYS}, (_, index) => new Date(end - index * 86_400_000).toISOString().slice(0, 10))
+      : [];
+    const workbooks = new Map();
+    for (const report of workbookHistory(workbook, feeds.operations?.observations)) {
+      if (!workbooks.has(report.listed_date)) workbooks.set(report.listed_date, []);
+      workbooks.get(report.listed_date).push(report);
+    }
+    const bySource = {};
+    for (const source of Object.keys(sources)) {
+      const saved = readings?.sources?.[source];
+      const slots = new Map(dates.map(date => [date, new Set(saved?.days?.[date] || [])]));
+      if (source !== 'operations') {
+        for (const [key, date] of Object.entries(feeds[source]?.seen || {})) {
+          const slot = key.slice(11);
+          if (/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(slot)) slots.get(date)?.add(slot);
+        }
+      }
+      const unavailable = new Set(saved?.unavailable || []);
+      bySource[source] = dates.map(date => ({
+        date, slots: [...slots.get(date)].sort(), reports: source === 'operations' ? workbooks.get(date) || [] : [],
+        unavailable: unavailable.has(date)
+      }));
+    }
+    return bySource;
+  }
+
+  function coveragePlot(counts) {
+    const frame = element('div');
+    frame.className = 'timing-coverage';
+    for (const [source, count] of Object.entries(counts)) {
+      const line = element('label');
+      const progress = element('progress');
+      progress.max = HISTORY_DAYS;
+      progress.value = count;
+      line.append(element('span', sources[source]), progress, element('span', count + ' / ' + HISTORY_DAYS));
+      frame.append(line);
+    }
+    return frame;
+  }
+
+  function archiveReadingPlot(rows) {
+    const minutes = time => Number(time.slice(0, 2)) * 60 + Number(time.slice(3));
+    const points = rows.filter(row => row.slots.length).map(row => ({
+      label: row.date,
+      range: row.slots.map(minutes),
+      marks: row.slots.map(time => ({time: minutes(time), type: 'slot'})),
+      description: row.date + ' · ' + row.slots.join(', ')
+    }));
+    return points.length ? plot(points, 'Archived ERP reading times') : null;
+  }
+
+  function historyDetails(row, observation) {
+    if (!row.slots.length && !row.reports.length) return observation ? recordsForDay(observation) : '—';
+    const details = element('details');
+    details.append(element('summary', row.slots.length ? 'Reading slots' : 'Workbook metadata'));
+    if (row.slots.length) details.append(element('p', row.slots.join(', ')));
+    for (const report of row.reports) {
+      details.append(element('p', 'Report ' + report.report_id + ' · ' + workbookMetadata(report)));
+    }
+    if (!observation) return details;
+    const cell = element('div');
+    cell.append(details, recordsForDay(observation));
+    return cell;
   }
 
   function workbookArchive(archive, observations) {
@@ -294,15 +371,18 @@
     return details;
   }
 
-  function show(panel, bundle, archive) {
-    const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum, retention_days: retention} = bundle;
+  function show(panel, bundle, archive, readings) {
+    const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum} = bundle;
     const daysBySource = Object.fromEntries(Object.keys(sources).map(key => [key, dailyRows(feeds[key], maxWindow)]));
     const estimates = Object.fromEntries(Object.keys(sources).map(key => [key, estimate(daysBySource[key], minimum)]));
+    const history = archiveHistory(readings, archive, feeds);
+    const counts = Object.fromEntries(Object.entries(history).map(([key, rows]) =>
+      [key, rows.filter(row => row.slots.length || row.reports.length).length]));
     const summaries = Object.entries(sources).map(([key, label]) => {
       const value = estimates[key];
       return [
         label, value.lower === undefined ? 'Collecting observations' : wallTime(value.lower) + ' – ' + wallTime(value.upper),
-        String(value.count), format(feeds[key]?.last_poll?.received_at)
+        String(value.count), String(counts[key]), format(feeds[key]?.last_poll?.received_at)
       ];
     });
     const guide = element('p', 'Typical windows use the median bounds across at least ' + minimum
@@ -316,8 +396,8 @@
       });
     const typicalPlot = typical.length ? plot(typical, 'Typical publication windows by source')
       : element('p', 'The comparison plot appears when a source has enough observations to estimate its window.');
-    const summary = table(['Source', 'Estimated window', 'Days used', 'Last successful poll'], summaries);
-    const history = element('h2', 'Daily observation history');
+    const summary = table(['Source', 'Estimated window', 'Days used', 'Days with source data', 'Last successful poll'], summaries);
+    const historyHeading = element('h2', 'Daily observation history');
     const label = element('label', 'Source ');
     const select = element('select');
     for (const [key, title] of Object.entries(sources)) {
@@ -329,27 +409,54 @@
     const results = element('div');
     function renderHistory() {
       const workbook = select.value === 'operations';
-      const days = daysBySource[select.value];
+      const archiveDays = history[select.value];
+      const firstDate = archiveDays.at(-1)?.date;
+      const days = daysBySource[select.value].filter(day => !firstDate || day.date >= firstDate);
       const note = element('p', workbook
         ? 'Source date is the ERP listing’s publication date. First seen is when BEGD downloaded a workbook that passed parsing.'
         : 'Source date and reading time come from the ERP table. First seen is when BEGD received the first newly observed reading for that date.');
       results.replaceChildren(note);
-      if (workbook) results.append(element('p', 'Excel creation and modification times describe the workbook. '
-        + 'Times with an explicit offset are shown in Bangladesh time.'));
-      if (!days.length) {
-        results.append(element('p', 'No new records have been observed for this source yet.'));
+      const observed = new Map(days.map(day => [day.date, day]));
+      if (archiveDays.length) {
+        const evidence = workbook
+          ? 'The Excel plot shows file creation and modification clock times. Full dates are in the table.'
+          : 'Each dot is a dated ERP reading slot. First-seen times come from the live poll log.';
+        const archivedPlot = workbook
+          ? workbookPlotRows(archiveDays.flatMap(day => day.reports))
+          : archiveReadingPlot(archiveDays);
+        const chart = workbook
+          ? (archivedPlot.length ? plot(archivedPlot, 'Archived Excel workbook clock times') : null)
+          : archivedPlot;
+        if (chart) results.append(element('h3', workbook ? 'Archived Excel timestamps' : 'ERP reading times'),
+          element('p', evidence), chart);
+      }
+      if (days.length) {
+        results.append(element('h3', 'Observed publication windows'),
+          element('p', 'Lines span the previous absence and first receipt. Hollow dots mark days excluded from the estimate. The shaded band shows the typical window when available.'),
+          observedPlot(days, estimates[select.value]));
+      }
+      if (!archiveDays.length) {
+        results.append(element('p', 'No source data is available yet.'));
         return;
       }
-      const legend = element('p', 'Lines span the previous absence and first receipt. Dots show first receipt. '
-        + 'Dashed lines and hollow dots mark days excluded from the estimate. The shaded band shows the typical window when available.');
-      const rows = days.map(day => [
-        day.date, recordLabel(day.first), day.bounded ? format(day.lower) : '—', format(day.upper),
-        ...(workbook ? [workbookTime(day.first.excel_created_at), workbookTime(day.first.excel_modified_at)] : []),
-        dayStatus(day), recordsForDay(day)
-      ]);
-      const headers = [workbook ? 'Listed date' : 'Reading date', 'First record', 'Previously absent', 'First seen',
-        ...(workbook ? ['Excel created', 'Excel modified'] : []), 'Estimate', 'Details'];
-      results.append(legend, observedPlot(days, estimates[select.value]), table(headers, rows));
+      const rows = archiveDays.map(row => {
+        const day = observed.get(row.date);
+        const report = row.reports[0];
+        const sourceData = row.slots.length
+          ? row.slots[0] + ' – ' + row.slots.at(-1) + ' · ' + row.slots.length + ' slots'
+          : row.unavailable ? 'Archive unavailable' : '—';
+        return [
+          row.date, workbook ? row.reports.map(item => '#' + item.report_id).join(', ') || '—' : sourceData,
+          ...(workbook ? [workbookTime(report?.excel_created_at), workbookTime(report?.excel_modified_at)] : []),
+          day?.bounded ? format(day.lower) : '—', day ? format(day.upper) : '—',
+          day ? dayStatus(day) : '—', historyDetails(row, day)
+        ];
+      });
+      const headers = [workbook ? 'Listed date' : 'Reading date', workbook ? 'ERP reports' : 'Reading range',
+        ...(workbook ? ['Excel created', 'Excel modified'] : []), 'Previously absent', 'First seen', 'Estimate', 'Details'];
+      const historyTable = table(headers, rows);
+      historyTable.classList.add('timing-daily-table');
+      results.append(historyTable);
     }
     select.addEventListener('change', renderHistory);
     renderHistory();
@@ -358,8 +465,10 @@
     jump.className = 'timing-archive-link';
     jump.type = 'button';
     jump.addEventListener('click', () => workbook.heading.focus());
-    const timing = [heading, guide, typicalPlot, summary, history, element('p', 'History covers up to ' + retention
-      + ' days. Existing records at the first poll establish the baseline.'), label, results];
+    const timing = [heading, guide, typicalPlot, summary, element('h2', 'Source coverage for the last 60 days'),
+      coveragePlot(counts), historyHeading,
+      element('p', 'The table covers 60 calendar days. Existing records at the first poll establish the baseline.'),
+      label, results];
     panel.replaceChildren(...(new URLSearchParams(location.search).get('timing') === 'workbooks'
       ? [workbook.section, ...timing] : [jump, ...timing, workbook.section]));
     if (bundle.unavailable) panel.prepend(element('p', 'Publication timing history is unavailable. Try reloading the page.'));
@@ -377,15 +486,15 @@
       if (!response.ok) throw Error('History unavailable');
       return response.json();
     };
-    const [polls, workbook] = await Promise.allSettled([
-      load('publication-timing.json'), load('workbook-timestamp-history.json')
+    const [polls, workbook, history] = await Promise.allSettled([
+      load('publication-timing.json'), load('workbook-timestamp-history.json'), load('source-reading-history.json')
     ]);
     const bundle = polls.value?.version === 1 && polls.value.feeds ? polls.value
       : {feeds: {}, max_window_minutes: 45, min_estimate_days: 5, retention_days: 90, unavailable: true};
     const archive = Array.isArray(workbook.value?.reports) ? workbook.value : null;
-    show(panel, bundle, archive);
+    show(panel, bundle, archive, history.value?.version === 1 ? history.value : null);
   }
 
-  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows};
+  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows, archiveHistory};
   else root.BEGDPublicationTiming = {mount};
 })(typeof window === 'undefined' ? null : window);

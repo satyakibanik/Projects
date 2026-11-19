@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows} = require('../begd/publication-timing.js');
+const {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows, archiveHistory} = require('../begd/publication-timing.js');
 
 function row(date, reading_time, before, after) {
   return {date, reading_time, absent_after: before && before + ':00+06:00', first_seen_at: after + ':00+06:00'};
@@ -67,4 +67,22 @@ test('Excel archive merges by report ID without assigning archived records a rec
     [{time: 481, type: 'modified'}], [{time: 660, type: 'created'}]
   ]);
   assert.ok(plotScale(points).end > 660);
+});
+
+test('60-day source history preserves empty dates and adds live slots without receipt estimates', () => {
+  const readings = {end_date: '2026-11-19', sources: {demand: {
+    days: {'2026-11-19': ['00:00', '01:00']}, unavailable: ['2026-11-18']
+  }}};
+  const workbooks = {reports: [{report_id: '5205', listed_date: '2026-11-18'}]};
+  const feeds = {demand: {last_poll: {received_at: '2026-11-19T18:05:00Z'},
+    seen: {'2026-11-19T01:00': '2026-11-19', '2026-11-20T00:00': '2026-11-20'}}};
+  const history = archiveHistory(readings, workbooks, feeds);
+  assert.equal(history.demand.length, 60);
+  assert.equal(history.demand[0].date, '2026-11-20');
+  assert.deepEqual(history.demand[0].slots, ['00:00']);
+  assert.deepEqual(history.demand[1].slots, ['00:00', '01:00']);
+  assert.equal(history.demand[2].unavailable, true);
+  assert.equal(history.operations[2].reports[0].report_id, '5205');
+  assert.equal(history.imports.length, 60);
+  assert.equal(history.imports[0].slots.length, 0);
 });
