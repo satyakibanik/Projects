@@ -42,6 +42,9 @@ test('sidebar displays every plant-table field, including real zero and absent v
  const html=map.detailsMarkup([{plant,location:{latitude:23,longitude:90,source:'Reviewed'}}],[['name','Name'],['fuel','Fuel'],['region','Region'],['producer','Producer'],['installed','Installed cap.'],['present','Present cap.'],['peak','Peak gen. today']],(p,k)=>p[k]);
  for(const field of ['Plant &lt;A&gt;','Fuel','Gas','Region','Dhaka','Producer','IPP','Installed cap.','100 MW','Present cap.','0 MW','Peak gen. today','—'])assert.ok(html.includes(field),field);
  assert.doesNotMatch(html,/<A>/);
+ const dual=map.detailsMarkup([{plant:{...plant,fuel:'Gas/HSD'},location:{latitude:23,longitude:90}}],[['fuel','Fuel']],(p,k)=>p[k],{Gas:'gas-factory.png',HSD:'HSD.png'});
+ assert.match(dual,/<img src="plant-icons\/gas-factory.png" alt="">Gas/);
+ assert.match(dual,/<img src="plant-icons\/HSD.png" alt="">HSD/);
 });
 test('sidebar links only to validated matched OSM features',()=>{
  const render=osm_id=>map.detailsMarkup([{plant:{name:'Reviewed unit'},location:{latitude:23,longitude:90,source:'OSM',osm_id}}],[],()=>null);
@@ -65,6 +68,21 @@ test('Rooppur is mapped when listed in the report and the map can supply its nuc
  const {markers,unmapped}=map.resolvePlants([plant],catalog,boundary);
  assert.equal(markers.length,1);
  assert.deepEqual(unmapped,[]);
- assert.match(map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—'),/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ const details=map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—');
+ assert.match(details,/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ assert.ok(details.includes('href="https://osm.org/go/zq4nSU4A?m="'));
+ assert.doesNotMatch(details,/IAEA-hosted|approximate/);
  assert.deepEqual(map.resolvePlants([],catalog,boundary).markers,[]);
+});
+
+test('Mercator tiles align with plant coordinates in a letterboxed viewport',()=>{
+ const [x,y]=map.project([90,0]);
+ const view={x:x-30,y:y-15,w:60,h:30};
+ const width=300,height=300,tiles=map.tileViewport(view,width,height);
+ assert.ok(tiles.length>0&&tiles.length<16);
+ assert.ok(tiles.every(t=>t.left<width&&t.top<height&&t.left+t.size>0&&t.top+t.size>0));
+ const equator=tiles.find(t=>t.y===2**(t.z-1)&&t.x===3*2**(t.z-2));
+ assert.ok(equator);
+ assert.ok(Math.abs(equator.left-width/2)<1e-7);
+ assert.ok(Math.abs(equator.top-height/2)<1e-7);
 });
