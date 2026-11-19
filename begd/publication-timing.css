@@ -140,14 +140,45 @@
   z-index: 1;
 }
 
-.timing-plot-dot.workbook-created {
+.timing-plot-dot.timing-mark-created {
   border-color: var(--green);
   background: var(--green);
 }
 
-.timing-plot-dot.workbook-modified {
+.timing-plot-dot.timing-mark-modified {
   border-color: var(--lime);
   border-radius: 0;
   background: var(--surface);
   transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.timing-plot-dot.timing-mark-slot {
+  min-width: .35rem;
+  height: .35rem;
+  border: 0;
+}
+
+.timing-coverage {
+  margin-bottom: 1.5rem;
+}
+
+#publication-timing-panel .timing-coverage label {
+  display: grid;
+  grid-template-columns: minmax(8rem, 1fr) minmax(3rem, 2fr) auto;
+  font-size: .875rem;
+}
+
+.timing-coverage progress {
+  width: 100%;
+  accent-color: var(--green);
+}
+
+.timing-daily-table {
+  max-height: 28rem;
+}
+
+.timing-daily-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
