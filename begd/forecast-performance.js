@@ -51,7 +51,7 @@
     return {byHour,daily,coverage:summarize(days.flatMap(day=>day.pairs))};
   }
 
-  function render({bundle,live,target,model,cohort,validForecast}){
+  function render({bundle,live,target,model,cohort,validForecast,open=false}){
     const history=live?.forecast_history||{};
     const today=live?.today_date;
     const key=target==='demand'?'demand_mw':'generation_mw';
@@ -120,7 +120,7 @@
         '<p>Matched scores appear once an adjusted rank-one forecast and its ERP readings are available.</p>')+'</section>'):'';
     const scope=cohort==='issued'?'Only forecasts issued before 00:00 Bangladesh time enter this score.':
       'Scores use bundled historical model-study rows. This cohort represents retrospective evaluation.';
-    return `<section class="panel full independent-study-panel forecast-performance-panel" id="forecast-performance" aria-labelledby="forecast-performance-title"><div class="panel-head"><div><h2 id="forecast-performance-title">Forecast performance over time</h2><p data-keep-visible>BEGD forecasts scored against ERP actuals · ${esc(model)}</p></div></div><div class="forecast-body">${controls}<p class="note" data-keep-visible>${scope} The model follows the BEGD selector above. PGCB scenarios are scored in the daily comparison above.</p>${comparison}${charts}</div></section>`;
+    return `<details class="panel full independent-study-panel forecast-performance-panel" id="forecast-performance" aria-labelledby="forecast-performance-title"${open?' open':''}><summary class="forecast-summary"><h2 id="forecast-performance-title">Forecast performance over time</h2><span>${open?'Collapse':'Expand'}</span></summary><div class="forecast-body"><p data-keep-visible>BEGD forecasts scored against ERP actuals · ${esc(model)}</p>${controls}<p class="note" data-keep-visible>${scope} The model follows the BEGD selector above. PGCB scenarios are scored in the daily comparison above.</p>${comparison}${charts}</div></details>`;
   }
 
   root.BEGDForecastPerformance={render,issuedBeforeDay,pairs,evaluate};

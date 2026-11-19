@@ -473,13 +473,81 @@ async function setupRegionMap(){
   svg.addEventListener('pointerdown',event=>{drag={x:event.clientX,y:event.clientY,viewX:view.x,viewY:view.y,moved:false};});svg.addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.abs(dx)+Math.abs(dy)>4){drag.moved=true;svg.setPointerCapture(event.pointerId)}const matrix=svg.getScreenCTM();view.x=constrain(drag.viewX-dx/matrix.a,'w','x');view.y=constrain(drag.viewY-dy/matrix.d,'h','y');applyView()});svg.addEventListener('click',event=>{if(suppressClick){event.preventDefault();event.stopImmediatePropagation();suppressClick=false}},true);['pointerup','pointercancel'].forEach(type=>svg.addEventListener(type,()=>{if(drag?.moved)suppressClick=true;drag=null}));
  }catch(error){frame.innerHTML='<p class="region-map-error">Regional boundaries could not be loaded. The regional figures below are still available.</p>';console.error(error)}
 }
+const importHistory=new Map();
+const importAverageSeries={key:'historical_average_mw',name:'Historical average · prior 14 days',color:'#805ca8',dashArray:'6 4',noMarkers:true};
+const importRouteKey=name=>name.toLowerCase().includes('nepal')?'nepal':name.toLowerCase().match(/bheramara|tripura|adani|hvdc/)?.[0];
 function importMatch(report,name){
- const exact=report.imports.find(item=>item.name===name);if(exact)return exact;
- const token=name.toLowerCase().match(/bheramara|tripura|adani|nepal|hvdc/)?.[0];
- return token?report.imports.find(item=>item.name.toLowerCase().includes(token)):null;
+ const routes=report.imports||[],key=importRouteKey(name);
+ return routes.find(route=>route.name===name)|| (key?routes.find(route=>importRouteKey(route.name)===key):null);
+}
+function loadImportHistory(day){
+ const entry={reports:null};
+ importHistory.set(day,entry);
+ const start=Date.parse(day+'T00:00:00Z');
+ const dates=Array.from({length:14},(_,i)=>new Date(start-(i+1)*86400000).toISOString().slice(0,10));
+ const index=window.BEGD_STATIC_DATA?.reports_by_operating_date;
+ const candidates=index?dates.filter(date=>index[date]):dates;
+ return (async()=>{
+  const reports=[];
+  for(let i=0;i<candidates.length;i+=4){
+   const batch=await Promise.all(candidates.slice(i,i+4).map(async date=>{
+    try{
+     const response=await fetch('/api/report?date='+encodeURIComponent(date));
+     if(response.ok){const report=await response.json();if(report.date===date&&report.imports?.length)return report;}
+    }catch{}
+    return null;
+   }));
+   reports.push(...batch.filter(Boolean));
+  }
+  entry.reports=reports;
+ })();
+}
+function importAverage(reports,names){
+ const samples={};
+ if(!names.length)return samples;
+ for(const report of reports){
+  const routes=names.map(name=>new Map((importMatch(report,name)?.hourly||[]).map(row=>[row.time,row.mw])));
+  for(const time of routes[0].keys()){
+   const values=routes.map(route=>route.get(time));
+   if(values.every(Number.isFinite))(samples[time]??=[]).push(values.reduce((a,b)=>a+b,0));
+  }
+ }
+ return Object.fromEntries(Object.entries(samples).map(([time,values])=>[time,values.reduce((a,b)=>a+b,0)/values.length]));
+}
+const importPoints={
+ baharampur:['Baharampur 400 kV, India',24.198539,88.1295562],
+ bheramara:['Bheramara HVDC, Bangladesh',24.06772,89.00109,305864384],
+ comilla:['Comilla South, Bangladesh',23.42879,91.16969,211045545],
+ godda:['Godda Thermal Power Station, India',24.81176,87.14141,1006309265],
+ dhalkebar:['Dhalkebar, Nepal',26.94323,85.95130,342370161]
+};
+const importConnections={
+ bheramara:{points:[importPoints.baharampur,importPoints.bheramara],source:'https://www.adb.org/projects/44192-013/main'},
+ tripura:{points:[['Surajmaninagar (TPTL), India',23.7532782,91.3030487],importPoints.comilla],source:'https://www.pib.gov.in/PressReleasePage.aspx?PRID=2248339&lang=2&reg=48'},
+ adani:{points:[importPoints.godda,['Monakasha border, Bangladesh'],['Rahanpur 400/230 kV, Bangladesh']],source:'https://erp.powergrid.gov.bd/web/projects/project_details/eyJpdiI6ImtiamZSUzFGakdnRXQyVjlLWGNuM2c9PSIsInZhbHVlIjoiSUlHcFE0a1k5SVM0VWsrYUZSRGhFQT09IiwibWFjIjoiM2EyNTkyZTViZmNiZDA0YjNhYWNkYTAxNjM1ZGQwMGJjMmQxYTNmY2ExMTMzZmFmNDg2YjY5NzA0ZmI1MTQyZSIsInRhZyI6IiJ9',note:'Dedicated 400 kV double-circuit line from the Godda switchyard to Rahanpur.'},
+ nepal:{points:[importPoints.dhalkebar,['Muzaffarpur 400/220 kV, India',26.0670277,85.3672327],importPoints.baharampur,importPoints.bheramara],source:'https://radionepalonline.com/en/2024/11/15/394838.html',note:'Nepal power uses the Indian grid and shares the Baharampur–Bheramara crossing.'}
+};
+function importRouteEndpoints(name){
+ const key=importRouteKey(name);
+ const route=importConnections[key==='hvdc'?'bheramara':key];
+ if(!route)return '';
+ const points=route.points.map(([label,lat,lon,way])=>{
+  const coordinates=Number.isFinite(lat)&&Number.isFinite(lon);
+  const url=way?'https://www.openstreetmap.org/way/'+way:coordinates
+   ?`https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`
+   :'https://www.openstreetmap.org/search?query='+encodeURIComponent(label);
+  const location=coordinates?`${lat.toFixed(5)}° N, ${lon.toFixed(5)}° E`:'OSM search';
+  return `${esc(label)} <a href="${url}" target="_blank" rel="noopener">(${location})</a>`;
+ }).join(' → ');
+ return `<p class="note import-endpoints">${points}. ${route.note||''} <a href="${route.source}" target="_blank" rel="noopener">Route source</a> · Map data © OpenStreetMap contributors.</p>`;
 }
 function imports(){
  const s=data.summary,sources=comparisonSources();
+ const history=importHistory.get(data.date);
+ const requestedDate=data.date;
+ if(!history)loadImportHistory(requestedDate).then(()=>{
+  if(location.hash==='#imports'&&data.date===requestedDate)render();
+ });
  const reports=[data,...sources.map(([,report])=>report)];
  const importTimes=[...new Set(reports.flatMap(report=>(report.imports||[]).flatMap(item=>(item.hourly||[]).map(row=>row.time))))].sort();
  const sumImportsAtTime=(report,time)=>{
@@ -493,13 +561,24 @@ function imports(){
   totalRows.forEach(row=>{row[key]=sumImportsAtTime(report,row.time)});
   totalSeries.push({key,name:`Total imports · ${dayLabel(day)}`,color,dashArray:comparisonStyle(day).dash});
  }
- const totalPanel=`<section class="panel full"><div class="panel-head"><div><h2>Total imports</h2><p>Combined hourly imports across all reported routes</p></div><span class="tag">MW</span></div>${chart(totalRows,totalSeries)}</section>`;
+ const historicalReports=history?.reports||[];
+ const routeNames=(data.imports||[]).map(route=>route.name);
+ const averageNote=history?.reports
+  ?`Historical average uses the same clock time in the previous 14 calendar days · ${history.reports.length} archived reports available · missing readings excluded.`
+  :'Loading historical import readings…';
+ const addAverage=(rows,series,values)=>{
+  rows.forEach(row=>{row.historical_average_mw=values[row.time]??null});
+  if(rows.some(row=>Number.isFinite(row.historical_average_mw)))series.push(importAverageSeries);
+ };
+ addAverage(totalRows,totalSeries,importAverage(historicalReports,routeNames));
+ const totalPanel=`<section class="panel full"><div class="panel-head"><div><h2>Total imports</h2><p>Combined hourly imports across all reported routes. The historical average requires a reading from every selected-day route at that time.</p></div><span class="tag">MW</span></div>${chart(totalRows,totalSeries,{key:'imports:total_mw',preserveGaps:true})}</section>`;
  const graphs=(data.imports||[]).map(item=>{
   const rows=(item.hourly||[]).map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
   for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color,dashArray:comparisonStyle(day).dash})}
-  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series,{key:'imports:'+item.name}))
+  addAverage(rows,series,importAverage(historicalReports,[item.name]));
+  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series,{key:'imports:'+item.name,preserveGaps:true})+importRouteEndpoints(item.name))
  });
- return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
+ return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">${averageNote} Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
 }
 function realtimeYesterdayDate(){
  const day=currentDayData?.today_date||currentDayData?.date;

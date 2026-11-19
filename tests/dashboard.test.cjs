@@ -456,3 +456,14 @@ test('overview energy composition mirrors realtime fuel and share charts from En
  assert.equal(shares[0].renewable_share_pct,15);
  assert.equal(shares[1].clean_energy_share_pct,null,'A missing reading in a reported nuclear series remains a gap');
 });
+
+test('hourly import averages keep reported zeros and require complete route totals',()=>{
+ const c=app();
+ const result=vm.runInContext(`importAverage([
+  {imports:[{name:'Bheramara (HVDC)',hourly:[{time:'00:00',mw:800},{time:'01:00',mw:900}]},
+            {name:'HVDC(Nepal)',hourly:[{time:'00:00',mw:0},{time:'01:00',mw:null}]}]},
+  {imports:[{name:'Bheramara HVDC',hourly:[{time:'00:00',mw:900}]},
+            {name:'Nepal',hourly:[{time:'00:00',mw:40}]}]}
+ ],['Bheramara HVDC','Nepal'])`,c);
+ assert.deepEqual({...result},{'00:00':870});
+});

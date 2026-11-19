@@ -7,7 +7,7 @@
  const names=target=>ranked(target).map(r=>r.model);
  const best=Object.fromEntries(targets.map(t=>[t,names(t)[0]]));
  let selectedDate=null,expanded=true,todayExpanded=false,choices={...best};
- const performance={target:'demand',cohort:'issued'};
+ const performance={target:'demand',cohort:'issued',open:false};
  function renderPerformance(){
   return window.BEGDForecastPerformance?.render({bundle,live:typeof currentDayData==='undefined'?null:currentDayData,
    ...performance,model:choices[performance.target],validForecast})||'';
@@ -116,6 +116,11 @@
   return `<details class="panel independent-study-panel" id="independent-study-panel" aria-labelledby="study-title" open>${summary}<div class="forecast-body"><p class="note study-date-context">Operating date follows the dashboard header selector.</p><div class="forecast-subplots">${subplots(ctx,false)}</div><section class="forecast-study-info" aria-label="Forecast information"><div class="forecast-information-group"><h3>Model selection and evaluation</h3><p class="note">The top three models for each target are ranked by mean absolute error (MAE) over ${esc(shortDate(limits.start))} &ndash; ${esc(shortDate(limits.end))}. Rank 1 is selected by default; rankings use retrospective evaluation. Demand models use ERP substation-side demand. Generation models include imports. PGCB scenarios are not inputs to the BEGD models.</p></div><div class="forecast-information-group"><h3>PGCB scenario scores</h3><p class="note">${pgcbNote} For demand, PGCB MAE is scored against generation-side ERP or workbook P4 actuals, never substation demand; for generation, it is scored against ERP generation actuals. Each score includes only matched hourly readings. The demand scores have different measurement bases.</p></div><div class="forecast-information-group"><h3>Forecast issue and coverage</h3><p class="note">${issueNote(ctx)} ${esc(bundle.availability)}</p></div></section></div></details>`;
  }
  function bind(rerender){
+  document.querySelector('#forecast-performance')?.addEventListener('toggle',event=>{
+   performance.open=event.target.open;
+   const hint=event.target.querySelector('.forecast-summary>span');
+   if(hint)hint.textContent=performance.open?'Collapse':'Expand';
+  });
   if(window.BEGDForecastPerformance)document.querySelectorAll('#forecast-performance [data-performance]').forEach(control=>control.addEventListener('change',()=>{
    performance[control.dataset.performance]=control.value;
    rerender();
