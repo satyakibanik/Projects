@@ -252,3 +252,4 @@ circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
 .en-curve-chart .source-legend-group{display:grid;gap:4px;min-inline-size:0;margin:0;padding:5px 0 0;border:0;border-top:1px solid var(--line)}
 .en-curve-chart .source-legend-group legend{padding:0}
 .en-curve-chart .source-legend-group legend label{grid-template-columns:14px minmax(0,1fr)}
+.en-curve-chart>.legend:has(.source-legend-group){flex-wrap:nowrap}
