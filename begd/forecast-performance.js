@@ -61,7 +61,7 @@
         const forecast=date===today?live.independent_forecast:history[date]?.forecast;
         return (!today||date<=today)&&validForecast(forecast,date)&&issuedBeforeDay(forecast,date);
       }).sort();
-    const days=[];
+    const days=[],pairedDays=[];
     for(let stamp=midnight(dates[0]);stamp<=midnight(cohort==='issued'?(today||dates.at(-1)):dates.at(-1));stamp+=dayMs){
       const date=new Date(stamp+bangladeshOffsetMs).toISOString().slice(0,10);
       const entry=date===today?live:history[date];
@@ -73,6 +73,11 @@
       const actualKey=!useStudy&&target==='generation'?'total_mw':key;
       const predictions=new Map((useStudy?studyRows:issuedRows).map(row=>[row.time,row[modelKey]?.[model]]));
       days.push({date,pairs:pairs(actual,date,actualKey,predictions)});
+      const enhanced=new Map(issuedRows.map(row=>[row.time,row['adjusted_'+target+'_mw']]));
+      const comparable=pairs(actual,date,actualKey,enhanced)
+        .filter(row=>valid(predictions.get(hours[row.index])));
+      if(model===forecast?.models?.[target]&&comparable.length)pairedDays.push({date,comparable,
+        original:comparable.map(row=>({...row,error:predictions.get(hours[row.index])-row.observed}))});
     }
     const {daily,byHour,coverage}=evaluate(days);
     const controls=`<div class="toolbar">
@@ -106,9 +111,16 @@
         <details><summary>Daily and hourly coverage</summary><div class="table-wrap"><table><thead><tr><th>Operating date</th><th>Matched hours</th><th>7-day matched hours</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${row.date}</td><td>${row.count}/24</td><td>${row.rolling.count}</td></tr>`).join('')}</tbody></table></div>
         <div class="table-wrap"><table><thead><tr><th>Bangladesh hour</th><th>Matched observations</th><th>MAE (MW)</th></tr></thead><tbody>${byHour.map(row=>`<tr><td>${row.time}</td><td>${row.count}</td><td>${row.mae===null?'—':fmt(row.mae,1)}</td></tr>`).join('')}</tbody></table></div></details>`;
     }
+    const enhancedPairs=pairedDays.flatMap(day=>day.comparable);
+    const originalPairs=pairedDays.flatMap(day=>day.original);
+    const enhancedScore=summarize(enhancedPairs),originalScore=summarize(originalPairs);
+    const comparison=cohort==='issued'?(`<section class="forecast-subplot"><h3>Original vs adjusted BEGD forecast</h3>`+
+      (enhancedScore.count?`<p>${fmt(enhancedScore.count)} common hours across ${pairedDays.length} days · original MAE ${fmt(originalScore.mae,1)} MW · adjusted MAE ${fmt(enhancedScore.mae,1)} MW.</p>
+        <div class="table-wrap"><table><thead><tr><th>Operating date</th><th>Hours</th><th>Original MAE (MW)</th><th>Adjusted MAE (MW)</th></tr></thead><tbody>${pairedDays.map(day=>`<tr><th scope="row">${esc(shortDate(day.date))}</th><td>${day.comparable.length}</td><td>${fmt(summarize(day.original).mae,1)}</td><td>${fmt(summarize(day.comparable).mae,1)}</td></tr>`).join('')}</tbody></table></div>`:
+        '<p>Matched scores appear once an adjusted rank-one forecast and its ERP readings are available.</p>')+'</section>'):'';
     const scope=cohort==='issued'?'Only forecasts issued before 00:00 Bangladesh time enter this score.':
       'Scores use bundled historical model-study rows. This cohort represents retrospective evaluation.';
-    return `<section class="panel full independent-study-panel forecast-performance-panel" id="forecast-performance" aria-labelledby="forecast-performance-title"><div class="panel-head"><div><h2 id="forecast-performance-title">Forecast performance over time</h2><p data-keep-visible>BEGD forecasts scored against ERP actuals · ${esc(model)}</p></div></div><div class="forecast-body">${controls}<p class="note" data-keep-visible>${scope} The model follows the BEGD selector above. PGCB scenarios are scored in the daily comparison above.</p>${charts}</div></section>`;
+    return `<section class="panel full independent-study-panel forecast-performance-panel" id="forecast-performance" aria-labelledby="forecast-performance-title"><div class="panel-head"><div><h2 id="forecast-performance-title">Forecast performance over time</h2><p data-keep-visible>BEGD forecasts scored against ERP actuals · ${esc(model)}</p></div></div><div class="forecast-body">${controls}<p class="note" data-keep-visible>${scope} The model follows the BEGD selector above. PGCB scenarios are scored in the daily comparison above.</p>${comparison}${charts}</div></section>`;
   }
 
   root.BEGDForecastPerformance={render,issuedBeforeDay,pairs,evaluate};

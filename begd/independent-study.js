@@ -25,10 +25,10 @@
   const report=typeof data==='undefined'?null:data;
   const reportScenario=report?.forecast?.scenario_date;
   const dates=[...new Set([...bundle.dates,...Object.keys(live?.forecast_history||{}),...(live?.today_date?[live.today_date]:[]),...(reportScenario?[reportScenario]:[])])].sort();
-  const date=operatingDate||(liveOnly?live?.today_date:dates.includes(selectedDate)?selectedDate:live?.today_date||bundle.default_date);
-  const models=liveOnly?best:choices,history=live?.forecast_history?.[date],sameDay=Boolean(live&&live.today_date===date);
+  const date=operatingDate||(liveOnly?(live?.today_date||live?.date):dates.includes(selectedDate)?selectedDate:live?.today_date||bundle.default_date);
+  const models=liveOnly?best:choices,history=live?.forecast_history?.[date],sameDay=Boolean(live&&(live.today_date||live.date)===date);
   const candidate=sameDay?live.independent_forecast:history?.forecast;
-  const forecast=validForecast(candidate,date)?candidate:null,base=bundle.days[date]||[];
+  const forecast=[candidate,history?.forecast].find(value=>validForecast(value,date))||null,base=bundle.days[date]||[];
   const demand=new Map(((sameDay?live.demand_hourly:history?.demand_hourly)||[]).map(r=>[r.time,r]));
   const generation=new Map(((sameDay?live.generation_hourly:history?.generation_hourly)||[]).map(r=>[r.time,r]));
   const generationDemand=new Map(((sameDay?live.generation_side_demand_hourly:history?.generation_side_demand_hourly)||[]).map(r=>[r.time,r]));
@@ -40,15 +40,22 @@
   const actual=(value,fallback)=>finite(value)?value:finite(fallback)?fallback:null;
   const rows=Array.from({length:24},(_,h)=>{
    const time=String(h).padStart(2,'0')+':00',original=base.find(r=>r.time===time)||{},d=demand.get(time),g=generation.get(time),p=pgcbRows.get(time);
+   const issuedRow=forecast?.hourly[h];
+   const prediction=target=>actual(models[target]===best[target]?issuedRow?.['adjusted_'+target+'_mw']:null,
+    actual(issuedRow?.[target+'_models'][models[target]],original[target+'_models']?.[models[target]]));
    return {time,demand_mw:actual(d?.demand_mw,sameDay?null:original.demand_mw),
     generation_mw:actual(g?.total_mw,sameDay?null:original.generation_mw),
     demand_generation_side_mw:actual(generationDemand.get(time)?.demand_mw,null),
-    demand_forecast_mw:actual(forecast?.hourly[h].demand_models[models.demand],original.demand_models?.[models.demand]),
-    generation_forecast_mw:actual(forecast?.hourly[h].generation_models[models.generation],original.generation_models?.[models.generation]),
+    demand_forecast_mw:prediction('demand'),
+    generation_forecast_mw:prediction('generation'),
     pgcb_demand_mw:pgcb?.date===date?actual(p?.demand_mw,original.pgcb_demand_mw):null,
     pgcb_generation_mw:pgcb?.date===date?actual(p?.generation_mw,original.pgcb_generation_mw):null};
   });
   return {date,dates,rows,models,pgcb,forecast,forecastReason:candidate?.reason||history?.forecast_error||'',issued:forecast?.issued_at||(bundle.forward_dates.includes(date)?bundle.issued_at:null)};
+ }
+ function realtimeDemandForecast(date){
+  return context(true,date).rows.filter(row=>finite(row.demand_forecast_mw))
+   .map(({time,demand_forecast_mw})=>({time,demand_forecast_mw}));
  }
  function matchedError(rows,actualKey,forecastKey){
   const paired=rows.filter(r=>finite(r[actualKey])&&finite(r[forecastKey]));
@@ -72,11 +79,11 @@
   return `<div class="model-description"><p class="note"><strong>${target==='demand'?'Demand':'Generation'} · ${esc(name)}.</strong> ${esc(info.description||'')}</p>${members.length?`<p class="note model-members"><strong>Constituent models (${members.length})</strong> · ${members.map(esc).join(' · ')}</p>`:''}</div>`;
  }
  function subplots(ctx,liveOnly,previous=null){
-  const {date,rows,models,forecastReason}=ctx;
+  const {date,rows,models,forecastReason,forecast}=ctx;
   return targets.map(target=>{
    const label=target==='demand'?'Demand · substation side':'Generation · ERP';
    const series=[{key:target+'_mw',name:target==='demand'?'Demand actual · ERP substation side':'Generation actual · ERP',color:target==='demand'?'#b46c13':'#3678ad',marker:target==='demand'?'circle':'square'},
-    {key:target+'_forecast_mw',name:`BEGD - ${target==='demand'?'Demand (Substation side)':'Generation'} - Model: ${models[target]}`,color:target==='demand'?'#c77e21':'#488ec5',marker:target==='demand'?'diamond':'triangle-down',family:'forecast',defaultVisible:true,dashArray:target==='demand'?'3 4':'8 4'}];
+    {key:target+'_forecast_mw',name:`BEGD - ${target==='demand'?'Demand (Substation side)':'Generation'} - Model: ${models[target]}${models[target]===best[target]&&forecast?.hourly.some(row=>finite(row['adjusted_'+target+'_mw']))?' · adjusted':''}`,color:target==='demand'?'#c77e21':'#488ec5',marker:target==='demand'?'diamond':'triangle-down',family:'forecast',defaultVisible:true,dashArray:target==='demand'?'3 4':'8 4'}];
    const hasPgcb=rows.some(r=>finite(r['pgcb_'+target+'_mw']));
    const plotHasPgcb=hasPgcb||(liveOnly&&previous?.rows.some(r=>finite(r['pgcb_'+target+'_mw'])));
    if(plotHasPgcb){
@@ -116,5 +123,5 @@
   document.querySelector('#independent-study-panel')?.addEventListener('toggle',event=>{if(expanded!==event.target.open){expanded=event.target.open;rerender()}});
   for(const target of targets)document.querySelector('#study-'+target)?.addEventListener('change',event=>{if(names(target).includes(event.target.value)){choices[target]=event.target.value;rerender()}});
  }
- window.BEGDIndependentStudy={render,renderToday,renderPerformance,bind,freshness:()=>context().forecast?.issued_at||bundle.issued_at};
+ window.BEGDIndependentStudy={render,renderToday,renderPerformance,realtimeDemandForecast,bind,freshness:()=>context().forecast?.issued_at||bundle.issued_at};
 })();

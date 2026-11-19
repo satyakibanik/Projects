@@ -48,6 +48,36 @@ class PublicationTests(unittest.TestCase):
         self.pgcb.start()
         self.addCleanup(self.pgcb.stop)
 
+    @unittest.skipUnless(importlib.util.find_spec('numpy'), 'forecast dependencies unavailable')
+    def test_adjustments_use_frozen_earlier_inputs_and_preserve_rank_one(self):
+        from forecast_adjustments import apply_adjustments
+        archive, records = {}, []
+        for index in range(1, 14):
+            day = f'2026-11-{index:02}'
+            baseline = ready(day)
+            baseline['captured_demand_inputs'] = dict(
+                fetched_at=baseline['issued_at'], values=[10000+index, index])
+            archive[day] = baseline
+            records.append(dict(operating_date=day, published_date=f'2026-11-{index+1:02}',
+                                actual=[dict(time=hour,demand=14000+index,generation=13500+index)
+                                        for hour in daily.HOURS]))
+        issued = ready('2026-11-15')
+        captured = dict(fetched_at='2026-11-14T11:00:00+00:00',
+                        source_dates={'demand':'2026-11-14'},
+                        demand_hourly=[{'time':hour,'demand_mw':14200}
+                                       for hour in ('12:00','13:00','14:00','23:00')])
+        frozen = copy.deepcopy(archive)
+        apply_adjustments(issued, captured, records, archive)
+        self.assertEqual(archive,frozen)
+        self.assertEqual(issued['hourly'][0]['demand_mw'],14500)
+        self.assertIn('adjusted_demand_mw',issued['hourly'][0])
+        self.assertIn('adjusted_generation_mw',issued['hourly'][0])
+        self.assertTrue(daily.valid_forecast(issued,issued['date']))
+        late = ready('2026-11-15')
+        apply_adjustments(late, dict(captured,fetched_at='2026-11-14T13:00:00+00:00'), records, archive)
+        self.assertNotIn('adjusted_demand_mw',late['hourly'][0])
+        self.assertIn('adjusted_generation_mw',late['hourly'][0])
+
     def test_forecast_requires_complete_finite_correctly_dated_output(self):
         value = ready()
         self.assertTrue(daily.valid_forecast(value, '2026-10-23'))

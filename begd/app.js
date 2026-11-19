@@ -145,11 +145,11 @@ function chart(rows,series,options={}){
     body+=`<rect data-row-index="${rowIndex}" x="${x(row)+offset-barWidth/2}" y="${seriesY(value)}" width="${Math.max(1,barWidth-0.7)}" height="${Math.max(0,H-B-seriesY(value))}" rx="1" fill="${item.color}"><title>${row.label||row.time}: ${fmt(value,2)} ${esc(seriesUnit)}</title></rect>`;
    }
   }else{
-   // Water-level gaps stay gaps instead of joining across absent readings.
+   // Explicit missing readings break the line. Sparse rows may belong to another series.
    const segments=[[]];
    for(const row of rows){
     if(Number.isFinite(row[item.key]))segments.at(-1).push(`${x(row)},${seriesY(row[item.key])}`);
-    else if((item.axis==='right'||options.preserveGaps)&&segments.at(-1).length)segments.push([]);
+    else if((item.axis==='right'||options.preserveGaps)&&(!options.sparseRows||Object.hasOwn(row,item.key))&&segments.at(-1).length)segments.push([]);
    }
    if(!item.pointsOnly||item.connectPoints)for(const points of segments.filter(segment=>segment.length))body+=`<polyline fill="none" stroke="${item.color}" stroke-width="2.5" stroke-dasharray="${seriesDash(item)}" ${item.dot?'stroke-linecap="round"':''} points="${points.join(' ')}"/>`;
    for(const [rowIndex,row] of rows.entries()){
@@ -530,20 +530,30 @@ function realtimeShares(generation,routes,importRows){
   return {time:row.time,import_dependence_pct:total&&completeImports&&valid(imported)?imported/total*100:null,renewable_share_pct:total&&renewableMw!==null?renewableMw/total*100:null,clean_energy_share_pct:total&&renewableMw!==null?(renewableMw+nuclearMw)/total*100:null};
  });
 }
+function realtimeDispatchRows(readings,forecast){
+ const byTime=new Map(readings.map(row=>[row.time,{...row,demand_mw:row.demand_mw??null,supply_mw:row.supply_mw??row.generation_mw??null,shed_mw:row.shed_mw??null}]));
+ for(const row of forecast)byTime.set(row.time,{...byTime.get(row.time),...row});
+ return [...byTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
+}
 function realTime(){
  const independentStudyPanel=window.BEGDIndependentStudy?.renderToday()||'';
  if(!currentDayData)return independentStudyPanel+`<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
- const latest=currentDayData.source_dates||{},today=shortDate(currentDayData.today_date||currentDayData.date),rows=currentDayData.demand_hourly||[],generation=currentDayData.generation_hourly||[],routes=currentDayData.imports||[];
+ const todayDate=currentDayData.today_date||currentDayData.date;
+ const latest=currentDayData.source_dates||{},today=shortDate(todayDate),rows=currentDayData.demand_hourly||[],generation=currentDayData.generation_hourly||[],routes=currentDayData.imports||[];
  const dateFor=key=>latest[key]?shortDate(latest[key]):'No data for today';
  const yesterday=realtimeYesterdayDate(),history=currentDayData.forecast_history?.[yesterday]||{},previous=currentDayData.realtime_history?.[yesterday]||{};
  const yesterdayRows=history.demand_hourly||[],previousGeneration=previous.generation_hourly||history.generation_hourly||[],previousRoutes=previous.imports||[];
- const hasHistory=yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
+ const demandForecastFor=window.BEGDIndependentStudy?.realtimeDemandForecast;
+ const todayForecast=demandForecastFor?.(todayDate)||[],yesterdayForecast=yesterday?demandForecastFor?.(yesterday)||[]:[];
+ const hasHistory=yesterdayForecast.length||yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
  const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
- const demandRows=rows.map(row=>({...row,supply_mw:row.supply_mw??row.generation_mw??null}));
+ const demandRows=realtimeDispatchRows(rows,todayForecast),previousDemandRows=realtimeDispatchRows(yesterdayRows,yesterdayForecast);
  const demandSeries=[{key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},{key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}];
+ if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true});
+ const dispatchOptions={syncGroup:'realtime-dispatch',sparseRows:true};
  const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
-  '<div class="realtime-dispatch-plots">'+realtimePlot(demandRows,demandSeries,yesterdayRows,{syncGroup:'realtime-dispatch',key:'realtime-demand-supply'})+
-  '<h3>Reported load shedding</h3>'+realtimePlot(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],yesterdayRows,{syncGroup:'realtime-dispatch',height:160,key:'realtime-shedding'})+
+  '<div class="realtime-dispatch-plots">'+realtimePlot(demandRows,demandSeries,previousDemandRows,{...dispatchOptions,key:'realtime-demand-supply'})+
+  '<h3>Reported load shedding</h3>'+realtimePlot(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],previousDemandRows,{...dispatchOptions,height:160,key:'realtime-shedding'})+
   '<p class="note">Substation-side load shedding = demand − supply at the same timestamp. Yesterday’s comparison uses the previous calendar day of the snapshot in Bangladesh time.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
  const fuelTypeSeries=[['gas_mw','Gas',colors.Gas],['liquid_mw','Liquid fuel',colors.LiquidFuel],['coal_mw','Coal',colors.Coal],['hydro_mw','Hydro',colors.Hydro],['solar_mw','Solar',colors.Solar],['wind_mw','Wind',colors.Wind],['nuclear_mw','Nuclear',colors.Nuclear]].filter(([key])=>key!=='nuclear_mw'||[...generation,...previousGeneration].some(row=>Number.isFinite(row[key]))).map(([key,name,color])=>({key,name,color,family:'fuel',fuelIcon:({'Gas':'gas-factory.png','Liquid fuel':'HFO.png',Coal:'coal.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png',Nuclear:'nuclear-plant.png'})[name]}));

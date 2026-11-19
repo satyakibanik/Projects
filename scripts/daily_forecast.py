@@ -68,6 +68,9 @@ def valid_forecast(value, day):
     rows = value.get('hourly', [])
     return (isinstance(rows, list) and all(isinstance(r, dict) for r in rows) and
             [r.get('time') for r in rows] == HOURS and
+            all(not any(key in r for r in rows) or all(
+                type(r.get(key)) in (float, int) and math.isfinite(r[key]) and r[key] >= 0 for r in rows)
+                for key in ('adjusted_demand_mw', 'adjusted_generation_mw')) and
             all(type(r.get(k)) in (float, int) and math.isfinite(r[k]) and r[k] >= 0
                 for r in rows for k in ('generation_mw', 'demand_mw')) and
             all(isinstance(r.get(t+'_models'), dict) and set(r[t+'_models'])==set(names) and
@@ -279,7 +282,8 @@ def prepare_forecasts(listing, current_day, cache):
     first = max(shift(CATALOG['window']['end'], -1), shift(day, 34))
     past = [(dt.date.fromisoformat(first) + dt.timedelta(days=n)).isoformat()
             for n in range(max(0, (dt.date.fromisoformat(day)-dt.date.fromisoformat(first)).days))]
-    for target in (day, shift(day, -1), *past):
+    tomorrow = shift(day, -1)
+    for target in (day, *past, tomorrow):
         path = cache / VERSION / (target + '.json')
         try:
             if path.exists():
@@ -300,6 +304,10 @@ def prepare_forecasts(listing, current_day, cache):
                         continue
                 except (OSError, ValueError, KeyError, TypeError):
                     pass
+            from forecast_adjustments import apply_adjustments, timestamp
+            captured = timestamp(current_day.get('fetched_at'))
+            if target == tomorrow and captured and captured.date().isoformat() == day and captured.hour < 18:
+                continue
             records, failures = load_history(listing, cache, target)
             if not records:
                 raise ValueError('No published training history')
@@ -309,6 +317,9 @@ def prepare_forecasts(listing, current_day, cache):
                 raise ValueError('No complete paired ERP demand/generation history')
             weather = load_weather(shift(min(r['operating_date'] for r in records), 2), target, cache)
             forecast = fit_forecast(records, weather, target, cache=cache)
+            apply_adjustments(forecast, current_day, records, {
+                date:value for date,value in result.items() if valid_forecast(value,date)
+            })
             forecast['history_failures'] = failures
             forecast['erp_snapshots'] = {kind: dict(source=provenance[kind]['source'],
                 captures=provenance[kind]['captures']) for kind in ('demand', 'generation')}
