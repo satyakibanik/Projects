@@ -21,7 +21,7 @@
   .plant-table-wrap{max-height:640px}
 }
 
-/* Six slides share one interactive geographic viewport. */
+/* Map slides share one interactive geographic viewport. */
 .has-plant-slides .plant-map-key{display:none}
 .plant-slides{margin:0 0 18px;border:1px solid var(--line);background:color-mix(in srgb,var(--green) 4%,var(--bg))}
 .plant-slide-top{display:flex;justify-content:space-between;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);gap:10px}
@@ -66,12 +66,13 @@
 .has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,2.6fr) minmax(240px,1fr);gap:20px}
 .has-plant-slides .plant-map-frame{height:800px}
 .has-plant-slides .plant-map-sidebar{max-height:800px;padding:16px}
-.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(7,minmax(0,1fr))}
+.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(8,minmax(0,1fr))}
 .plant-gradient{background:linear-gradient(90deg,#ffe04b,#fa8f28,#ed3c35)}
 .plant-positive-label{font-size:10px}
-.plant-icon-key>button{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid transparent;background:transparent;color:var(--ink);font:11px var(--mono);border-radius:5px;cursor:pointer}
-.plant-icon-key>button:hover,.plant-icon-key>button:focus-visible,.plant-icon-key>button.is-highlighted{border-color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent);outline:none}
-.plant-icon-key>button i{width:9px;height:9px;display:inline-block;border-radius:50%}
+.plant-icon-key>button{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid transparent;background:var(--fuel-color);color:#101820;font:11px var(--mono);border-radius:5px;cursor:pointer}
+.plant-icon-key>button:is([data-highlight-fuel="Coal"],[data-highlight-fuel="Gas"],[data-highlight-fuel="Nuclear"]){color:#fff}
+.plant-icon-key>button:hover,.plant-icon-key>button.is-highlighted{border-color:currentColor}
+.plant-icon-key>button:focus-visible,.plant-icon-key>button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
 .plant-icon-key img{width:30px;height:30px}
 .plant-map-marker.is-fuel-muted{opacity:.16}
 .plant-map-marker.is-fuel-match .plant-slide-symbol{filter:drop-shadow(0 0 5px #187acb)}

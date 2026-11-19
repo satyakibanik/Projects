@@ -65,6 +65,9 @@ test('Rooppur is mapped when listed in the report and the map can supply its nuc
  const {markers,unmapped}=map.resolvePlants([plant],catalog,boundary);
  assert.equal(markers.length,1);
  assert.deepEqual(unmapped,[]);
- assert.match(map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—'),/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ const details=map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—');
+ assert.match(details,/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ assert.ok(details.includes('href="https://osm.org/go/zq4nSU4A?m="'));
+ assert.doesNotMatch(details,/IAEA-hosted|approximate/);
  assert.deepEqual(map.resolvePlants([],catalog,boundary).markers,[]);
 });
