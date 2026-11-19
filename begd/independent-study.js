@@ -54,8 +54,10 @@
   return {date,dates,rows,models,pgcb,forecast,forecastReason:candidate?.reason||history?.forecast_error||'',issued:forecast?.issued_at||(bundle.forward_dates.includes(date)?bundle.issued_at:null)};
  }
  function realtimeDemandForecast(date){
-  return context(true,date).rows.filter(row=>finite(row.demand_forecast_mw))
-   .map(({time,demand_forecast_mw})=>({time,demand_forecast_mw}));
+  const {rows,forecast}=context(true,date);
+  return {adjusted:forecast?.hourly.every(row=>finite(row.adjusted_demand_mw))===true,
+   rows:rows.filter(row=>finite(row.demand_forecast_mw))
+    .map(({time,demand_forecast_mw})=>({time,demand_forecast_mw}))};
  }
  function matchedError(rows,actualKey,forecastKey){
   const paired=rows.filter(r=>finite(r[actualKey])&&finite(r[forecastKey]));

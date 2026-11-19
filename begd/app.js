@@ -544,12 +544,13 @@ function realTime(){
  const yesterday=realtimeYesterdayDate(),history=currentDayData.forecast_history?.[yesterday]||{},previous=currentDayData.realtime_history?.[yesterday]||{};
  const yesterdayRows=history.demand_hourly||[],previousGeneration=previous.generation_hourly||history.generation_hourly||[],previousRoutes=previous.imports||[];
  const demandForecastFor=window.BEGDIndependentStudy?.realtimeDemandForecast;
- const todayForecast=demandForecastFor?.(todayDate)||[],yesterdayForecast=yesterday?demandForecastFor?.(yesterday)||[]:[];
+ const forecastToday=demandForecastFor?.(todayDate);
+ const todayForecast=forecastToday?.rows||[],yesterdayForecast=yesterday?demandForecastFor?.(yesterday)?.rows||[]:[];
  const hasHistory=yesterdayForecast.length||yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
  const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
  const demandRows=realtimeDispatchRows(rows,todayForecast),previousDemandRows=realtimeDispatchRows(yesterdayRows,yesterdayForecast);
  const demandSeries=[{key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},{key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}];
- if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true});
+ if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true,defaultVisible:forecastToday?.adjusted===true});
  const dispatchOptions={syncGroup:'realtime-dispatch',sparseRows:true};
  const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
   '<div class="realtime-dispatch-plots">'+realtimePlot(demandRows,demandSeries,previousDemandRows,{...dispatchOptions,key:'realtime-demand-supply'})+

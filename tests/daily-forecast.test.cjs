@@ -22,6 +22,18 @@ test('first panel combines substation-side readings and the BEGD demand forecast
  assert.match(html,/demand − supply/);assert.doesNotMatch(html.split('id="independent-study-panel"')[0],/Generation · realtime|forecasted_demand_mw|independent_generation_mw/);
  assert.deepEqual(Array.from(models[0].rows,r=>r.time),Array.from(models[1].rows,r=>r.time));
 });
+test('realtime demand overlay starts unchecked and defaults on only for an adjusted current day',()=>{
+ const {c}=live();
+ const render=()=>vm.runInContext('chartData.clear();realTime()',c);
+ const visibility=()=>vm.runInContext('[...chartData.values()].find(m=>m.scope==="realtime-demand-supply").series.find(s=>s.key==="demand_forecast_mw").defaultVisible',c);
+ render();assert.equal(visibility(),false);
+ c.fixture.independent_forecast.hourly[0].adjusted_demand_mw=13000;
+ render();assert.equal(visibility(),false);
+ for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=13000;
+ render();assert.equal(visibility(),true);
+ vm.runInContext("chartVisibility.set('realtime-demand-supply|demand_forecast_mw',false)",c);
+ render();assert.equal(visibility(),false);
+});
 test('dispatch uses the matching archived curve at rollover and joins hourly forecasts across off-hour readings',()=>{
  const {c}=live();
  const issued=c.fixture.independent_forecast;
