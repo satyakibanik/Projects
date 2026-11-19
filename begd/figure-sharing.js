@@ -116,7 +116,7 @@
     // Capture the theme once so chart, title and footer use the same palette.
     const theme=getComputedStyle(document.body),background=theme.backgroundColor,ink=theme.color;
     let contentBounds;
-    const shot=await root.html2canvas(capture,{backgroundColor:background,scale:captureScale,logging:false,
+    const shot=await root.html2canvas(capture,{backgroundColor:background,scale:captureScale,logging:false,useCORS:target.matches('.plant-map-panel'),
       // Expand clipped chart/table containers only in the detached export document.
       onclone:(doc,clone)=>{
         const style=doc.createElement('style');

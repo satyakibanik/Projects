@@ -6,11 +6,11 @@ const NS='http://www.w3.org/2000/svg',BLUE='#2374e8',YELLOW='#ffe04b',RED='#ed3c
 const fuelColors={Imports:'#b07aa1',Coal:'#586574',Gas:'#2878cd',HFO:'#e67e28',HSD:'#df527b',Hydro:'#159d9c',Solar:'#e0b91d',Wind:'#4c9e48',Nuclear:'#8b5bc7','Not reported':MISSING};
 const slides=[
  {id:'fuel',title:'Fuel type',description:'Color and icons identify generation type. Hover a fuel icon below to preview matching units; click it to keep the selection.'},
+ {id:'capacity',title:'Present capacity',unit:'MW',description:'Reported present capacity of each generating unit.'},
  {id:'energy',title:'Daily energy',unit:'MWh',description:'Reported energy generated across the operating day.',heat:true},
  {id:'peak',title:'Daily peak generation',unit:'MW',description:'Highest reported output for each generating unit during the day.',heat:true},
  {id:'region',title:'Region',description:'Color identifies the report’s operating region.'},
  {id:'producer',title:'Producer',description:'Color identifies the producer listed in the report.'},
- {id:'capacity',title:'Present capacity',unit:'MW',description:'Reported present capacity of each generating unit.'},
  {id:'status',title:'Online / offline',description:'Online: reported output during the day. Offline: no reported output; this alone does not establish an outage.'}
 ];
 const colors=['#2878cd','#e67e28','#8b5bc7','#279d78','#df527b','#b18a1f','#19a1b3','#b85936','#6776c9','#5d8e39','#bd49a4','#627484'];
@@ -61,7 +61,7 @@ async function create(options){
  viewOptions.className='plant-marker-view';
  viewOptions.setAttribute('aria-label','Plant map view');
  viewOptions.innerHTML=`<label><input type="radio" name="plant-marker-view-${uid}" value="dots"> Dots view</label><label><input type="radio" name="plant-marker-view-${uid}" value="icons"> Plant icon view</label>`;
- frame.parentElement.append(viewOptions);
+ panel.querySelector('.plant-map-options').append(viewOptions);
  const heat=make(doc,'g',{class:'plant-map-heat','clip-path':'url(#plant-country-clip)','aria-hidden':'true'});svg.insertBefore(heat,svg.querySelector('.plant-map-boundaries'));
  const heatDefs=make(doc,'g');svg.querySelector('defs').append(heatDefs);
  const iconKey=doc.createElement('div');iconKey.className='plant-icon-key';iconKey.setAttribute('aria-label','Generation type icons');panel.querySelector('.plant-map-layout').before(iconKey);
@@ -160,8 +160,9 @@ async function create(options){
     for(const [at,opacity]of [['0%','.6'],['45%','.3'],['100%','0']])gradient.append(make(doc,'stop',{offset:at,'stop-color':c,'stop-opacity':opacity}));heatDefs.append(gradient);
     const ratio=maximum>0?sums[i]/maximum:0;heat.append(make(doc,'circle',{cx:g.point[0],cy:g.point[1],r:(radius+24*Math.sqrt(ratio))/scale,'data-screen-radius':radius+24*Math.sqrt(ratio),fill:`url(#${id})`}));}
   });
+  iconKey.hidden=!fuelView;
   const fuels=[...new Set(groups.flatMap(g=>g.items.flatMap(i=>types(i.plant,options))))].sort();
-  iconKey.innerHTML='<strong'+(fuelView?' hidden':'')+'>Generation type</strong>'+fuels.map(f=>`<button type="button" data-highlight-fuel="${f}" aria-label="Highlight ${f} plants" style="--fuel-color:${fuelColors[f]||MISSING}"><img src="plant-icons/${icons[f]}" alt="">${esc(f)} (${groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(f)).length,0)})</button>`).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>';
+  iconKey.innerHTML=fuelView?fuels.map(f=>`<button type="button" data-highlight-fuel="${f}" aria-label="Highlight ${f} plants" style="--fuel-color:${fuelColors[f]||MISSING}"><img src="plant-icons/${icons[f]}" alt="">${esc(f)} (${groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(f)).length,0)})</button>`).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>':'';
   applyHighlight(highlightedFuel);decorateSidebar();
  }
  function applyHighlight(fuel){
@@ -197,7 +198,7 @@ async function create(options){
   pinnedFuel=null;highlightedFuel=null;suppressPreview=true;updateMapFilter();
  });
  const clearOnOutside=e=>{
-  if(e.target.closest?.('[data-legend-filter]')||controls.contains(e.target)||viewOptions.contains(e.target))return;
+  if(e.target.closest?.('[data-legend-filter]')||controls.contains(e.target)||e.target.closest?.('.plant-map-options'))return;
   const restore=Boolean(activeFilter&&!e.target.closest?.('.plant-map-marker'));
   if(restore)activeFilter=null;
   if(!e.target.closest?.('.plant-icon-key [data-highlight-fuel]')){pinnedFuel=null;suppressPreview=false;applyHighlight(null);}
@@ -210,7 +211,9 @@ async function create(options){
  function select(i,focus=false){
   const restore=Boolean(activeFilter);activeFilter=null;if(restore)controller.update(rows);
   index=(i+slides.length)%slides.length;preferred=index;
-  if(slides[index].id!=='fuel')setMarkerView(false);
+  if(slides[index].id!=='fuel'){
+   setMarkerView(false);pinnedFuel=null;highlightedFuel=null;suppressPreview=false;
+  }
   render();
   if(focus)controls.querySelector(`[data-slide="${index}"]`).focus();
  }

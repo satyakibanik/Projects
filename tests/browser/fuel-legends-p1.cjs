@@ -13,6 +13,10 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   await context.addInitScript(value=>localStorage.setItem('begd-theme',value),theme);
   await context.route('**/*',route=>{
    const u=new URL(route.request().url());
+   if(['tile.openstreetmap.org','tiles.maps.eox.at'].includes(u.hostname)){
+    const pixel=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg==','base64');
+    return route.fulfill({body:pixel,contentType:'image/png',headers:{'access-control-allow-origin':'*'}});
+   }
    if(u.pathname==='/api/report')return route.fulfill({json:report});
    if(u.pathname.endsWith('/costs-data.json'))return route.fulfill({json:costs});
    return serve(route);
@@ -79,7 +83,25 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   const dots=views.getByRole('radio',{name:'Dots view'}),icons=views.getByRole('radio',{name:'Plant icon view'});
   assert.equal(await page.locator('.plant-slide-tabs [role=tab]').count(),7);
   assert.equal(await icons.isChecked(),true);
-  assert(await views.evaluate(el=>el.previousElementSibling.classList.contains('map-controls')));
+  const basemap=page.getByRole('combobox',{name:'Basemap'});
+  assert(await views.evaluate(el=>el.parentElement.previousElementSibling.classList.contains('map-controls')));
+  assert.equal(await basemap.inputValue(),'boundaries');
+  assert.equal(await page.locator('.plant-basemap-tiles img').count(),0);
+  if(width>=800){
+   const svg=page.locator('.plant-location-map'),viewBefore=await svg.getAttribute('viewBox');
+   const outline=await page.locator('.plant-map-country').getAttribute('d');
+   for(const [value,host] of [['streets','tile.openstreetmap.org'],['satellite','tiles.maps.eox.at']]){
+    await basemap.selectOption(value);
+    await page.locator(`.plant-basemap-tiles img.is-loaded[src*="${host}"]`).first().waitFor();
+    assert(await page.locator('.plant-basemap-credit').isVisible());
+    assert.equal(await svg.getAttribute('viewBox'),viewBefore);
+    assert.equal(await page.locator('.plant-map-country').getAttribute('d'),outline);
+    assert.equal(await page.locator('.plant-map-district-boundary').count(),64);
+   }
+   await basemap.selectOption('boundaries');
+   assert.equal(await page.locator('.plant-basemap-tiles img').count(),0);
+   assert.equal(await page.locator('.plant-basemap-credit').isVisible(),false);
+  }
   await dots.check();
   await page.locator('.plant-dot-symbol').first().waitFor();
   assert(await markers.count()>rings,'Smaller dots keep more locations separate');
@@ -90,10 +112,15 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   await icons.check();
   assert.equal(await page.locator('.plant-dot-symbol').count(),0);
   await dots.check();
+  assert.match(await page.locator('.plant-slide-tabs [role=tab]').nth(1).innerText(),/02\s+Present capacity/);
+  await page.locator('.plant-icon-key > button').first().click();
   await page.getByRole('tab',{name:/Present capacity/}).click();
+  assert.equal(await page.locator('.plant-icon-key').isVisible(),false);
+  assert.equal(await page.locator('.plant-map-marker.is-fuel-muted').count(),0);
   assert.equal(await icons.isChecked(),true);
   await dots.check();
   assert.equal(await page.getByRole('tab',{name:/Fuel type/}).getAttribute('aria-selected'),'true');
+  assert.equal(await page.locator('.plant-icon-key').isVisible(),true);
   if(process.env.BEGD_FUEL_QA_OUTPUT){fs.mkdirSync(process.env.BEGD_FUEL_QA_OUTPUT,{recursive:true});await page.locator('.plant-icon-key').screenshot({path:path.join(process.env.BEGD_FUEL_QA_OUTPUT,`${width}-${theme}-plant-fuels.png`)});}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.deepEqual(errors,[]);console.log('PASS fuel logos, group controls, P1 readings and plant legend',width,theme);

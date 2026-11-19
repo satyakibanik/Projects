@@ -74,3 +74,15 @@ test('Rooppur is mapped when listed in the report and the map can supply its nuc
  assert.doesNotMatch(details,/IAEA-hosted|approximate/);
  assert.deepEqual(map.resolvePlants([],catalog,boundary).markers,[]);
 });
+
+test('Mercator tiles align with plant coordinates in a letterboxed viewport',()=>{
+ const [x,y]=map.project([90,0]);
+ const view={x:x-30,y:y-15,w:60,h:30};
+ const width=300,height=300,tiles=map.tileViewport(view,width,height);
+ assert.ok(tiles.length>0&&tiles.length<16);
+ assert.ok(tiles.every(t=>t.left<width&&t.top<height&&t.left+t.size>0&&t.top+t.size>0));
+ const equator=tiles.find(t=>t.y===2**(t.z-1)&&t.x===3*2**(t.z-2));
+ assert.ok(equator);
+ assert.ok(Math.abs(equator.left-width/2)<1e-7);
+ assert.ok(Math.abs(equator.top-height/2)<1e-7);
+});

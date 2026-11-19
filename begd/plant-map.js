@@ -1,4 +1,4 @@
-/* Local country geometry and reviewed locations; no external map tiles or location service. */
+/* Reviewed plant locations and administrative boundaries with optional raster basemaps. */
 (function(root,factory){const api=factory();if(typeof module==='object'&&module.exports)module.exports=api;else root.BEGDPlantMap=api})(typeof window==='undefined'?globalThis:window,()=>{
  const wheelZoomFactor=(delta,mode=0,height=800,pinch=false)=>Math.exp(Math.max(-240,Math.min(240,delta*(mode===1?16:mode===2?height:1)))*(pinch?.005:.0018));
  const zoomView=(view,factor,anchor,home)=>{
@@ -8,7 +8,86 @@
  };
  const key=name=>String(name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
  const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
- const project=([lon,lat])=>[(lon-88)*Math.cos(24*Math.PI/180)*150,(27-lat)*150];
+ // Use one Web Mercator coordinate system for tiles, outlines, and plant locations.
+ const world=360*150*Math.cos(24*Math.PI/180);
+ const project=([lon,lat])=>{
+  const radians=Math.max(-85.051129,Math.min(85.051129,lat))*Math.PI/180;
+  return [world*(lon/360+.5),world*(.5-Math.asinh(Math.tan(radians))/(2*Math.PI))];
+ };
+ function tileViewport(view,width,height){
+  const scale=Math.min(width/view.w,height/view.h);
+  const left=view.x+(view.w-width/scale)/2,top=view.y+(view.h-height/scale)/2;
+  const z=Math.max(0,Math.min(19,Math.round(Math.log2(world*scale/256))));
+  const tileCount=2**z,size=world/tileCount,tiles=[];
+  const endX=Math.min(tileCount,Math.ceil((left+width/scale)/size));
+  const endY=Math.min(tileCount,Math.ceil((top+height/scale)/size));
+  for(let y=Math.max(0,Math.floor(top/size));y<endY;y++){
+   for(let x=Math.max(0,Math.floor(left/size));x<endX;x++){
+    tiles.push({z,x,y,left:(x*size-left)*scale,top:(y*size-top)*scale,size:size*scale});
+   }
+  }
+  return tiles;
+ }
+ const basemaps={
+  streets:{
+   url:({z,x,y})=>`https://tile.openstreetmap.org/${z}/${x}/${y}.png`,
+   credit:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'
+  },
+  satellite:{
+   url:({z,x,y})=>`https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/${z}/${y}/${x}.jpg`,
+   credit:'<a href="https://cloudless.eox.at/" target="_blank" rel="noopener">EOxCloudless</a> by <a href="https://eox.at/" target="_blank" rel="noopener">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016 &amp; 2017) · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>'
+  }
+ };
+ let preferredBasemap='boundaries';
+ function createBasemap(frame,svg,viewChanged){
+  const doc=frame.ownerDocument;
+  const tiles=doc.createElement('div');tiles.className='plant-basemap-tiles';tiles.setAttribute('aria-hidden','true');
+  const credit=doc.createElement('div');credit.className='plant-basemap-credit';credit.hidden=true;
+  const status=doc.createElement('span');status.className='plant-basemap-status';status.setAttribute('role','status');
+  frame.replaceChildren(tiles,svg,credit);
+  const controls=doc.createElement('div');controls.className='plant-map-options';controls.setAttribute('data-html2canvas-ignore','');
+  controls.innerHTML='<label>Basemap <select><option value="boundaries">Boundaries only</option><option value="streets">OpenStreetMap streets</option><option value="satellite">Satellite · 2016–17</option></select></label>';
+  controls.append(status);frame.parentElement.append(controls);
+  const picker=controls.querySelector('select');
+  const images=new Map();
+  function updateStatus(){
+   const available=[...images.values()].some(img=>img.naturalWidth>0);
+   frame.classList.toggle('has-plant-basemap',available);
+   const unavailable=images.size>0&&!available&&[...images.values()].every(img=>img.complete);
+   const message=unavailable?'Basemap tiles unavailable.':'';
+   if(status.textContent!==message)status.textContent=message;
+  }
+  function draw(view,width,height){
+   const source=basemaps[picker.value];
+   if(!source||!width||!height)return;
+   const visible=new Set();
+   for(const tile of tileViewport(view,width,height)){
+    const url=source.url(tile);visible.add(url);
+    let img=images.get(url);
+    if(!img){
+     img=doc.createElement('img');img.alt='';img.crossOrigin='anonymous';img.draggable=false;
+     img.referrerPolicy='strict-origin-when-cross-origin';
+     img.addEventListener('load',()=>{img.classList.add('is-loaded');updateStatus()});img.addEventListener('error',updateStatus);
+     images.set(url,img);img.src=url;tiles.append(img);
+    }
+    img.style.left=`${tile.left}px`;img.style.top=`${tile.top}px`;
+    img.style.width=img.style.height=`${tile.size}px`;
+   }
+   for(const [url,img] of images)if(!visible.has(url)){img.remove();images.delete(url)}
+   updateStatus();
+  }
+  function select(){
+   preferredBasemap=picker.value;
+   images.clear();tiles.replaceChildren();updateStatus();
+   const source=basemaps[picker.value];
+   credit.hidden=!source;credit.innerHTML=source?.credit||'';
+   viewChanged();
+  }
+  picker.value=preferredBasemap;
+  picker.addEventListener('change',select);
+  credit.hidden=!basemaps[picker.value];credit.innerHTML=basemaps[picker.value]?.credit||'';
+  return draw;
+ }
  const polygons=geometry=>geometry.type==='Polygon'?[geometry.coordinates]:geometry.type==='MultiPolygon'?geometry.coordinates:[];
  const geometryPath=geometry=>polygons(geometry).map(p=>p.map(r=>r.map((v,i)=>`${i?'L':'M'}${project(v).map(n=>n.toFixed(3)).join(' ')}`).join('')+'Z').join('')).join('');
  const osmURL=id=>/^(node|way|relation)\/[1-9]\d*$/.test(String(id||''))?'https://www.openstreetmap.org/'+id:null;
@@ -82,7 +161,12 @@
   for(const feature of administrative.features)boundaries.append(make('path',{d:geometryPath(feature.geometry),class:`plant-map-boundary plant-map-${feature.properties.level}-boundary`,'data-name':feature.properties.name,fill:'none'}));
   svg.append(boundaries);
   // Marker centers already pass the country fence; draw full circles across coastlines.
-  const layer=make('g',{class:'plant-map-markers'});svg.append(layer);frame.replaceChildren(svg);
+  const layer=make('g',{class:'plant-map-markers'});svg.append(layer);
+  const drawBasemap=createBasemap(frame,svg,()=>drawBasemap(view,frame.clientWidth,frame.clientHeight));
+  const paintViewport=()=>{
+   svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
+   drawBasemap(view,frame.clientWidth,frame.clientHeight);
+  };
   const idle=()=>{sidebar.innerHTML='<span class="region-map-kicker">POWER PLANT LOCATIONS</span><h3>Explore a power plant</h3><p>Hover or focus a marker to preview plant information. Select a marker to keep its details open. Click the map background to resume previews. Zoom in to separate nearby units.</p>'};idle();
   const clear=()=>{
    pinnedGroup=null;
@@ -98,7 +182,7 @@
   };
   sidebar.addEventListener('click',event=>{const button=event.target.closest('[data-map-plant-detail]');if(button)onDetails(decodeURIComponent(button.dataset.mapPlantDetail));if(event.target.closest('[data-clear-plant-map]'))clear()});
   const repaint=()=>{
-   svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
+   paintViewport();
    const screenScale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h),radius=5.5/screenScale;
    groups=groupNearby(markers,groupingPixels/screenScale);layer.replaceChildren();
    groups.forEach(group=>{
@@ -125,7 +209,7 @@
    if(!frame.isConnected){stopZoom();return;}
    const alpha=1-Math.exp(-Math.min(64,lastZoomTime?time-lastZoomTime:16)/48);lastZoomTime=time;
    for(const k of ['x','y','w','h'])view[k]+=(zoomTarget[k]-view[k])*alpha;
-   svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
+   paintViewport();
    const scale=Math.min((frame.clientWidth||450)/view.w,(frame.clientHeight||620)/view.h);
    for(const symbol of layer.querySelectorAll('.plant-slide-symbol'))symbol.setAttribute('transform',`scale(${1/scale})`);
    for(const halo of svg.querySelectorAll('.plant-map-heat>circle'))if(halo.dataset.screenRadius)halo.setAttribute('r',Number(halo.dataset.screenRadius)/scale);
@@ -144,7 +228,7 @@
   panel.querySelector('[data-plant-map-reset]').addEventListener('click',()=>{stopZoom();view={...home};repaint();if(!pinnedGroup)idle()});
   svg.addEventListener('wheel',event=>{event.preventDefault();const p=new DOMPoint(event.clientX,event.clientY).matrixTransform(svg.getScreenCTM().inverse());zoom(wheelZoomFactor(event.deltaY,event.deltaMode,frame.clientHeight,event.ctrlKey),p)},{passive:false});
   svg.addEventListener('pointerdown',event=>{if(event.button!==0)return;if(zoomFrame){stopZoom();repaint()}drag={x:event.clientX,y:event.clientY,view:{...view}};moved=false});
-  svg.addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.hypot(dx,dy)<4&&!moved)return;moved=true;svg.setPointerCapture(event.pointerId);const matrix=svg.getScreenCTM();view.x=drag.view.x-dx/matrix.a;view.y=drag.view.y-dy/matrix.d;limit();svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`)});
+  svg.addEventListener('pointermove',event=>{if(!drag)return;const dx=event.clientX-drag.x,dy=event.clientY-drag.y;if(Math.hypot(dx,dy)<4&&!moved)return;moved=true;svg.setPointerCapture(event.pointerId);const matrix=svg.getScreenCTM();view.x=drag.view.x-dx/matrix.a;view.y=drag.view.y-dy/matrix.d;limit();paintViewport()});
   ['pointerup','pointercancel'].forEach(type=>svg.addEventListener(type,()=>{if(drag&&moved){repaint();if(!pinnedGroup)idle()}drag=null}));
   svg.addEventListener('click',()=>{if(!moved)clear()});
   svg.addEventListener('pointerleave',()=>{if(!pinnedGroup)layer.querySelectorAll('.is-active').forEach(el=>el.classList.remove('is-active'))});
@@ -162,5 +246,5 @@
    pinnedGroup=null;repaint();idle();
   }};
  }
- return {wheelZoomFactor,zoomView,geometryPath,osmURL,insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
+ return {wheelZoomFactor,zoomView,tileViewport,geometryPath,osmURL,insideCountry,resolvePlants,groupNearby,project,detailsMarkup,create};
 });
