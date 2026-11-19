@@ -11,15 +11,12 @@ const slides=[
  {id:'region',title:'Region',description:'Color identifies the report’s operating region.'},
  {id:'producer',title:'Producer',description:'Color identifies the producer listed in the report.'},
  {id:'capacity',title:'Present capacity',unit:'MW',description:'Reported present capacity of each generating unit.'},
- {id:'status',title:'Online / offline',description:'Online: reported output during the day. Offline: no reported output; this alone does not establish an outage.'},
- {id:'fuel-dots',title:'Fuel dots',description:'Small dots show fuel types and reveal more locations. An × badge counts generating units in a group.'}
+ {id:'status',title:'Online / offline',description:'Online: reported output during the day. Offline: no reported output; this alone does not establish an outage.'}
 ];
 const colors=['#2878cd','#e67e28','#8b5bc7','#279d78','#df527b','#b18a1f','#19a1b3','#b85936','#6776c9','#5d8e39','#bd49a4','#627484'];
 const icons={Imports:'import-export.png',Coal:'coal.png',Gas:'gas-factory.png',HFO:'HFO.png',HSD:'HSD.png',Hydro:'hydroelectricity.png',Solar:'solar.png',Wind:'wind-energy.png',Nuclear:'nuclear-plant.png'};
-let preferred=0,instance=0;
+let preferred=0,preferredDots=false,instance=0;
 const categoryRegistry={region:new Map(),producer:new Map()};
-const dotView=slide=>slide.id==='fuel-dots';
-const groupingPixels=slide=>dotView(slide)?14:44;
 const fmt=n=>Number(n).toLocaleString('en-US',{maximumFractionDigits:1});
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const number=v=>v===null||v===undefined||v===''?null:Number.isFinite(Number(v))&&Number(v)>=0?Number(v):null;
@@ -38,7 +35,7 @@ function types(plant,options){
  return fuel.split('/').map(s=>s.trim()).filter(s=>icons[s]);
 }
 function category(plant,id,options){
- if(id==='fuel'||id==='fuel-dots')return types(plant,options).join(' / ')||'Not reported';
+ if(id==='fuel')return types(plant,options).join(' / ')||'Not reported';
  if(id==='status')return plant.status==='running'?'Online':plant.status==='no-output'?'Offline':'Not reported';
  const v=options.getValue(plant,id);return !v||v==='—'?'Not reported':String(v);
 }
@@ -51,15 +48,20 @@ function matchesSelection(plant,selection,options){
 }
 const make=(doc,name,attrs={})=>{const el=doc.createElementNS(NS,name);for(const [k,v]of Object.entries(attrs))el.setAttribute(k,String(v));return el};
 async function create(options){
- const controller=await base.create(options);if(!controller||!options.frame.isConnected)return controller;
+ const controller=await base.create({...options,fuelIcons:icons});if(!controller||!options.frame.isConnected)return controller;
  const frame=options.frame,doc=frame.ownerDocument,panel=frame.closest('.plant-map-panel'),svg=frame.querySelector('svg'),layer=svg.querySelector('.plant-map-markers');
- let index=preferred,rows=[],mappedRows=[],activeFilter=null,categoryMaps=categoryRegistry,highlightedFuel=null,pinnedFuel=null,suppressPreview=false;const uid=++instance;
+ let index=preferred,dots=preferredDots,rows=[],mappedRows=[],activeFilter=null,categoryMaps=categoryRegistry,highlightedFuel=null,pinnedFuel=null,suppressPreview=false;const uid=++instance;
  panel.classList.add('has-plant-slides');
  const controls=doc.createElement('div');controls.className='plant-slides';controls.setAttribute('aria-label','Plant map slides');
  controls.innerHTML=`<div class="plant-slide-top"><div class="plant-slide-arrows"><button type="button" data-slide-step="-1" aria-label="Previous map slide">←</button><span class="plant-slide-count"></span><button type="button" data-slide-step="1" aria-label="Next map slide">→</button></div></div><div class="plant-slide-tabs" role="tablist" aria-label="Map color basis">${slides.map((s,i)=>`<button type="button" role="tab" id="plant-slide-${uid}-${i}" aria-controls="plant-slide-panel-${uid}" data-slide="${i}"><span>${String(i+1).padStart(2,'0')}</span>${s.title}</button>`).join('')}</div>`;
  panel.querySelector('.panel-head').after(controls);
  const info=doc.createElement('div');info.className='plant-slide-info';info.id=`plant-slide-panel-${uid}`;info.setAttribute('role','tabpanel');info.setAttribute('aria-live','polite');
  controls.after(info);
+ const viewOptions=doc.createElement('fieldset');
+ viewOptions.className='plant-marker-view';
+ viewOptions.setAttribute('aria-label','Plant map view');
+ viewOptions.innerHTML=`<label><input type="radio" name="plant-marker-view-${uid}" value="dots"> Dots view</label><label><input type="radio" name="plant-marker-view-${uid}" value="icons"> Plant icon view</label>`;
+ frame.parentElement.append(viewOptions);
  const heat=make(doc,'g',{class:'plant-map-heat','clip-path':'url(#plant-country-clip)','aria-hidden':'true'});svg.insertBefore(heat,svg.querySelector('.plant-map-boundaries'));
  const heatDefs=make(doc,'g');svg.querySelector('defs').append(heatDefs);
  const iconKey=doc.createElement('div');iconKey.className='plant-icon-key';iconKey.setAttribute('aria-label','Generation type icons');panel.querySelector('.plant-map-layout').before(iconKey);
@@ -78,10 +80,6 @@ async function create(options){
   const lookup=new Map(rows.map(p=>[p.name,p]));
   for(const card of options.sidebar.querySelectorAll('.plant-map-card')){
    const plant=lookup.get(card.querySelector('h3')?.textContent);if(!plant)continue;
-   let p=card.querySelector('.plant-slide-readout');if(!p){p=doc.createElement('p');p.className='plant-slide-readout';card.querySelector('dl').before(p)}
-   const text=readout(plant);if(p.textContent!==text)p.textContent=text;
-   const active=slides[index];p.classList.toggle('has-metric-color',Boolean(active.unit));
-   if(active.unit)p.style.setProperty('--metric-color',color(metric(plant,active.id,options),scaleMaximum(active.id)));
    for(const row of card.querySelectorAll('dl>div')){
     const label=row.querySelector('dt')?.textContent,id=label==='Present cap.'?'capacity':label==='Peak gen. today'?'peak':null;
     if(!id)continue;const value=metric(plant,id,options),maximum=scaleMaximum(id),shade=color(value,maximum),dd=row.querySelector('dd');
@@ -92,7 +90,8 @@ async function create(options){
  }
  function render(){
   if(!frame.isConnected)return;
-  const slide=slides[index],dots=dotView(slide),fuelView=dots||slide.id==='fuel',groups=controller.getGroups(),markers=[...layer.children];
+  const slide=slides[index],fuelView=slide.id==='fuel',groups=controller.getGroups(),markers=[...layer.children];
+  viewOptions.querySelector(`[value=${dots?'dots':'icons'}]`).checked=true;
   controls.querySelector('.plant-slide-count').textContent=`${index+1} / ${slides.length}`;
   controls.querySelectorAll('[data-slide]').forEach((b,i)=>{b.setAttribute('aria-selected',String(i===index));b.tabIndex=i===index?0:-1});
   info.setAttribute('aria-labelledby',`plant-slide-${uid}-${index}`);
@@ -107,7 +106,7 @@ async function create(options){
   if(numeric&&maximum===0)legend=`<div class="plant-gradient-key"><button type="button" data-legend-filter="zero"><i style="background:${GRAY}"></i>0 ${slide.unit}</button><span>No positive reported values</span><button type="button" data-legend-filter="missing"><i style="background:${MISSING}"></i>Not reported</button></div>`;
   const partial=values.filter(v=>v.some(n=>n===null)&&v.some(n=>n!==null)).length;
   const note=slide.heat?`Marker size, color and halo show combined ${slide.unit} for grouped units; scale follows the filtered map and zoom.${slide.id==='peak'?' Grouped values sum individual daily peaks, which may occur at different times.':''}${partial?' '+partial+' group(s) have incomplete readings.':''}`:slide.id==='capacity'?'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity; shared capacities are not added together.':dots?'Mixed-color dots show the fuel types in a group.':slide.id==='fuel'?'Split rings and multiple icons identify mixed-fuel groups. Hover a fuel icon below to preview matching units; click it to keep the selection.':'Split rings show each category’s share of the units in a group.';
-  info.innerHTML=`<div class="plant-slide-heading"><h3>${slide.title}${slide.unit?' <span>'+slide.unit+'</span>':''}</h3><p>${slide.description}</p></div>${legend}<p class="plant-slide-note">${note} Zoom in to separate nearby units.</p>`;
+  info.innerHTML=`<div class="plant-slide-heading"><h3>${slide.title}${slide.unit?' <span>'+slide.unit+'</span>':''}</h3><p>${dots?'Small dots show fuel types. An × badge counts generating units in a group.':slide.description}</p></div>${legend}<p class="plant-slide-note">${note} Zoom in to separate nearby units.</p>`;
   info.querySelectorAll('[data-legend-filter]').forEach(b=>b.setAttribute('aria-pressed',String(activeFilter?.id===slide.id&&activeFilter.value===b.dataset.legendFilter)));
   if(activeFilter){const status=doc.createElement('p');status.className='plant-legend-filter-status';status.setAttribute('role','status');status.textContent=`Showing ${controller.getGroups().reduce((n,g)=>n+g.items.length,0)} of ${mappedRows.length} mapped units · ${activeFilter.label}. Click the selected category again or click the map background to show all.`;info.append(status);}
   heat.replaceChildren();heatDefs.replaceChildren();
@@ -174,7 +173,7 @@ async function create(options){
    marker.classList.toggle('is-fuel-match',matches);marker.classList.toggle('is-fuel-muted',Boolean(fuel)&&!matches);
    const badge=marker.querySelector('.plant-unit-badge'),text=badge?.querySelector('text'),rect=badge?.querySelector('rect');
    if(badge){
-    const dots=dotView(slides[index]),label=dots?`×${total}`:matches?`${count}/${total}`:String(total),width=dots?6+5*label.length:Math.max(20,8+6*label.length);
+    const label=dots?`×${total}`:matches?`${count}/${total}`:String(total),width=dots?6+5*label.length:Math.max(20,8+6*label.length);
     badge.setAttribute('display',total>1||(!dots&&matches)?'inline':'none');text.textContent=label;
     rect.setAttribute('width',width);rect.setAttribute('x',-width/2);
    }
@@ -182,7 +181,7 @@ async function create(options){
   }
   iconKey.querySelectorAll('[data-highlight-fuel]').forEach(b=>{b.classList.toggle('is-highlighted',b.dataset.highlightFuel===fuel);b.setAttribute('aria-pressed',String(b.dataset.highlightFuel===pinnedFuel));});
   const summary=iconKey.querySelector('.plant-fuel-summary');
-  if(summary)summary.textContent=fuel?`${fuel}: ${matchingUnits} generating unit${matchingUnits===1?'':'s'} in ${matchingGroups} map group${matchingGroups===1?'':'s'}. ${dotView(slides[index])?'Badges count all units in a group.':`Highlighted badges show ${fuel} units / all units in that group.`}${pinnedFuel?' Selection locked. Click the icon again or anywhere else to show all units.':' Click the icon to keep this selection.'}`:`All ${totalUnits} mapped generating units shown. Badges count all units in a group; a group may combine nearby plants. Hover to preview a generation type; click to keep it selected.`;
+  if(summary)summary.textContent=fuel?`${fuel}: ${matchingUnits} generating unit${matchingUnits===1?'':'s'} in ${matchingGroups} map group${matchingGroups===1?'':'s'}. ${dots?'Badges count all units in a group.':`Highlighted badges show ${fuel} units / all units in that group.`}${pinnedFuel?' Selection locked. Click the icon again or anywhere else to show all units.':' Click the icon to keep this selection.'}`:`All ${totalUnits} mapped generating units shown. Badges count all units in a group; a group may combine nearby plants. Hover to preview a generation type; click to keep it selected.`;
  }
  iconKey.addEventListener('pointerover',e=>{const b=e.target.closest('[data-highlight-fuel]');if(b&&!pinnedFuel&&!suppressPreview&&!b.contains(e.relatedTarget))applyHighlight(b.dataset.highlightFuel)});
  iconKey.addEventListener('pointerleave',()=>{suppressPreview=false;applyHighlight(pinnedFuel)});
@@ -198,20 +197,34 @@ async function create(options){
   pinnedFuel=null;highlightedFuel=null;suppressPreview=true;updateMapFilter();
  });
  const clearOnOutside=e=>{
-  if(e.target.closest?.('[data-legend-filter]')||controls.contains(e.target))return;
+  if(e.target.closest?.('[data-legend-filter]')||controls.contains(e.target)||viewOptions.contains(e.target))return;
   const restore=Boolean(activeFilter&&!e.target.closest?.('.plant-map-marker'));
   if(restore)activeFilter=null;
   if(!e.target.closest?.('.plant-icon-key [data-highlight-fuel]')){pinnedFuel=null;suppressPreview=false;applyHighlight(null);}
   if(restore)updateMapFilter();
  };
  doc.addEventListener('click',clearOnOutside,true);
- function select(i,focus=false){const restore=Boolean(activeFilter);activeFilter=null;if(restore)controller.update(rows);index=(i+slides.length)%slides.length;preferred=index;controller.setGroupingPixels(groupingPixels(slides[index]));render();if(focus)controls.querySelector(`[data-slide="${index}"]`).focus()}
+ function setMarkerView(useDots){
+  dots=useDots;preferredDots=dots;controller.setGroupingPixels(dots?14:44);
+ }
+ function select(i,focus=false){
+  const restore=Boolean(activeFilter);activeFilter=null;if(restore)controller.update(rows);
+  index=(i+slides.length)%slides.length;preferred=index;
+  if(slides[index].id!=='fuel')setMarkerView(false);
+  render();
+  if(focus)controls.querySelector(`[data-slide="${index}"]`).focus();
+ }
+ viewOptions.addEventListener('change',event=>{
+  const useDots=event.target.value==='dots';
+  if(useDots&&index!==0)select(0);
+  setMarkerView(useDots);render();
+ });
  controls.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.slide!==undefined)select(Number(b.dataset.slide));else select(index+Number(b.dataset.slideStep))});
  controls.addEventListener('keydown',e=>{if(!e.target.matches('[data-slide]'))return;const key=e.key;if(['ArrowRight','ArrowLeft','Home','End'].includes(key)){e.preventDefault();select(key==='Home'?0:key==='End'?slides.length-1:index+(key==='ArrowRight'?1:-1),true)}});
  const markerObserver=new MutationObserver(render);markerObserver.observe(layer,{childList:true});
  const sidebarObserver=new MutationObserver(decorateSidebar);sidebarObserver.observe(options.sidebar,{childList:true,subtree:true});
  const detach=new MutationObserver(()=>{if(!frame.isConnected){markerObserver.disconnect();sidebarObserver.disconnect();detach.disconnect();doc.removeEventListener('click',clearOnOutside,true)}});detach.observe(doc.getElementById('content'),{childList:true});
- controller.setGroupingPixels(groupingPixels(slides[index]));
+ setMarkerView(dots);
  return {...controller,update(next){rows=Array.isArray(next)?next:[];
   // Stable category colors across filtering, sorting, zoom, and report changes.
   for(const id of ['region','producer']){const labels=[...new Set(rows.map(p=>category(p,id,options)))].sort();for(const label of labels)if(!categoryMaps[id].has(label)){const n=categoryMaps[id].size;categoryMaps[id].set(label,label==='Not reported'?GRAY:colors[n]||`hsl(${(n*137.508)%360} 65% 43%)`);}}

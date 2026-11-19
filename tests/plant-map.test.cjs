@@ -42,6 +42,9 @@ test('sidebar displays every plant-table field, including real zero and absent v
  const html=map.detailsMarkup([{plant,location:{latitude:23,longitude:90,source:'Reviewed'}}],[['name','Name'],['fuel','Fuel'],['region','Region'],['producer','Producer'],['installed','Installed cap.'],['present','Present cap.'],['peak','Peak gen. today']],(p,k)=>p[k]);
  for(const field of ['Plant &lt;A&gt;','Fuel','Gas','Region','Dhaka','Producer','IPP','Installed cap.','100 MW','Present cap.','0 MW','Peak gen. today','—'])assert.ok(html.includes(field),field);
  assert.doesNotMatch(html,/<A>/);
+ const dual=map.detailsMarkup([{plant:{...plant,fuel:'Gas/HSD'},location:{latitude:23,longitude:90}}],[['fuel','Fuel']],(p,k)=>p[k],{Gas:'gas-factory.png',HSD:'HSD.png'});
+ assert.match(dual,/<img src="plant-icons\/gas-factory.png" alt="">Gas/);
+ assert.match(dual,/<img src="plant-icons\/HSD.png" alt="">HSD/);
 });
 test('sidebar links only to validated matched OSM features',()=>{
  const render=osm_id=>map.detailsMarkup([{plant:{name:'Reviewed unit'},location:{latitude:23,longitude:90,source:'OSM',osm_id}}],[],()=>null);

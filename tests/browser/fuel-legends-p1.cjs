@@ -59,6 +59,9 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   const sidebar=page.locator('#plant-map-sidebar');
   await rooppurRing.click();
   assert.equal(await rooppur.getAttribute('aria-pressed'),'true');
+  assert.equal(await sidebar.locator('.plant-slide-readout').count(),0);
+  assert.equal(await sidebar.locator('.plant-map-fuels').innerText(),'Nuclear');
+  assert.equal(await sidebar.locator('.plant-map-fuels img').getAttribute('src'),'plant-icons/nuclear-plant.png');
   assert.equal(await sidebar.locator('a').getAttribute('href'),'https://osm.org/go/zq4nSU4A?m=');
   if(width>=800){
    await hydroRing.hover();
@@ -72,13 +75,25 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
    await rooppurRing.hover();
    assert.match(await sidebar.innerText(),/Rooppur Nuclear Power Plant/);
   }
-  await page.getByRole('tab',{name:/Fuel dots/}).click();
+  const views=page.getByRole('group',{name:'Plant map view'});
+  const dots=views.getByRole('radio',{name:'Dots view'}),icons=views.getByRole('radio',{name:'Plant icon view'});
+  assert.equal(await page.locator('.plant-slide-tabs [role=tab]').count(),7);
+  assert.equal(await icons.isChecked(),true);
+  assert(await views.evaluate(el=>el.previousElementSibling.classList.contains('map-controls')));
+  await dots.check();
   await page.locator('.plant-dot-symbol').first().waitFor();
   assert(await markers.count()>rings,'Smaller dots keep more locations separate');
   assert.equal(await page.locator('.plant-map-markers image').count(),0);
   assert.equal(await karnaphuli.locator('.plant-dot-symbol > path[fill]').count(),2);
   assert.equal(await karnaphuli.locator('.plant-unit-badge').textContent(),'×2');
   assert.deepEqual(await karnaphuli.locator('.plant-dot-symbol > path[fill]').evaluateAll(paths=>paths.map(p=>p.getAttribute('fill')).sort()),['#159d9c','#e0b91d']);
+  await icons.check();
+  assert.equal(await page.locator('.plant-dot-symbol').count(),0);
+  await dots.check();
+  await page.getByRole('tab',{name:/Present capacity/}).click();
+  assert.equal(await icons.isChecked(),true);
+  await dots.check();
+  assert.equal(await page.getByRole('tab',{name:/Fuel type/}).getAttribute('aria-selected'),'true');
   if(process.env.BEGD_FUEL_QA_OUTPUT){fs.mkdirSync(process.env.BEGD_FUEL_QA_OUTPUT,{recursive:true});await page.locator('.plant-icon-key').screenshot({path:path.join(process.env.BEGD_FUEL_QA_OUTPUT,`${width}-${theme}-plant-fuels.png`)});}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.deepEqual(errors,[]);console.log('PASS fuel logos, group controls, P1 readings and plant legend',width,theme);

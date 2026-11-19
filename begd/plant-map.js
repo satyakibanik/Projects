@@ -43,12 +43,19 @@
   const reported=getValue(plant,key);
   return key==='fuel'&&(!reported||reported==='—')?location.fuel??reported:reported;
  }
- function detailsMarkup(items,columns,getValue){
+ function detailsMarkup(items,columns,getValue,fuelIcons){
   return items.map(({plant,location})=>{
    const osmLink=/^https:\/\/osm\.org\/go\/[A-Za-z0-9_~-]+\?m=$/.test(location.osm_url)?location.osm_url:osmURL(location.osm_id);
    const source=location.source?` · ${escape(location.source)}${location.approximate?' · approximate':''}`:'';
    return `<article class="plant-map-card"><h3>${escape(plant.name)}</h3><dl>${columns.filter(([k])=>k!=='name').map(([k,label])=>{
    const value=plantValue({plant,location},k,getValue),number=['installed','present','peak'].includes(k);
+   if(k==='fuel'&&value&&fuelIcons){
+    const fuels=String(value).split('/').map(name=>{
+     const text=name.trim(),icon=Object.hasOwn(fuelIcons,text)?fuelIcons[text]:null;
+     return `<span>${icon?`<img src="plant-icons/${escape(icon)}" alt="">`:''}${escape(text)}</span>`;
+    });
+    return `<div><dt>${escape(label)}</dt><dd class="plant-map-fuels">${fuels.join(' / ')}</dd></div>`;
+   }
    return `<div><dt>${escape(label)}</dt><dd>${value==null?'—':number?escape(Number(value).toLocaleString('en-US',{maximumFractionDigits:1}))+' MW':escape(value)}</dd></div>`;
   }).join('')}</dl><p class="plant-map-location">${location.latitude.toFixed(6)}° N, ${location.longitude.toFixed(6)}° E${source}</p>${osmLink?`<p class="plant-map-osm"><a href="${escape(osmLink)}" target="_blank" rel="noopener noreferrer">View on OpenStreetMap ↗</a></p>`:''}<button type="button" data-map-plant-detail="${encodeURIComponent(plant.name)}">Open plant details and hourly output</button></article>`;}).join('');
  }
@@ -59,7 +66,7 @@
   if(!assets)assets=Promise.all(['bangladesh-boundary.geojson','plant-locations.json?v=rooppur-osm-v2','plant-administrative-boundaries.geojson'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Plant map data unavailable');return r.json()})).catch(error=>{assets=null;throw error});
   return assets;
  }
- async function create({frame,sidebar,summary,legend,columns,getValue,onDetails}){
+ async function create({frame,sidebar,summary,legend,columns,getValue,onDetails,fuelIcons}){
   const [boundary,catalog,administrative]=await load();if(!frame.isConnected)return null;
   const geometry=boundary.geometry,rings=polygons(geometry).flat(),points=rings.flat().map(project);
   const xs=points.map(p=>p[0]),ys=points.map(p=>p[1]),padding=18;
@@ -87,7 +94,7 @@
     el.classList.toggle('is-active',el===marker);
     el.setAttribute('aria-pressed',String(Boolean(pinnedGroup&&el===marker)));
    }
-   sidebar.innerHTML=`<div class="plant-map-detail-head"><span class="region-map-kicker">${group.items.length===1?'POWER PLANT':group.items.length+' GENERATING UNITS'}</span><button type="button" data-clear-plant-map aria-label="Clear selected plant">Clear</button></div>`+detailsMarkup(group.items,columns,getValue);
+   sidebar.innerHTML=`<div class="plant-map-detail-head"><span class="region-map-kicker">${group.items.length===1?'POWER PLANT':group.items.length+' GENERATING UNITS'}</span><button type="button" data-clear-plant-map aria-label="Clear selected plant">Clear</button></div>`+detailsMarkup(group.items,columns,getValue,fuelIcons);
   };
   sidebar.addEventListener('click',event=>{const button=event.target.closest('[data-map-plant-detail]');if(button)onDetails(decodeURIComponent(button.dataset.mapPlantDetail));if(event.target.closest('[data-clear-plant-map]'))clear()});
   const repaint=()=>{
