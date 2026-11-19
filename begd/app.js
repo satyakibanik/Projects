@@ -147,8 +147,7 @@ function chart(rows,series,options={}){
   }else{
    // Water-level gaps stay gaps instead of joining across absent readings.
    const segments=[[]];
-   for(const [index,row] of rows.entries()){
-    if(options.comparisonTimeline&&row.minute>=1440&&rows[index-1]?.minute<1440&&segments.at(-1).length)segments.push([]);
+   for(const row of rows){
     if(Number.isFinite(row[item.key]))segments.at(-1).push(`${x(row)},${seriesY(row[item.key])}`);
     else if((item.axis==='right'||options.preserveGaps)&&segments.at(-1).length)segments.push([]);
    }

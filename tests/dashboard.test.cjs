@@ -186,7 +186,7 @@ test('yesterday extends the timeline with ERP supply and reported shedding, pres
  const boundaryX=models[0].x(models[0].rows[2]);
  assert(html.includes(`class="chart-day-boundary" x1="${boundaryX}" x2="${boundaryX}"`));
  const demandGroup=html.split('data-series="demand_mw"')[1].split('</g>')[0];
- assert.equal((demandGroup.match(/<polyline/g)||[]).length,2,'Demand paths should break at midnight');
+ assert.equal((demandGroup.match(/<polyline/g)||[]).length,1,'Demand paths should continue across midnight');
  assert.equal(models[0].x(models[0].rows[1]),models[1].x(models[1].rows[1]));
  vm.runInContext('delete currentDayData.forecast_history["2025-12-31"];chartData.clear()',c);
  html=vm.runInContext('realTime()',c);
