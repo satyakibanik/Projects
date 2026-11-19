@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {dailyRows, estimate, wallTime, plotScale, workbookTime} = require('../begd/publication-timing.js');
+const {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows} = require('../begd/publication-timing.js');
 
 function row(date, reading_time, before, after) {
   return {date, reading_time, absent_after: before && before + ':00+06:00', first_seen_at: after + ':00+06:00'};
@@ -48,4 +48,23 @@ test('workbook timestamps convert only values with an explicit UTC offset', () =
   assert.match(workbookTime('2026-11-18T05:46:45+00:00'), /11:46:45$/);
   assert.equal(workbookTime('2026-11-18T05:46:45'), '2026-11-18 05:46:45 (time zone unspecified)');
   assert.equal(workbookTime(undefined), '—');
+});
+
+test('Excel archive merges by report ID without assigning archived records a receipt time', () => {
+  const archive = {reports: [
+    {report_id: '1', listed_date: '2026-11-17', excel_created_at: '2026-11-17T05:00:00Z'},
+    {report_id: '2', listed_date: '2026-11-18', excel_created_at: '2026-11-18T08:00:00'}
+  ]};
+  const reports = workbookHistory(archive, [
+    {report_id: '2', date: '2026-11-18', first_seen_at: '2026-11-18T08:20:00Z',
+      excel_modified_at: '2026-11-18T08:01:00+06:00'}
+  ]);
+  assert.deepEqual(reports.map(row => row.report_id), ['2', '1']);
+  assert.equal(reports[1].first_seen_at, undefined);
+  assert.equal(reports[0].excel_created_at, '2026-11-18T08:00:00');
+  const points = workbookPlotRows(reports);
+  assert.deepEqual(points.map(row => row.marks), [
+    [{time: 481, type: 'modified'}], [{time: 660, type: 'created'}]
+  ]);
+  assert.ok(plotScale(points).end > 660);
 });

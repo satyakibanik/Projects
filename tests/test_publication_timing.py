@@ -10,6 +10,7 @@ from urllib.error import HTTPError
 from zipfile import ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import backfill_workbook_timestamps as backfill
 import publication_timing as timing
 
 
@@ -45,6 +46,24 @@ class PublicationTimingTest(unittest.TestCase):
         })
         self.assertEqual(timing.workbook_timestamps(workbook_metadata("<invalid")), {})
         self.assertEqual(timing.workbook_timestamps(workbook_metadata("<empty/>", "other.xml")), {})
+
+    def test_archive_backfill_pages_past_newest_and_excludes_outside_dates(self):
+        def report(key, date):
+            return {"id": key, "published_date": date, "download_url": key}
+
+        pages = [
+            ([report("4", "2026-11-19"), report("3", "2026-11-18")], 4),
+            ([report("3", "2026-11-18"), report("2", "2026-11-17")], None),
+            ([report("1", "2026-11-16")], None),
+        ]
+        with (patch.object(timing.server, "fetch_listing_page", side_effect=pages) as listing,
+              patch.object(timing.server, "fetch_bytes", return_value=b"unavailable properties")):
+            history = backfill.collect("2026-11-17", "2026-11-18")
+        self.assertEqual(listing.call_count, 3)
+        self.assertEqual(history["reports"], [
+            {"report_id": "3", "listed_date": "2026-11-18"},
+            {"report_id": "2", "listed_date": "2026-11-17"},
+        ])
 
     def test_baseline_new_reading_and_reappearance(self):
         state = timing.update_feed({}, "demand", snapshot("18T23:58", ("18", "23:00"), ("17", "23:00")))

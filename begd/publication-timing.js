@@ -72,7 +72,7 @@
   }
 
   function plotScale(rows, band) {
-    const limits = rows.flatMap(row => [row.lower ?? row.upper, row.upper]);
+    const limits = rows.flatMap(row => row.range || [row.lower ?? row.upper, row.upper]);
     if (band) limits.push(band.lower, band.upper);
     const min = Math.min(...limits);
     const max = Math.max(...limits);
@@ -128,11 +128,14 @@
       line.title = row.description;
       if (band) interval(track, 'timing-plot-band', band.lower, band.upper);
       for (const tick of ticks) interval(track, 'timing-plot-grid', tick, tick);
-      if (row.lower !== null) {
+      if (row.lower != null) {
         interval(track, row.eligible ? 'timing-plot-window' : 'timing-plot-window excluded', row.lower, row.upper);
       }
       if (row.point) {
         interval(track, row.eligible ? 'timing-plot-dot' : 'timing-plot-dot excluded', row.upper, row.upper);
+      }
+      for (const mark of row.marks || []) {
+        interval(track, 'timing-plot-dot workbook-' + mark.type, mark.time, mark.time);
       }
       line.append(label, track);
       chart.append(line);
@@ -170,18 +173,87 @@
       + ' · Excel modified ' + workbookTime(row.excel_modified_at);
   }
 
+  function workbookHistory(archive, observations = []) {
+    const byId = new Map((archive?.reports || []).map(row => [row.report_id, row]));
+    for (const observation of observations) {
+      const historical = byId.get(observation.report_id);
+      byId.set(observation.report_id, {...historical, ...observation, listed_date: observation.date,
+        download_failed: false});
+    }
+    return [...byId.values()].sort((a, b) => b.listed_date.localeCompare(a.listed_date)
+      || Number(b.report_id) - Number(a.report_id));
+  }
+
+  function workbookPlotRows(reports) {
+    // Compare local clock times across different listing dates. Keep the full
+    // workbook timestamp and original date in the table and plot tooltip.
+    const localTime = value => {
+      if (!value || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return NaN;
+      const date = new Date(value);
+      if (!Number.isFinite(date.getTime())) return NaN;
+      const parts = Object.fromEntries(dateTime.formatToParts(date).map(part => [part.type, Number(part.value)]));
+      return parts.hour * 60 + parts.minute + parts.second / 60;
+    };
+    return reports.flatMap(row => {
+      const marks = [
+        {time: localTime(row.excel_created_at), type: 'created'},
+        {time: localTime(row.excel_modified_at), type: 'modified'}
+      ].filter(mark => Number.isFinite(mark.time));
+      if (!marks.length) return [];
+      return [{
+        label: row.listed_date + ' · #' + row.report_id,
+        description: row.listed_date + ' · Report ' + row.report_id + ' · ' + workbookMetadata(row),
+        range: marks.map(mark => mark.time), marks
+      }];
+    });
+  }
+
+  function workbookArchive(archive, observations) {
+    const section = element('section');
+    section.className = 'timing-workbook-archive';
+    const heading = element('h2', 'Excel creation and modification times');
+    heading.tabIndex = -1;
+    section.append(heading);
+    const records = workbookHistory(archive, observations);
+    if (!records.length) {
+      section.append(element('p', 'Workbook metadata history is unavailable.'));
+      return {section, heading};
+    }
+    if (archive) section.append(element('p', archive.reports.length + ' workbook records from the ERP archive search for '
+      + archive.start_date + ' through ' + archive.end_date + '.'));
+    section.append(element('p', 'These timestamps come from the Excel file. The archive supplies the listed date. '
+      + '“First seen” is filled only when the collector recorded a receipt.'));
+    const rows = records.map(row => [
+      row.listed_date,
+      row.report_id,
+      workbookTime(row.excel_created_at),
+      workbookTime(row.excel_modified_at),
+      format(row.first_seen_at),
+      row.download_failed ? 'Download failed' : row.excel_created_at || row.excel_modified_at ? 'Available' : 'Unavailable'
+    ]);
+    section.append(table(['Listed date', 'Report ID', 'Excel created', 'Excel modified', 'First seen', 'Metadata'],
+      rows, 'Excel workbook timestamp history'));
+    const plotted = workbookPlotRows(records);
+    if (plotted.length) {
+      section.append(element('p', 'Circles show creation and diamonds show modification. The plot compares Bangladesh clock times '
+        + 'for timestamps with a known offset. The table gives the full dates and times, including older workbook creation dates.'));
+      section.append(plot(plotted, 'Excel creation and modification time plot'));
+    }
+    return {section, heading};
+  }
+
   function element(tag, text) {
     const node = document.createElement(tag);
     if (text !== undefined) node.textContent = text;
     return node;
   }
 
-  function table(headers, rows) {
+  function table(headers, rows, label) {
     const wrap = element('div');
     wrap.className = 'table-wrap';
     wrap.tabIndex = 0;
     wrap.setAttribute('role', 'region');
-    wrap.setAttribute('aria-label', headers[0] === 'Source' ? 'Typical first appearance by source' : 'Source observation history');
+    wrap.setAttribute('aria-label', label || (headers[0] === 'Source' ? 'Typical first appearance by source' : 'Source observation history'));
     const grid = element('table');
     const heading = grid.createTHead().insertRow();
     for (const label of headers) {
@@ -222,7 +294,7 @@
     return details;
   }
 
-  function show(panel, bundle) {
+  function show(panel, bundle, archive) {
     const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum, retention_days: retention} = bundle;
     const daysBySource = Object.fromEntries(Object.keys(sources).map(key => [key, dailyRows(feeds[key], maxWindow)]));
     const estimates = Object.fromEntries(Object.keys(sources).map(key => [key, estimate(daysBySource[key], minimum)]));
@@ -281,8 +353,16 @@
     }
     select.addEventListener('change', renderHistory);
     renderHistory();
-    panel.replaceChildren(heading, guide, typicalPlot, summary, history, element('p', 'History covers up to ' + retention
-      + ' days. Existing records at the first poll establish the baseline.'), label, results);
+    const workbook = workbookArchive(archive, feeds.operations?.observations);
+    const jump = element('button', 'View Excel creation and modification times');
+    jump.className = 'timing-archive-link';
+    jump.type = 'button';
+    jump.addEventListener('click', () => workbook.heading.focus());
+    const timing = [heading, guide, typicalPlot, summary, history, element('p', 'History covers up to ' + retention
+      + ' days. Existing records at the first poll establish the baseline.'), label, results];
+    panel.replaceChildren(...(new URLSearchParams(location.search).get('timing') === 'workbooks'
+      ? [workbook.section, ...timing] : [jump, ...timing, workbook.section]));
+    if (bundle.unavailable) panel.prepend(element('p', 'Publication timing history is unavailable. Try reloading the page.'));
   }
 
   async function mount(content) {
@@ -292,17 +372,20 @@
     panel.className = 'panel full';
     panel.append(element('p', 'Loading publication observations…'));
     content.replaceChildren(panel);
-    try {
-      const response = await fetch('publication-timing.json', {cache: 'no-cache'});
+    const load = async file => {
+      const response = await fetch(file, {cache: 'no-cache'});
       if (!response.ok) throw Error('History unavailable');
-      const bundle = await response.json();
-      if (bundle.version !== 1 || !bundle.feeds) throw Error('Unsupported history');
-      show(panel, bundle);
-    } catch {
-      panel.replaceChildren(element('p', 'Publication timing history is unavailable. Try reloading the page.'));
-    }
+      return response.json();
+    };
+    const [polls, workbook] = await Promise.allSettled([
+      load('publication-timing.json'), load('workbook-timestamp-history.json')
+    ]);
+    const bundle = polls.value?.version === 1 && polls.value.feeds ? polls.value
+      : {feeds: {}, max_window_minutes: 45, min_estimate_days: 5, retention_days: 90, unavailable: true};
+    const archive = Array.isArray(workbook.value?.reports) ? workbook.value : null;
+    show(panel, bundle, archive);
   }
 
-  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime};
+  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows};
   else root.BEGDPublicationTiming = {mount};
 })(typeof window === 'undefined' ? null : window);

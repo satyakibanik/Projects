@@ -125,3 +125,29 @@
   border-color: var(--muted);
   background: var(--surface);
 }
+
+.timing-archive-link {
+  margin-bottom: 1rem;
+}
+
+.timing-workbook-archive .table-wrap {
+  max-height: 24rem;
+}
+
+.timing-workbook-archive thead {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.timing-plot-dot.workbook-created {
+  border-color: var(--green);
+  background: var(--green);
+}
+
+.timing-plot-dot.workbook-modified {
+  border-color: var(--lime);
+  border-radius: 0;
+  background: var(--surface);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
