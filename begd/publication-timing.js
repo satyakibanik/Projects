@@ -12,6 +12,7 @@
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   });
   const format = instant => instant ? dateTime.format(new Date(instant)) : '—';
+  const offset = (day, timestamp) => (timestamp - Date.parse(day.date + 'T00:00:00+06:00')) / minute;
 
   function dailyRows(feed = {}, maxWindow = 45) {
     const days = new Map();
@@ -46,7 +47,6 @@
   function estimate(days, minimum) {
     const samples = days.filter(day => day.eligible);
     if (samples.length < minimum) return {count: samples.length};
-    const offset = (day, timestamp) => (timestamp - Date.parse(day.date + 'T00:00:00+06:00')) / minute;
     return {
       count: samples.length,
       lower: Math.floor(median(samples.map(day => offset(day, day.lower)))),
@@ -60,6 +60,114 @@
     const pad = number => String(number).padStart(2, '0');
     return pad(Math.floor(clock / 60)) + ':' + pad(clock % 60)
       + (day ? ' (' + (day > 0 ? '+' : '') + day + 'd)' : '');
+  }
+
+  function tickStep(span) {
+    const target = span / 6;
+    if (target <= 5) return Math.max(1, Math.ceil(target));
+    for (const step of [10, 15, 30, 60, 120, 180, 360, 720, dayLength]) {
+      if (step >= target) return step;
+    }
+    return Math.ceil(target / dayLength) * dayLength;
+  }
+
+  function plotScale(rows, band) {
+    const limits = rows.flatMap(row => [row.lower ?? row.upper, row.upper]);
+    if (band) limits.push(band.lower, band.upper);
+    const min = Math.min(...limits);
+    const max = Math.max(...limits);
+    const step = tickStep(max - min);
+    const start = Math.floor((min - step / 4) / step) * step;
+    const end = Math.ceil((max + step / 4) / step) * step;
+    const ticks = [];
+    for (let tick = start; tick <= end; tick += step) ticks.push(tick);
+    return {start, end, ticks};
+  }
+
+  function plot(rows, name, band) {
+    const frame = element('div');
+    frame.className = 'timing-plot';
+    frame.setAttribute('role', 'region');
+    frame.setAttribute('aria-label', name);
+    frame.tabIndex = 0;
+    const chart = element('div');
+    chart.className = 'timing-plot-chart';
+    frame.append(chart);
+
+    const {start, end, ticks} = plotScale(rows, band);
+    const position = value => (value - start) / (end - start) * 100 + '%';
+    const axis = element('div');
+    axis.className = 'timing-plot-row timing-plot-axis';
+    axis.append(element('span', 'Bangladesh time'));
+    const labels = element('div');
+    labels.className = 'timing-plot-track';
+    for (const tick of ticks) {
+      const label = element('span', wallTime(tick));
+      label.style.left = position(tick);
+      labels.append(label);
+    }
+    axis.append(labels);
+    chart.append(axis);
+
+    function interval(track, className, lower, upper) {
+      const mark = element('span');
+      mark.className = className;
+      mark.style.left = position(lower);
+      mark.style.width = (upper - lower) / (end - start) * 100 + '%';
+      track.append(mark);
+    }
+
+    for (const row of rows) {
+      const line = element('div');
+      line.className = 'timing-plot-row';
+      const label = element('span', row.label);
+      const track = element('div');
+      track.className = 'timing-plot-track';
+      // The adjacent tables provide exact timestamps and eligibility for screen readers.
+      line.setAttribute('aria-hidden', 'true');
+      line.title = row.description;
+      if (band) interval(track, 'timing-plot-band', band.lower, band.upper);
+      for (const tick of ticks) interval(track, 'timing-plot-grid', tick, tick);
+      if (row.lower !== null) {
+        interval(track, row.eligible ? 'timing-plot-window' : 'timing-plot-window excluded', row.lower, row.upper);
+      }
+      if (row.point) {
+        interval(track, row.eligible ? 'timing-plot-dot' : 'timing-plot-dot excluded', row.upper, row.upper);
+      }
+      line.append(label, track);
+      chart.append(line);
+    }
+
+    return frame;
+  }
+
+  function observedPlot(days, typical) {
+    return plot(days.map(day => ({
+      label: day.date,
+      lower: day.bounded ? offset(day, day.lower) : null,
+      upper: offset(day, day.upper),
+      eligible: day.eligible,
+      point: true,
+      description: day.date + ' · ' + (day.bounded ? format(day.lower) + ' – ' : 'First seen ')
+        + format(day.upper) + ' · ' + dayStatus(day)
+    })), 'Daily publication window plot', typical.lower === undefined ? null : typical);
+  }
+
+  function dayStatus(day) {
+    if (day.baseline) return 'Already present during setup';
+    if (day.eligible) return 'Used';
+    return day.bounded ? 'Poll gap too wide' : 'No prior absence';
+  }
+
+  function workbookTime(value) {
+    if (!value) return '—';
+    if (/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return format(value);
+    return value.replace('T', ' ') + ' (time zone unspecified)';
+  }
+
+  function workbookMetadata(row) {
+    return 'Excel created ' + workbookTime(row.excel_created_at)
+      + ' · Excel modified ' + workbookTime(row.excel_modified_at);
   }
 
   function element(tag, text) {
@@ -106,7 +214,8 @@
       const list = element('ul');
       for (const row of day.records) {
         list.append(element('li', recordLabel(row) + ' · First seen ' + format(row.first_seen_at)
-          + (row.absent_after ? ' · Absent at ' + format(row.absent_after) : '')));
+          + (row.absent_after ? ' · Absent at ' + format(row.absent_after) : '')
+          + (row.report_id ? ' · ' + workbookMetadata(row) : '')));
       }
       details.append(list);
     });
@@ -116,8 +225,9 @@
   function show(panel, bundle) {
     const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum, retention_days: retention} = bundle;
     const daysBySource = Object.fromEntries(Object.keys(sources).map(key => [key, dailyRows(feeds[key], maxWindow)]));
+    const estimates = Object.fromEntries(Object.keys(sources).map(key => [key, estimate(daysBySource[key], minimum)]));
     const summaries = Object.entries(sources).map(([key, label]) => {
-      const value = estimate(daysBySource[key], minimum);
+      const value = estimates[key];
       return [
         label, value.lower === undefined ? 'Collecting observations' : wallTime(value.lower) + ' – ' + wallTime(value.upper),
         String(value.count), format(feeds[key]?.last_poll?.received_at)
@@ -127,6 +237,13 @@
       + ' days with poll gaps of ' + maxWindow + ' minutes or less. All times are Bangladesh time. '
       + 'Offsets such as +1d are relative to the source date.');
     const heading = element('h2', 'Typical first appearance');
+    const typical = Object.entries(sources).filter(([key]) => estimates[key].lower !== undefined)
+      .map(([key, label]) => {
+        const {lower, upper} = estimates[key];
+        return {label, lower, upper, eligible: true, description: label + ' · ' + wallTime(lower) + ' – ' + wallTime(upper)};
+      });
+    const typicalPlot = typical.length ? plot(typical, 'Typical publication windows by source')
+      : element('p', 'The comparison plot appears when a source has enough observations to estimate its window.');
     const summary = table(['Source', 'Estimated window', 'Days used', 'Last successful poll'], summaries);
     const history = element('h2', 'Daily observation history');
     const label = element('label', 'Source ');
@@ -144,18 +261,27 @@
       const note = element('p', workbook
         ? 'Source date is the ERP listing’s publication date. First seen is when BEGD downloaded a workbook that passed parsing.'
         : 'Source date and reading time come from the ERP table. First seen is when BEGD received the first newly observed reading for that date.');
+      results.replaceChildren(note);
+      if (workbook) results.append(element('p', 'Excel creation and modification times describe the workbook. '
+        + 'Times with an explicit offset are shown in Bangladesh time.'));
+      if (!days.length) {
+        results.append(element('p', 'No new records have been observed for this source yet.'));
+        return;
+      }
+      const legend = element('p', 'Lines span the previous absence and first receipt. Dots show first receipt. '
+        + 'Dashed lines and hollow dots mark days excluded from the estimate. The shaded band shows the typical window when available.');
       const rows = days.map(day => [
         day.date, recordLabel(day.first), day.bounded ? format(day.lower) : '—', format(day.upper),
-        day.baseline ? 'Already present during setup' : day.eligible ? 'Used' : day.bounded ? 'Poll gap too wide' : 'No prior absence',
-        recordsForDay(day)
+        ...(workbook ? [workbookTime(day.first.excel_created_at), workbookTime(day.first.excel_modified_at)] : []),
+        dayStatus(day), recordsForDay(day)
       ]);
-      results.replaceChildren(note, rows.length
-        ? table([workbook ? 'Listed date' : 'Reading date', 'First record', 'Previously absent', 'First seen', 'Estimate', 'Details'], rows)
-        : element('p', 'No new records have been observed for this source yet.'));
+      const headers = [workbook ? 'Listed date' : 'Reading date', 'First record', 'Previously absent', 'First seen',
+        ...(workbook ? ['Excel created', 'Excel modified'] : []), 'Estimate', 'Details'];
+      results.append(legend, observedPlot(days, estimates[select.value]), table(headers, rows));
     }
     select.addEventListener('change', renderHistory);
     renderHistory();
-    panel.replaceChildren(heading, guide, summary, history, element('p', 'History covers up to ' + retention
+    panel.replaceChildren(heading, guide, typicalPlot, summary, history, element('p', 'History covers up to ' + retention
       + ' days. Existing records at the first poll establish the baseline.'), label, results);
   }
 
@@ -177,6 +303,6 @@
     }
   }
 
-  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime};
+  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime};
   else root.BEGDPublicationTiming = {mount};
 })(typeof window === 'undefined' ? null : window);

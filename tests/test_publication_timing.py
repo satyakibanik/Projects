@@ -1,4 +1,5 @@
 import datetime as dt
+import io
 import json
 from pathlib import Path
 import sys
@@ -6,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from urllib.error import HTTPError
+from zipfile import ZipFile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import publication_timing as timing
@@ -21,7 +23,29 @@ def snapshot(start, *rows):
     return instant(start), instant(start) + dt.timedelta(seconds=2), readings
 
 
+def workbook_metadata(xml, path="docProps/core.xml"):
+    stream = io.BytesIO()
+    with ZipFile(stream, "w") as archive:
+        archive.writestr(path, xml)
+    return stream.getvalue()
+
+
 class PublicationTimingTest(unittest.TestCase):
+    def test_document_properties_keep_explicit_or_unspecified_zone(self):
+        workbook = workbook_metadata("""
+          <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"
+                             xmlns:dcterms="http://purl.org/dc/terms/">
+            <dcterms:created>2026-11-18T05:46:45Z</dcterms:created>
+            <dcterms:modified>2026-11-18T05:51:26</dcterms:modified>
+          </cp:coreProperties>
+        """)
+        self.assertEqual(timing.workbook_timestamps(workbook), {
+            "excel_created_at": "2026-11-18T05:46:45+00:00",
+            "excel_modified_at": "2026-11-18T05:51:26",
+        })
+        self.assertEqual(timing.workbook_timestamps(workbook_metadata("<invalid")), {})
+        self.assertEqual(timing.workbook_timestamps(workbook_metadata("<empty/>", "other.xml")), {})
+
     def test_baseline_new_reading_and_reappearance(self):
         state = timing.update_feed({}, "demand", snapshot("18T23:58", ("18", "23:00"), ("17", "23:00")))
         self.assertEqual(state["observations"], [])
@@ -67,12 +91,20 @@ class PublicationTimingTest(unittest.TestCase):
             state = timing.update_feed(state, "operations", listing("19T08:15", "19", "18"))
         self.assertEqual(state["observations"], [])
         self.assertEqual(state["pending"]["19"]["after"], instant("19T08:00").isoformat())
-        with (patch.object(timing.server, "fetch_bytes", return_value=b"workbook"),
+        workbook = workbook_metadata("""
+            <properties xmlns:t="http://purl.org/dc/terms/">
+                <t:created>2026-11-19T08:01:00+06:00</t:created>
+                <t:modified>unavailable</t:modified>
+            </properties>
+        """)
+        with (patch.object(timing.server, "fetch_bytes", return_value=workbook),
               patch.object(timing.server, "parse_report", return_value={"date": "2026-11-18"})):
             state = timing.update_feed(state, "operations", listing("19T08:30", "19", "18"),
                                        lambda: instant("19T08:30:05"))
         self.assertFalse(state["pending"])
         self.assertEqual(state["observations"][0]["operating_date"], "2026-11-18")
+        self.assertEqual(state["observations"][0]["excel_created_at"], "2026-11-19T08:01:00+06:00")
+        self.assertNotIn("excel_modified_at", state["observations"][0])
         self.assertEqual(state["observations"][0]["absent_after"], instant("19T08:00").isoformat())
         self.assertEqual(state["observations"][0]["first_seen_at"], instant("19T08:30:05").isoformat())
 

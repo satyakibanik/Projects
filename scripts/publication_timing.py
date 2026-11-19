@@ -2,12 +2,15 @@
 import argparse
 from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
+import io
 import json
 import math
 from pathlib import Path
 import re
 from urllib.error import HTTPError
 from urllib.request import urlopen
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
 from zoneinfo import ZoneInfo
 
 import server
@@ -59,6 +62,32 @@ def poll(source, clock=now):
     return started, received, rows
 
 
+
+def workbook_timestamps(workbook):
+    """Read the original OOXML properties without inventing missing timestamps."""
+    try:
+        with ZipFile(io.BytesIO(workbook)) as archive, archive.open("docProps/core.xml") as entry:
+            raw = entry.read(65_537)
+        if len(raw) > 65_536:
+            return {}
+        properties = ElementTree.fromstring(raw)
+    except (KeyError, BadZipFile, ElementTree.ParseError, OSError, RuntimeError):
+        return {}
+
+    timestamps = {}
+    namespace = "{http://purl.org/dc/terms/}"
+    for name in ("created", "modified"):
+        value = properties.findtext(namespace + name, "").strip()
+        if "T" not in value:
+            continue
+        try:
+            timestamp = dt.datetime.fromisoformat(value)
+        except ValueError:
+            continue
+        timestamps[f"excel_{name}_at"] = timestamp.isoformat()
+    return timestamps
+
+
 def update_feed(feed, source, snapshot, clock=now):
     started, received, rows = snapshot
     dates = [row["date"] for row in rows.values()]
@@ -99,6 +128,7 @@ def update_feed(feed, source, snapshot, clock=now):
                 pending[key] = {"after": absent}
                 continue
             observation.update(report_id=key, operating_date=report["date"])
+            observation.update(workbook_timestamps(workbook))
         else:
             observation["reading_time"] = row["reading_time"]
         observation.update(first_seen_at=first_seen.isoformat(), absent_after=absent)

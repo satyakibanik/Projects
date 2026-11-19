@@ -1,6 +1,6 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
-const {dailyRows, estimate, wallTime} = require('../begd/publication-timing.js');
+const {dailyRows, estimate, wallTime, plotScale, workbookTime} = require('../begd/publication-timing.js');
 
 function row(date, reading_time, before, after) {
   return {date, reading_time, absent_after: before && before + ':00+06:00', first_seen_at: after + ':00+06:00'};
@@ -32,4 +32,20 @@ test('unknown lower bound among equally early records makes the day unbounded', 
   ]});
   assert.equal(days[0].eligible, false);
   assert.equal(days[0].bounded, false);
+});
+
+test('plot scale spans midnight and includes a typical band and first-seen-only records', () => {
+  const scale = plotScale([{lower: null, upper: -8}, {lower: 10, upper: 12}], {lower: -10, upper: 5});
+  assert.ok(scale.start < -10);
+  assert.ok(scale.end > 12);
+  assert.ok(scale.ticks.includes(0));
+  assert.ok(scale.ticks.length <= 10);
+  const single = plotScale([{lower: null, upper: 7}]);
+  assert.ok(single.start < 7 && single.end > 7);
+});
+
+test('workbook timestamps convert only values with an explicit UTC offset', () => {
+  assert.match(workbookTime('2026-11-18T05:46:45+00:00'), /11:46:45$/);
+  assert.equal(workbookTime('2026-11-18T05:46:45'), '2026-11-18 05:46:45 (time zone unspecified)');
+  assert.equal(workbookTime(undefined), '—');
 });
