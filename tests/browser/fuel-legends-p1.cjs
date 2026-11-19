@@ -5,7 +5,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
 const fuels=['Gas','Coal','HFO','HSD','Hydro','Solar','Imports','Wind','Nuclear'];
 const costs_bdt=Object.fromEntries(fuels.map((name,i)=>[name,name==='Nuclear'?0:(i+1)*1000]));
 const costs={days:Array.from({length:40},(_,i)=>({date:new Date(Date.UTC(2026,9,1+i)).toISOString().slice(0,10),currency:'BDT',total_bdt:Object.values(costs_bdt).reduce((a,b)=>a+b,0),costs_bdt,generation_kwh:Object.fromEntries(fuels.map(name=>[name,name==='Nuclear'?0:1000]))}))};
-const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.BEGD_P1_REPORT,'utf8')):{...fixture.report,date:'2026-11-02',en_curve:{...fixture.report.en_curve,date:'2026-11-02'},regional_snapshot:{time:'19:30'},regions:[{...fixture.report.regions[0],name:'Dhaka',demand_mw:5910,shed_mw:2},{...fixture.report.regions[0],name:'Chattogram',demand_mw:1520,shed_mw:0}],operations:{...fixture.report.operations,east_west:{energy_east_to_west_kwh:0,energy_west_to_east_kwh:45199472.73}},plant_units:[{...fixture.report.plant_units[0],name:'Karnaphuli Hydro PP Unit-1,2,3,4, 5',fuel:'Hydro'},{...fixture.report.plant_units[0],name:'Karnaphuli Power Ltd.',fuel:'HFO'},{...fixture.report.plant_units[0],name:'Kaptai 7 MW Solar PP',fuel:'Solar'},{...fixture.report.plant_units[0],name:'Rooppur Nuclear Power Plant',fuel:'Nuclear'}]};
+const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.BEGD_P1_REPORT,'utf8')):{...fixture.report,date:'2026-11-02',en_curve:{...fixture.report.en_curve,date:'2026-11-02'},regional_snapshot:{time:'19:30'},regions:[{...fixture.report.regions[0],name:'Dhaka',demand_mw:5910,shed_mw:2},{...fixture.report.regions[0],name:'Chattogram',demand_mw:1520,shed_mw:0}],operations:{...fixture.report.operations,east_west:{energy_east_to_west_kwh:0,energy_west_to_east_kwh:45199472.73}},plant_units:[{...fixture.report.plant_units[0],name:'Karnaphuli Hydro PP Unit-1,2,3,4, 5',fuel:'Hydro'},{...fixture.report.plant_units[0],name:'Raozan 25 MW PP',fuel:'Gas'},{...fixture.report.plant_units[0],name:'Kaptai 7 MW Solar PP',fuel:'Solar'},{...fixture.report.plant_units[0],name:'Rooppur Nuclear Power Plant',fuel:'Nuclear'}]};
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{for(const width of [390,1210])for(const theme of ['light','dark']){
@@ -73,6 +73,7 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
    assert.match(await sidebar.innerText(),/Rooppur Nuclear Power Plant/);
   }
   await page.getByRole('tab',{name:/Fuel dots/}).click();
+  await page.locator('.plant-dot-symbol').first().waitFor();
   assert(await markers.count()>rings,'Smaller dots keep more locations separate');
   assert.equal(await page.locator('.plant-map-markers image').count(),0);
   assert.equal(await karnaphuli.locator('.plant-dot-symbol > path[fill]').count(),2);
