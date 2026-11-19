@@ -43,6 +43,7 @@ function collapseNotes(){
  }
 
  for(const note of document.querySelectorAll('#content '+noteSelector.split(',').join(',#content '))){
+  if(note.hasAttribute('data-keep-visible'))continue;
   if(note.matches('.panel-head p'))note.dataset.panelCaption='true';
   if(note.matches('.bpdb-fit-note')&&note.closest('.trends-chart'))note.dataset.trendNote=note.closest('.trends-chart').dataset.trendKey;
   const panel=note.closest('.independent-study-panel')||note.closest(informationPanel);

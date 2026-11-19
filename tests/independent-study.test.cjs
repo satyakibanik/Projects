@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm');
 const root=path.resolve(__dirname,'..');
 const {load,fixture}=require('./helpers/forecast-fixture.cjs');
-test('realtime shows today only while the full comparison leads the Forecast workspace',()=>{
+test('realtime shows today only while the full comparison follows generation availability',()=>{
  const {c}=load();vm.runInContext("currentDayData={today_date:'2026-10-23',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:99,shed_mw:1}],generation_hourly:[],imports:[]};data={date:'2026-10-21',forecast:{totals:{},plants:[]}}",c);
  const html=vm.runInContext('realTime()',c);
  assert.ok(html.indexOf('Demand and Supply at the Substation side')>=0);
@@ -14,7 +14,7 @@ test('realtime shows today only while the full comparison leads the Forecast wor
  assert.doesNotMatch(html,/forecast-best-model/);
  assert.equal(vm.runInContext('[...chartData.values()].length',c),4);
  const workspace=vm.runInContext('forecast()',c);
- assert.ok(workspace.indexOf('id="independent-study-panel"')<workspace.indexOf('Generation availability forecast'));
+ assert.ok(workspace.indexOf('id="independent-study-panel"')>workspace.indexOf('Generation availability forecast'));
  assert.doesNotMatch(workspace,/id="study-date"|id="study-previous"|id="study-next"/);assert.match(workspace,/Operating date follows the dashboard header selector/);assert.match(workspace,/id="study-demand"/);assert.match(workspace,/id="study-generation"/);
 });
 test('expansion separates demand and generation into subplots with their own model controls',()=>{

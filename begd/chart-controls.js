@@ -53,7 +53,7 @@ function setupCharts(view,wrappers=null) {
       const tooltipWidth=tooltip.getBoundingClientRect().width,anchor=(plotOffset+fraction*plotWidth)*wrapperBounds.width;
       tooltip.style.left = `${Math.max(0,Math.min(wrapperBounds.width-tooltipWidth,anchor-(fraction>.65?tooltipWidth:0)))}px`;
       tooltip.style.transform = 'none';
-      if(touch?.pinned)window.BEGDChartTouch.position(tooltip,touch.event);else{tooltip.classList.remove('is-touch-tooltip');tooltip.style.top='8px';}
+      if(touch?.pinned)window.BEGDChartTouch.position(tooltip,touch.event,svg);else{tooltip.classList.remove('is-touch-tooltip');tooltip.style.top='8px';}
       cursor.setAttribute('x1', model.x(row));
       cursor.setAttribute('x2', model.x(row));
       cursor.removeAttribute('hidden');

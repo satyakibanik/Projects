@@ -1,7 +1,7 @@
 // Offline regression for date focus/scroll, comparison colors and regional keys.
 const assert=require('node:assert/strict');
 const {chromium}=require('playwright');
-const {serve,fixture}=require('./fixture-site.cjs');
+const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
 (async()=>{
  const browser=await chromium.launch(process.env.BEGD_BROWSER_EXECUTABLE?{executablePath:process.env.BEGD_BROWSER_EXECUTABLE}:{});
  try{
@@ -46,14 +46,14 @@ const {serve,fixture}=require('./fixture-site.cjs');
    await steadyDate(async()=>{await page.locator('#report-date').fill('2026-10-27');await page.locator('#load-report').click()},'2026-10-27');
    await steadyDate(async()=>{await page.locator('#report-date').fill('2026-10-28');await page.locator('#report-date').press('Enter')},'2026-10-28');
    await steadyDate(()=>page.locator('#latest-report').click(),'2026-10-29');
-   await page.locator('nav a[href="#overview"]').click();
+   await navigateDashboard(page,'overview');
    await page.locator('[data-toggle-series="shed_mw_custom_2026-10-03"]').waitFor();
    const colors=await page.locator('[data-chart-style="shed"]').evaluate(el=>{
     const wrap=el.closest('.interactive-chart');
     return ['2026-10-03','2026-10-27'].map(date=>wrap.querySelector('[data-toggle-series="shed_mw_custom_'+date+'"]').closest('label').querySelector('.series-swatch rect').getAttribute('fill'));
    });
    assert.notEqual(colors[0],colors[1],'loaded reports must have distinct colors');
-   await page.locator('nav a[href="#regions"]').click();
+   await navigateDashboard(page,'regions');
    await page.waitForFunction(()=>document.querySelector('.regional-date-keys')?.children.length===3&&document.querySelector('#view-status').textContent!=='Restoring dashboard view…');
    for(const style of ['stacked','line']){
     await page.locator('[data-regional-snapshot-style]').selectOption(style);await page.waitForTimeout(100);
@@ -64,7 +64,7 @@ const {serve,fixture}=require('./fixture-site.cjs');
     })),true,`${width} ${theme} ${style}: regional date keys must stay compact`);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
    }
-   await page.locator('nav a[href="#overview"]').click();
+   await navigateDashboard(page,'overview');
    await page.waitForTimeout(600);
    await page.evaluate(()=>window.scrollTo(0,1000));await page.waitForTimeout(100);
    const overviewScrollBefore=await page.evaluate(()=>scrollY);

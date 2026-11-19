@@ -12,6 +12,7 @@
     imports:'Imports',
     assets:'Plants & substations',
     operations:'Operations',
+    development:'Grid development',
   };
   let activeSection='generation';
   let chartSerial=0,costTrendline=false;
@@ -41,6 +42,7 @@
   const chartUnits={generation:'GWh',imports:'GWh'};
   let temperatureUnit='°C',temperatureDetail=null;
   let period = 30, bundle = null, history = null, pending = null, failure = null;
+  let supplementalStarted=false, historyPending=false;
   function windowDays(data, count) {
     if (!data.end_date) return [];
     const byDate = new Map(data.days.map(day => [day.date, day]));
@@ -228,7 +230,7 @@
     return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
   function content() {
-    if(period==='10y')return controls()+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
+    if(period==='10y')return controls()+(historyPending?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
@@ -273,6 +275,7 @@
     return html+sectionViews({generation,load,fuel,imports,
       assets:'<div id="entity-histories"></div>',
       operations:'<div id="operational-event-explorer"></div>',
+      development:root.BEGDGridDevelopment?.render(plot)||'',
     });
   }
   function tooltipRows(record,index) {
@@ -329,7 +332,7 @@
           other.querySelector('[role=tooltip]').hidden=true;
         }
         const bounds=svg.getBoundingClientRect();
-        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event);
+        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event,svg);
         else{tip.classList.remove('is-touch-tooltip');positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);}
       };
       const hide=()=>{if(touch?.pinned)return;for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
@@ -496,8 +499,23 @@
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     draw();
+    if(!supplementalStarted){
+      supplementalStarted=true;
+      historyPending=true;
+      fetch('bengalgrid-trends.json',{signal:root.AbortSignal?.timeout?.(15000)})
+        .then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()})
+        .then(data=>{history=data})
+        .catch(()=>{history=null})
+        .finally(()=>{historyPending=false;if(period==='10y')draw()});
+      root.BEGDSystemLoss?.load()?.then(()=>{if(period==='10y')draw()});
+      root.BEGDCosts?.load()?.then(()=>{if(bundle&&period!=='10y')draw()});
+    }
     if(!bundle&&!pending&&!failure){
-      pending=Promise.all([root.BEGDSystemLoss?.load(),root.BEGDCosts?.load(),fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
+      pending=fetch('trends-data.json',{cache:'no-store',signal:root.AbortSignal?.timeout?.(15000)})
+        .then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()})
+        .then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data})
+        .catch(error=>{failure=error})
+        .finally(()=>{pending=null;draw()});
     }
     await pending;
   }

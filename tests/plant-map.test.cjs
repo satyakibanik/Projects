@@ -4,9 +4,9 @@ const fs=require('node:fs'),path=require('node:path');
 const map=require('../begd/plant-map.js');
 const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../begd/plant-locations.json'),'utf8'));
 const boundary=JSON.parse(fs.readFileSync(path.join(__dirname,'../begd/bangladesh-boundary.geojson'),'utf8')).geometry;
-test('reviewed catalog covers 154 unique dashboard entries inside Bangladesh',()=>{
- assert.equal(catalog.plants.length,154);
- assert.equal(new Set(catalog.plants.map(p=>p.name)).size,154);
+test('reviewed catalog covers 155 unique dashboard entries inside Bangladesh',()=>{
+ assert.equal(catalog.plants.length,155);
+ assert.equal(new Set(catalog.plants.map(p=>p.name)).size,155);
  assert.ok(catalog.excluded.some(p=>p.name==='Water Level'));
  for(const p of catalog.plants)assert.ok(map.insideCountry(p.longitude,p.latitude,boundary),p.name);
  for(const [lon,lat] of [[0,0],[88.3639,22.5726],[91.2924,27.1952],[93,23.5]])assert.equal(map.insideCountry(lon,lat,boundary),false);
@@ -58,4 +58,13 @@ test('administrative outlines cover all 64 districts and eight divisions',()=>{
  assert.equal(new Set(districts.map(f=>f.properties.name)).size,64);
  for(const d of divisions){assert.equal(d.properties.district_count,districts.filter(f=>f.properties.division===d.properties.name).length);assert.ok(d.properties.district_count>0)}
  for(const f of data.features){const path=map.geometryPath(f.geometry);assert.match(path,/^M/);assert.doesNotMatch(path,/NaN|Infinity/);assert.ok(path.endsWith('Z'))}
+});
+
+test('Rooppur is mapped when listed in the report and the map can supply its nuclear fuel type',()=>{
+ const plant={name:'Rooppur Nuclear Power Plant'};
+ const {markers,unmapped}=map.resolvePlants([plant],catalog,boundary);
+ assert.equal(markers.length,1);
+ assert.deepEqual(unmapped,[]);
+ assert.match(map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—'),/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ assert.deepEqual(map.resolvePlants([],catalog,boundary).markers,[]);
 });
