@@ -115,11 +115,11 @@ async function create(options){
   const partial=values.filter(v=>v.some(n=>n===null)&&v.some(n=>n!==null)).length;
   let note;
   if(slide.heat){
-   note=`${dots?'Dot color shows':'Marker size, color and halo show'} combined ${slide.unit} for grouped units. The scale follows the filtered map and zoom.`;
+   note=`${dots?'Dot size and color show':'Marker size, color and halo show'} combined ${slide.unit} for grouped units. The scale follows the filtered map and zoom.`;
    if(slide.id==='peak')note+=' Grouped values sum individual daily peaks, which may occur at different times.';
    if(partial)note+=` ${partial} group(s) have incomplete readings.`;
   }else if(slide.id==='capacity'){
-   note=dots?'Each dot segment shows one unit’s capacity.':'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity.';
+   note=dots?'Dot size shows the largest unit capacity in a group. Each dot segment shows one unit’s capacity.':'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity.';
    note+=' Shared capacities are kept separate.';
   }else{
    note=`${dots?'Split dots':'Split rings'} show each ${fuelView?'fuel type':'category'}’s share of the group.`;
@@ -136,7 +136,8 @@ async function create(options){
    marker.querySelectorAll(':scope>circle,:scope>text').forEach(el=>el.setAttribute('display','none'));
    const symbol=make(doc,'g',{class:dots?'plant-slide-symbol plant-dot-symbol':'plant-slide-symbol','pointer-events':'all',transform:`scale(${1/scale})`});
    const valueForSize=numeric?(slide.heat?sums[i]:Math.max(0,...values[i].filter(v=>v!==null))):null;
-   const radius=dots?5.5:numeric?18+14*Math.sqrt(maximum>0?(valueForSize??0)/maximum:0):24;
+   const iconRadius=numeric?18+14*Math.sqrt(maximum>0?(valueForSize??0)/maximum:0):24;
+   const radius=dots?(numeric?iconRadius*.4:5.5):iconRadius;
    marker.dataset.value=valueForSize??'';marker.dataset.radius=radius;
    const slices=numeric?(slide.heat?[color(sums[i],maximum)]:values[i].map(v=>color(v,maximum))):fuelView?g.items.flatMap(({plant})=>{const f=types(plant,options);return (f.length?f:['Not reported']).map(catColor)}):g.items.map(({plant})=>catColor(category(plant,slide.id,options)));
    const frequencies=new Map();slices.forEach(c=>frequencies.set(c,(frequencies.get(c)||0)+1));
