@@ -24,7 +24,13 @@ const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
    const fuelPanel=page.locator('.panel').filter({has:page.getByRole('heading',{name:'Generation by fuel type',exact:true})});
    assert.equal(await fuelPanel.locator('.series-end-icon').count(),0);
    assert.equal(await fuelPanel.locator('.series-fuel-icon').count(),7);
+   const gasToggle=fuelPanel.locator('[data-toggle-series="gas_mw"]');
+   await gasToggle.uncheck();
    await checkbox.check();
+   assert.equal(await gasToggle.isChecked(),false);
+   assert.equal(await fuelPanel.locator('[data-series="gas_mw"]').isVisible(),false);
+   await gasToggle.check();
+   assert.equal(await fuelPanel.locator('[data-series="gas_mw"] [data-row-index]').count(),2);
    assert.equal(await fuelPanel.locator('.series-end-icon').count(),0);
    assert.notEqual(await panel.getAttribute('open'),null,'Opening yesterday collapsed forecasts');
    const plots=page.locator('[data-sync-group="realtime-dispatch"]');
@@ -42,7 +48,8 @@ const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
    for(let i=0;i<await allPlots.count();i++){
     const plot=allPlots.nth(i);
     assert.match(await plot.innerText(),/31 Dec 2025/);assert.match(await plot.innerText(),/1 Jan 2026/);
-    assert(await plot.locator('[data-series^="yesterday_"]').count()>0,'A realtime plot is missing yesterday');
+    assert.equal(await plot.locator('.chart-day-boundary').count(),1);
+    assert.equal(await plot.locator('[data-toggle-series^="yesterday_"]').count(),0);
     await plot.locator('[data-point="0"]').focus();assert.match(await plot.locator('.chart-tooltip').innerText(),/31 Dec 2025 · 00:00/);
     if(width===390){
      await plot.locator('[data-point="0"]').press('Escape');
@@ -58,6 +65,7 @@ const {serve,fixture,navigateDashboard}=require('./fixture-site.cjs');
    await summary.focus();await summary.press('Space');assert.equal(await panel.getAttribute('open'),null);
    await checkbox.uncheck();assert.equal(await panel.getAttribute('open'),null);
    assert.equal(await plots.first().locator('[data-point]').count(),1);
+   assert.equal(await page.locator('.chart-day-boundary').count(),0);
    // Returning to Real time rerenders while retaining the session choices.
    await checkbox.check();
    await navigateDashboard(page,'overview');await navigateDashboard(page,'realtime');

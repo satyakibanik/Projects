@@ -128,6 +128,10 @@ function chart(rows,series,options={}){
   }
   body+='</g>';
  }
+ if(options.comparisonTimeline){
+  const midnight=x({minute:1440});
+  body+=`<line class="chart-day-boundary" x1="${midnight}" x2="${midnight}" y1="${T}" y2="${H-B}" stroke="var(--muted)" stroke-width="2" stroke-dasharray="5 4" pointer-events="none"><title>Midnight Bangladesh time</title></line>`;
+ }
  for(const tick of options.xTicks||[]){body+=`<text x="${x(tick)}" y="${H-7}" text-anchor="middle">${esc(tick.label)}</text>`;}
  if(!options.xTicks)for(const h of (window.innerWidth<600?[0,8,16,23]:[0,6,12,18,23]))body+=`<text x="${x({time:String(h).padStart(2,'0')+':00'})}" y="${H-7}" text-anchor="middle">${String(h).padStart(2,'0')}:00</text>`;
  const bars=plotSeries.filter(s=>s.bar),barWidth=bars.length>1?Math.min(7,(W-L-R)/(rows.length-1)/bars.length):10;
@@ -143,7 +147,8 @@ function chart(rows,series,options={}){
   }else{
    // Water-level gaps stay gaps instead of joining across absent readings.
    const segments=[[]];
-   for(const row of rows){
+   for(const [index,row] of rows.entries()){
+    if(options.comparisonTimeline&&row.minute>=1440&&rows[index-1]?.minute<1440&&segments.at(-1).length)segments.push([]);
     if(Number.isFinite(row[item.key]))segments.at(-1).push(`${x(row)},${seriesY(row[item.key])}`);
     else if((item.axis==='right'||options.preserveGaps)&&segments.at(-1).length)segments.push([]);
    }
@@ -496,15 +501,13 @@ function realtimePlot(rows,series,previousRows=[],options={}){
  const yesterday=realtimeYesterdayDate(),today=currentDayData?.today_date||currentDayData?.date;
  if(!yesterday)return chart(rows,series,options);
  const minutes=time=>parseInt(time)*60+parseInt(time.slice(3));
- const keys=[...new Set([...rows,...previousRows].flatMap(row=>Object.keys(row)))].filter(key=>!['time','date','label','minute'].includes(key));
- const blank=Object.fromEntries(keys.map(key=>[key,null])),previousBlank=Object.fromEntries(keys.map(key=>['yesterday_'+key,null]));
  const datedRows=[
-  ...previousRows.map(row=>({...blank,...previousBlank,...Object.fromEntries(keys.map(key=>['yesterday_'+key,row[key]??null])),time:row.time,label:shortDate(yesterday)+' · '+row.time,minute:minutes(row.time)})),
-  ...rows.map(row=>({...blank,...row,...previousBlank,label:shortDate(today)+' · '+row.time,minute:1440+minutes(row.time)}))
+  ...previousRows.map(row=>({...row,label:shortDate(yesterday)+' · '+row.time,minute:minutes(row.time)})),
+  ...rows.map(row=>({...row,label:shortDate(today)+' · '+row.time,minute:1440+minutes(row.time)}))
  ].sort((a,b)=>a.minute-b.minute);
- const previousSeries=series.filter(item=>previousRows.some(row=>Number.isFinite(row[item.key]))).map(item=>({...item,key:'yesterday_'+item.key,name:item.name+' · yesterday ('+shortDate(yesterday)+')',dashArray:'6 4'}));
+ const hasPreviousReadings=series.some(item=>previousRows.some(row=>Number.isFinite(row[item.key])));
  const timeline={date:yesterday,xKey:'minute',xMax:2820,xTicks:[{minute:0,label:shortDate(yesterday)},{minute:720,label:'12:00'},{minute:1440,label:shortDate(today)},{minute:2160,label:'12:00'},{minute:2820,label:'23:00'}]};
- return chart(datedRows,[...series,...previousSeries],{...options,...timeline,preserveGaps:true,comparisonTimeline:true})+(!previousSeries.length?'<p class="note realtime-history-unavailable">Yesterday’s readings unavailable for this plot.</p>':'');
+ return chart(datedRows,series,{...options,...timeline,preserveGaps:true,comparisonTimeline:true})+(!hasPreviousReadings?'<p class="note realtime-history-unavailable">Yesterday’s readings unavailable for this plot.</p>':'');
 }
 function realtimeImportRows(routes,names){
  const times=[...new Set(routes.flatMap(route=>(route.hourly||[]).map(row=>row.time)))].sort();

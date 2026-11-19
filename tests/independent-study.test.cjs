@@ -186,9 +186,10 @@ test('realtime forecast comparison uses yesterday actuals and matching issued cu
  assert.deepEqual(html.match(/<div class="compact-scores">([^]*?)<\/div>/g),before);
  const models=vm.runInContext('[...chartData.values()]',c);
  assert.equal(models.length,2);
- assert.equal(models[0].rows[0].yesterday_demand_mw,80);assert.equal(models[1].rows[0].yesterday_generation_mw,90);
- assert.equal(models[0].rows[24].demand_mw,100);assert.equal(models[0].rows[24].yesterday_demand_mw,null);
- assert(models[0].series.some(s=>s.key==='yesterday_pgcb_demand_mw'));assert(models[1].series.some(s=>s.key==='yesterday_pgcb_generation_mw'));
+ assert.equal(models[0].rows[0].demand_mw,80);assert.equal(models[1].rows[0].generation_mw,90);
+ assert.equal(models[0].rows[24].demand_mw,100);assert.equal(models[0].rows[24].pgcb_demand_mw,null);
+ assert.equal(models[0].rows[0].pgcb_demand_mw,85);assert.equal(models[1].rows[0].pgcb_generation_mw,95);
+ assert(models[0].series.some(s=>s.key==='pgcb_demand_mw'));assert(models[1].series.some(s=>s.key==='pgcb_generation_mw'));
  assert.match(html,/MAE scores above use today’s matched hours only/);
  assert.doesNotMatch(html,/<details[^>]*id="today-forecast-panel"[^>]* open/);
 });
