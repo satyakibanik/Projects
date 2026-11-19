@@ -103,9 +103,13 @@ def parse_number(value):
 def parse_current_table(*, minimum_cells, url, params=None, include_headers=False):
     query = urlencode(params or {})
     source_url = f"{url}?{query}" if query else url
+    body = fetch_bytes(source_url, limit=8 * 1024 * 1024)
+    return parse_current_readings(body, minimum_cells=minimum_cells, include_headers=include_headers)
+
+
+def parse_current_readings(body, *, minimum_cells, include_headers=False):
     parser = DataTableParser()
-    parser.feed(fetch_bytes(source_url, limit=8 * 1024 * 1024)
-                .decode("utf-8", errors="replace"))
+    parser.feed(body.decode("utf-8", errors="replace"))
     records = []
     for row in parser.rows:
         if len(row) < minimum_cells:

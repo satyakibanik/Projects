@@ -1,0 +1,30 @@
+#publication-timing-panel .table-wrap {
+  max-width: 100%;
+}
+
+#publication-timing-panel h2:not(:first-child) {
+  margin-top: 1.75rem;
+}
+
+#publication-timing-panel label {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem;
+  margin-block: .75rem;
+}
+
+#publication-timing-panel select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+#publication-timing-panel th,
+#publication-timing-panel td {
+  vertical-align: top;
+}
+
+#publication-timing-panel details ul {
+  margin-bottom: 0;
+  padding-inline-start: 1.25rem;
+}

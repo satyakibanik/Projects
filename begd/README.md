@@ -342,3 +342,13 @@ by evenings with a reported value for each planning region. A zero is a
 reported evening without shedding. Missing snapshots are excluded from the
 denominator and marked separately in the matrix. Both fixed-height heatmaps show exact values above the plot on hover or tap.
 Use the arrow keys after focusing a heatmap to explore readings.
+
+## Source publication timing
+
+Open `/begd/#publication-timing` directly. The view is hidden from the dashboard navigation and uses the same public hosting as the dashboard. The ERP real-time tables show reading times and the archive shows publication dates. ERP response dates identify the HTTP response, and workbook document properties describe creation or modification of the file.
+
+The Pages job polls the three real-time pages and the daily workbook archive on its existing 15-minute schedule. Each feed establishes its baseline on its first successful poll. The collector records new reading slots with usable values, and new archive IDs once their workbook downloads and parses successfully. A prior successful poll that covered the source date provides the lower bound. The first successful receipt provides the upper bound. A failed poll leaves that feed’s previous observations intact. Actions saves history before the Pages build and falls back to the last published bundle if the cache is missing.
+
+The view shows daily windows and the records behind each day. The estimate uses the median lower and upper time bounds across at least five days observed within 45-minute windows. Times are in Asia/Dhaka, with day offsets relative to the ERP reading or listing date. The collector retains 90 days, and actual polling intervals can vary with GitHub scheduling.
+
+For local observation, install `requirements.txt`, run `python3 scripts/publication_timing.py` on each poll, and run `python3 scripts/build_pages_data.py` to copy the observation bundle into the static preview. Serve `_site` with `python3 -m http.server 8765 --bind 127.0.0.1 --directory _site`.

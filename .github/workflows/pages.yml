@@ -122,6 +122,21 @@ jobs:
                   print("Verified ERP TLS peer:", secure.getpeercert()["issuer"])
           PY
           echo "BEGD_ERP_INTERMEDIATE_CERT=/tmp/erp-issuer.pem" >> "$GITHUB_ENV"
+      - name: Restore ERP publication timing
+        uses: actions/cache/restore@v4
+        with:
+          path: .cache/publication-timing
+          key: begd-publication-timing-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: begd-publication-timing-v1-
+      - name: Observe ERP publication timing
+        run: >-
+          python scripts/publication_timing.py
+          --published-url https://satyakibanik.github.io/Projects/begd/publication-timing.json
+      - name: Save ERP publication timing before building the site
+        uses: actions/cache/save@v4
+        with:
+          path: .cache/publication-timing
+          key: begd-publication-timing-v1-${{ github.run_id }}-${{ github.run_attempt }}
       - name: Verify BPDB TLS certificate chain
         continue-on-error: true
         run: |
