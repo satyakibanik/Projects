@@ -162,7 +162,31 @@ def read_state(path, published_url):
     return state["feeds"]
 
 
-def collect(path, published_url=None):
+def merge_imported_observations(feeds, imported, today):
+    """Merge receipts without advancing the runner's own polling checkpoint."""
+    cutoff = (today - dt.timedelta(days=RETENTION_DAYS - 1)).isoformat()
+    for source, incoming in imported.items():
+        if source not in FEEDS:
+            continue
+        retained = [row for row in incoming["observations"] if cutoff <= row["date"] <= today.isoformat()]
+        if not retained:
+            continue
+        feed = feeds.setdefault(source, {})
+        if incoming.get("baseline_through"):
+            # Use the older baseline when a collector already covered the day.
+            feed["baseline_through"] = min(feed.get("baseline_through", incoming["baseline_through"]),
+                                           incoming["baseline_through"])
+        by_id = {}
+        for row in [*feed.get("observations", []), *retained]:
+            key = row.get("report_id") or f'{row["date"]}T{row["reading_time"]}'
+            previous = by_id.get(key)
+            if previous is None or dt.datetime.fromisoformat(row["first_seen_at"]) < dt.datetime.fromisoformat(previous["first_seen_at"]):
+                by_id[key] = row
+        feed.setdefault("seen", {}).update({key: row["date"] for key, row in by_id.items()})
+        feed["observations"] = sorted(by_id.values(), key=lambda row: row["first_seen_at"])
+
+
+def collect(path, published_url=None, imported_path=None):
     feeds = read_state(path, published_url)
     with ThreadPoolExecutor(max_workers=len(FEEDS)) as pool:
         requests = {source: pool.submit(poll, source) for source in FEEDS}
@@ -171,6 +195,8 @@ def collect(path, published_url=None):
                 feeds[source] = update_feed(feeds.get(source, {}), source, request.result())
             except Exception as error:
                 print(f"Publication timing {source} poll failed: {type(error).__name__}: {error}")
+    if imported_path:
+        merge_imported_observations(feeds, read_state(imported_path, None), dhaka_date(now()))
     state = {
         "version": 1,
         "retention_days": RETENTION_DAYS,
@@ -189,5 +215,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state", type=Path, default=CACHE)
     parser.add_argument("--published-url")
+    parser.add_argument("--import-observations", type=Path)
     args = parser.parse_args()
-    collect(args.state, args.published_url)
+    collect(args.state, args.published_url, args.import_observations)
