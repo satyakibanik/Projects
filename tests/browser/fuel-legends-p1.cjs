@@ -52,7 +52,7 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   const buttons=page.locator('.plant-icon-key > button');await buttons.first().waitFor();
   assert.equal(await page.locator('.plant-slide-info .plant-category-key').count(),0,'Fuel types are listed once');
   assert(await buttons.count()>0);
-  assert(await buttons.evaluateAll(items=>items.every(b=>b.querySelector('img')&&getComputedStyle(b).backgroundColor!=='rgba(0, 0, 0, 0)')),'Each plant fuel combines its icon and color');
+  assert(await buttons.evaluateAll(items=>items.every(b=>b.querySelector('img')&&b.querySelector('.plant-fuel-swatch')&&getComputedStyle(b).backgroundColor==='rgba(0, 0, 0, 0)')),'Each plant fuel combines its icon and color');
   await buttons.first().click();assert.equal(await buttons.first().getAttribute('aria-pressed'),'true');
   await buttons.first().click();assert.equal(await buttons.first().getAttribute('aria-pressed'),'false');
   const markers=page.locator('.plant-map-marker'),rings=await markers.count();
@@ -145,14 +145,34 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   assert.equal(await page.locator('.plant-dot-symbol').count(),0);
   await dots.check();
   assert.match(await page.locator('.plant-slide-tabs [role=tab]').nth(1).innerText(),/02\s+Present capacity/);
-  await page.locator('.plant-icon-key > button').first().click();
-  await page.getByRole('tab',{name:/Present capacity/}).click();
-  assert.equal(await page.locator('.plant-icon-key').isVisible(),false);
-  assert.equal(await page.locator('.plant-map-marker.is-fuel-muted').count(),0);
-  assert.equal(await icons.isChecked(),true);
+  const slideTabs=page.locator('.plant-slide-tabs [role=tab]');
+  for(const tab of (await slideTabs.all()).slice(1)){
+   await tab.click();
+   assert.equal(await dots.isChecked(),true);
+   assert.equal(await page.locator('.plant-map-markers image').count(),0);
+   assert.equal(await page.locator('.plant-icon-key').isVisible(),true);
+   assert(await buttons.count()>0);
+  }
+  const capacity=page.getByRole('tab',{name:/Present capacity/});
+  await capacity.click();
+  assert.equal(await rooppur.locator('.plant-dot-symbol > circle[fill="#ed3c35"]').count(),1);
+  await icons.check();
+  assert.equal(await capacity.getAttribute('aria-selected'),'true');
   await dots.check();
-  assert.equal(await page.getByRole('tab',{name:/Fuel type/}).getAttribute('aria-selected'),'true');
-  assert.equal(await page.locator('.plant-icon-key').isVisible(),true);
+  assert.equal(await capacity.getAttribute('aria-selected'),'true');
+  if(width>=800){
+   const fullscreenLegend=page.locator('.plant-fullscreen-legend');
+   assert.equal(await fullscreenLegend.isVisible(),false);
+   await page.getByRole('button',{name:'Enlarge map'}).click();
+   await fullscreenLegend.waitFor();
+   assert.match(await fullscreenLegend.innerText(),/Present capacity/);
+   assert(await fullscreenLegend.locator('.plant-gradient').isVisible());
+   assert(await fullscreenLegend.locator('.plant-fullscreen-fuels > span').filter({hasText:'Nuclear'}).locator('img').isVisible());
+   assert.equal(await fullscreenLegend.locator('button').count(),0);
+   await page.getByRole('button',{name:'Exit full screen'}).click();
+   assert.equal(await dots.isChecked(),true);
+   assert.equal(await fullscreenLegend.isVisible(),false);
+  }
   if(process.env.BEGD_FUEL_QA_OUTPUT){fs.mkdirSync(process.env.BEGD_FUEL_QA_OUTPUT,{recursive:true});await page.locator('.plant-icon-key').screenshot({path:path.join(process.env.BEGD_FUEL_QA_OUTPUT,`${width}-${theme}-plant-fuels.png`)});}
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1),false);
   assert.deepEqual(errors,[]);console.log('PASS fuel logos, group controls, P1 readings and plant legend',width,theme);

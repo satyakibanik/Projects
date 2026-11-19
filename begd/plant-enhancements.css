@@ -51,9 +51,9 @@
 .plant-map-marker:focus-visible .plant-slide-symbol,.plant-map-marker.is-active .plant-slide-symbol{filter:drop-shadow(0 0 3px #167bc7)}
 .plant-map-marker .plant-slide-symbol circle{vector-effect:none}
 .plant-icon-key{display:flex;align-items:center;flex-wrap:wrap;gap:10px 18px;margin:18px 0 10px;font:11px var(--mono);color:var(--muted)}
-.plant-icon-key>span{display:inline-flex;align-items:center;gap:7px}
-.plant-icon-key img{width:23px;height:23px;object-fit:contain;background:#fff;border-radius:4px;padding:3px;box-sizing:content-box}
-.plant-icon-key[hidden]{display:none}
+.plant-icon-key img,.plant-fullscreen-fuels img{width:26px;height:26px;object-fit:contain}
+[data-theme=dark] :is(.plant-icon-key,.plant-fullscreen-fuels) img{filter:invert(1)}
+.plant-fuel-swatch{display:inline-block;width:10px;height:10px;flex:0 0 auto;border-radius:50%}
 .plant-icon-key small{flex-basis:100%;font:10px/1.6 var(--mono)}
 .plant-icon-credits{font:10px/1.7 var(--mono);color:var(--muted);margin:12px 0}
 .plant-icon-credits summary{cursor:pointer;text-decoration:underline;text-underline-offset:3px}
@@ -68,17 +68,15 @@
 .has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(7,minmax(0,1fr))}
 .plant-gradient{background:linear-gradient(90deg,#ffe04b,#fa8f28,#ed3c35)}
 .plant-positive-label{font-size:10px}
-.plant-icon-key>button{display:inline-flex;align-items:center;gap:7px;padding:6px 8px;border:1px solid transparent;background:var(--fuel-color);color:#101820;font:11px var(--mono);border-radius:5px;cursor:pointer}
-.plant-icon-key>button:is([data-highlight-fuel="Coal"],[data-highlight-fuel="Gas"],[data-highlight-fuel="Nuclear"]){color:#fff}
-.plant-icon-key>button:hover,.plant-icon-key>button.is-highlighted{border-color:currentColor}
+.plant-map-panel .plant-icon-key>button{display:inline-flex;align-items:center;gap:7px;padding:5px 7px;border:1px solid transparent;background:transparent;color:var(--ink);font:11px var(--mono);border-radius:5px;cursor:pointer}
+.plant-map-panel .plant-icon-key>button:is(:hover,:focus-visible,.is-highlighted){border-color:currentColor;background:transparent;color:var(--ink)}
 .plant-icon-key>button:focus-visible,.plant-icon-key>button[aria-pressed="true"]{outline:2px solid var(--ink);outline-offset:2px}
-.plant-icon-key img{width:30px;height:30px}
 .plant-map-marker.is-fuel-muted{opacity:.16}
 .plant-map-marker.is-fuel-match .plant-slide-symbol{filter:drop-shadow(0 0 5px #187acb)}
 .has-fuel-highlight .plant-map-heat{opacity:.15}
 @media(max-width:1100px){.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(4,minmax(0,1fr))}.has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,2fr) minmax(220px,1fr)}.has-plant-slides .plant-map-frame{height:740px}.has-plant-slides .plant-map-sidebar{max-height:740px}}
 @media(max-width:800px){.has-plant-slides .plant-map-layout{grid-template-columns:minmax(0,1fr)}.has-plant-slides .plant-map-sidebar{max-height:360px}.has-plant-slides .plant-map-frame{height:700px}.has-plant-slides .plant-slide-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}}
-.plant-icon-key{margin:0 0 18px;padding:12px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.plant-icon-key{margin:0 0 14px;padding:6px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .plant-map-card dd.plant-metric-value{border-left:4px solid var(--metric-color);padding:4px 7px;background:color-mix(in srgb,var(--metric-color) 15%,transparent);border-radius:3px;color:var(--ink)}
 /* Compact legends; map-only category selection. */
 .has-plant-slides #plant-map-summary{display:none}
@@ -130,3 +128,14 @@
 html:has(.is-plant-map-expanded){overflow:hidden}
 .geomap-viewport:is(:fullscreen,.is-plant-map-expanded)>.plant-map-frame{flex:1;min-height:0;height:auto}
 .geomap-viewport:is(:fullscreen,.is-plant-map-expanded)>.map-controls{top:20px;right:20px}
+
+.plant-fullscreen-legend{display:none;position:absolute;left:8px;bottom:8px;z-index:1;max-width:min(340px,calc(100% - 16px));max-height:40%;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);box-shadow:0 2px 8px #0002;font:11px/1.4 var(--mono)}
+.geomap-viewport:is(:fullscreen,.is-plant-map-expanded) .plant-fullscreen-legend{display:grid;gap:6px}
+.plant-fullscreen-legend .plant-category-key,.plant-fullscreen-legend .plant-gradient-key{gap:5px 8px;font-size:10px}
+.plant-fullscreen-legend .plant-gradient{max-width:110px;min-width:70px;height:7px}
+.plant-fullscreen-legend .plant-gradient>span{top:8px}
+.plant-fullscreen-fuels{display:flex;flex-wrap:wrap;gap:4px 10px}
+.plant-fullscreen-fuels>span{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+.plant-fullscreen-fuels img{width:18px;height:18px}
+.plant-fullscreen-fuels .plant-fuel-swatch{width:7px;height:7px}
+@media(max-width:700px){.plant-fullscreen-legend{bottom:18px}}

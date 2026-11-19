@@ -5,7 +5,7 @@ const base=root.BEGDPlantMap;if(!base)return;
 const NS='http://www.w3.org/2000/svg',BLUE='#2374e8',YELLOW='#ffe04b',RED='#ed3c35',GRAY='#89939e',MISSING='#9b7baf';
 const fuelColors={Imports:'#b07aa1',Coal:'#586574',Gas:'#2878cd',HFO:'#e67e28',HSD:'#df527b',Hydro:'#159d9c',Solar:'#e0b91d',Wind:'#4c9e48',Nuclear:'#8b5bc7','Not reported':MISSING};
 const slides=[
- {id:'fuel',title:'Fuel type',description:'Color and icons identify generation type. Hover a fuel icon below to preview matching units; click it to keep the selection.'},
+ {id:'fuel',title:'Fuel type',description:'Color identifies the fuel type.'},
  {id:'capacity',title:'Present capacity',unit:'MW',description:'Reported present capacity of each generating unit.'},
  {id:'energy',title:'Daily energy',unit:'MWh',description:'Reported energy generated across the operating day.',heat:true},
  {id:'peak',title:'Daily peak generation',unit:'MW',description:'Highest reported output for each generating unit during the day.',heat:true},
@@ -65,6 +65,14 @@ async function create(options){
  const heat=make(doc,'g',{class:'plant-map-heat','clip-path':'url(#plant-country-clip)','aria-hidden':'true'});svg.insertBefore(heat,svg.querySelector('.plant-map-boundaries'));
  const heatDefs=make(doc,'g');svg.querySelector('defs').append(heatDefs);
  const iconKey=doc.createElement('div');iconKey.className='plant-icon-key';iconKey.setAttribute('aria-label','Generation type icons');panel.querySelector('.plant-map-layout').before(iconKey);
+ const fullscreenLegend=doc.createElement('aside');
+ fullscreenLegend.className='plant-fullscreen-legend';
+ fullscreenLegend.setAttribute('aria-label','Map legend');
+ fullscreenLegend.setAttribute('data-html2canvas-ignore','');
+ frame.append(fullscreenLegend);
+ function fuelLegendEntry(fuel,label){
+  return `<i class="plant-fuel-swatch" style="background:${fuelColors[fuel]}" aria-hidden="true"></i><img src="plant-icons/${icons[fuel]}" alt="">${esc(label)}`;
+ }
  function readout(plant){
   const slide=slides[index];if(slide.unit){const v=metric(plant,slide.id,options);return `${slide.title}: ${v===null?'Not reported':fmt(v)+' '+slide.unit}`;}
   return `${slide.title}: ${category(plant,slide.id,options)}`;
@@ -105,8 +113,18 @@ async function create(options){
   else if(!fuelView){const categories=slide.id==='status'?['Online','Offline','Not reported']:[...catMap.keys()];legend=`<div class="plant-category-key">${categories.map(c=>`<button type="button" data-legend-filter="${esc(c)}" aria-pressed="${activeFilter?.id===slide.id&&activeFilter.value===c}"><i style="background:${catColor(c)}"></i>${esc(c)}</button>`).join('')}</div>`;}
   if(numeric&&maximum===0)legend=`<div class="plant-gradient-key"><button type="button" data-legend-filter="zero"><i style="background:${GRAY}"></i>0 ${slide.unit}</button><span>No positive reported values</span><button type="button" data-legend-filter="missing"><i style="background:${MISSING}"></i>Not reported</button></div>`;
   const partial=values.filter(v=>v.some(n=>n===null)&&v.some(n=>n!==null)).length;
-  const note=slide.heat?`Marker size, color and halo show combined ${slide.unit} for grouped units; scale follows the filtered map and zoom.${slide.id==='peak'?' Grouped values sum individual daily peaks, which may occur at different times.':''}${partial?' '+partial+' group(s) have incomplete readings.':''}`:slide.id==='capacity'?'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity; shared capacities are not added together.':dots?'Mixed-color dots show the fuel types in a group.':slide.id==='fuel'?'Split rings and multiple icons identify mixed-fuel groups. Hover a fuel icon below to preview matching units; click it to keep the selection.':'Split rings show each category’s share of the units in a group.';
-  info.innerHTML=`<div class="plant-slide-heading"><h3>${slide.title}${slide.unit?' <span>'+slide.unit+'</span>':''}</h3><p>${dots?'Small dots show fuel types. An × badge counts generating units in a group.':slide.description}</p></div>${legend}<p class="plant-slide-note">${note} Zoom in to separate nearby units.</p>`;
+  let note;
+  if(slide.heat){
+   note=`${dots?'Dot color shows':'Marker size, color and halo show'} combined ${slide.unit} for grouped units. The scale follows the filtered map and zoom.`;
+   if(slide.id==='peak')note+=' Grouped values sum individual daily peaks, which may occur at different times.';
+   if(partial)note+=` ${partial} group(s) have incomplete readings.`;
+  }else if(slide.id==='capacity'){
+   note=dots?'Each dot segment shows one unit’s capacity.':'Marker size shows the largest unit capacity in a group. Each ring segment shows one unit’s capacity.';
+   note+=' Shared capacities are kept separate.';
+  }else{
+   note=`${dots?'Split dots':'Split rings'} show each ${fuelView?'fuel type':'category'}’s share of the group.`;
+  }
+  info.innerHTML=`<div class="plant-slide-heading"><h3>${slide.title}${slide.unit?' <span>'+slide.unit+'</span>':''}</h3><p>${slide.description}</p></div>${legend}<p class="plant-slide-note">${note} Zoom in to separate nearby units.</p>`;
   info.querySelectorAll('[data-legend-filter]').forEach(b=>b.setAttribute('aria-pressed',String(activeFilter?.id===slide.id&&activeFilter.value===b.dataset.legendFilter)));
   if(activeFilter){const status=doc.createElement('p');status.className='plant-legend-filter-status';status.setAttribute('role','status');status.textContent=`Showing ${controller.getGroups().reduce((n,g)=>n+g.items.length,0)} of ${mappedRows.length} mapped units · ${activeFilter.label}. Click the selected category again or click the map background to show all.`;info.append(status);}
   heat.replaceChildren();heatDefs.replaceChildren();
@@ -156,13 +174,20 @@ async function create(options){
    marker.append(symbol);
    const name=g.items.map(({plant})=>plant.name).join(', '),value=numeric&&slide.heat?`${slide.title}: ${sums[i]===null?'Not reported':fmt(sums[i])+' '+slide.unit}`:g.items.map(({plant})=>readout(plant)).join('; ');
    const title=`${name} · ${value}${numeric&&values[i].some(v=>v===null)?' · Incomplete / missing readings':''}`;marker.dataset.baseTitle=title;marker.querySelector('title').textContent=title;marker.setAttribute('aria-label',title);
-   if(slide.heat&&sums[i]!==null&&sums[i]>0){const c=color(sums[i],maximum),id=`plant-heat-${uid}-${i}`,gradient=make(doc,'radialGradient',{id});
+   if(!dots&&slide.heat&&sums[i]!==null&&sums[i]>0){const c=color(sums[i],maximum),id=`plant-heat-${uid}-${i}`,gradient=make(doc,'radialGradient',{id});
     for(const [at,opacity]of [['0%','.6'],['45%','.3'],['100%','0']])gradient.append(make(doc,'stop',{offset:at,'stop-color':c,'stop-opacity':opacity}));heatDefs.append(gradient);
     const ratio=maximum>0?sums[i]/maximum:0;heat.append(make(doc,'circle',{cx:g.point[0],cy:g.point[1],r:(radius+24*Math.sqrt(ratio))/scale,'data-screen-radius':radius+24*Math.sqrt(ratio),fill:`url(#${id})`}));}
   });
-  iconKey.hidden=!fuelView;
-  const fuels=[...new Set(groups.flatMap(g=>g.items.flatMap(i=>types(i.plant,options))))].sort();
-  iconKey.innerHTML=fuelView?fuels.map(f=>`<button type="button" data-highlight-fuel="${f}" aria-label="Highlight ${f} plants" style="--fuel-color:${fuelColors[f]||MISSING}"><img src="plant-icons/${icons[f]}" alt="">${esc(f)} (${groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(f)).length,0)})</button>`).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>':'';
+  const fuels=[...new Set(mappedRows.flatMap(plant=>types(plant,options)))].sort();
+  iconKey.innerHTML=fuels.map(fuel=>{
+   const count=groups.reduce((n,g)=>n+g.items.filter(i=>types(i.plant,options).includes(fuel)).length,0);
+   return `<button type="button" data-highlight-fuel="${fuel}" aria-label="Highlight ${fuel} plants">${fuelLegendEntry(fuel,`${fuel} (${count})`)}</button>`;
+  }).join('')+'<small class="plant-fuel-summary" role="status" aria-live="polite"></small>';
+  fullscreenLegend.innerHTML=`<strong>${slide.title}</strong>${legend}<div class="plant-fullscreen-fuels">${fuels.map(fuel=>`<span>${fuelLegendEntry(fuel,fuel)}</span>`).join('')}</div>`;
+  for(const button of fullscreenLegend.querySelectorAll('button')){
+   const label=doc.createElement('span');label.className=button.className;label.innerHTML=button.innerHTML;
+   button.replaceWith(label);
+  }
   applyHighlight(highlightedFuel);decorateSidebar();
  }
  function applyHighlight(fuel){
@@ -198,7 +223,7 @@ async function create(options){
   pinnedFuel=null;highlightedFuel=null;suppressPreview=true;updateMapFilter();
  });
  const clearOnOutside=e=>{
-  if(e.target.closest?.('[data-legend-filter],[data-plant-map-fullscreen]')||controls.contains(e.target)||e.target.closest?.('.plant-map-options'))return;
+  if(e.target.closest?.('[data-legend-filter],[data-plant-map-fullscreen]')||controls.contains(e.target)||e.target.closest?.('.plant-map-options,.plant-fullscreen-legend'))return;
   const restore=Boolean(activeFilter&&!e.target.closest?.('.plant-map-marker'));
   if(restore)activeFilter=null;
   if(!e.target.closest?.('.plant-icon-key [data-highlight-fuel]')){pinnedFuel=null;suppressPreview=false;applyHighlight(null);}
@@ -211,16 +236,11 @@ async function create(options){
  function select(i,focus=false){
   const restore=Boolean(activeFilter);activeFilter=null;if(restore)controller.update(rows);
   index=(i+slides.length)%slides.length;preferred=index;
-  if(slides[index].id!=='fuel'){
-   setMarkerView(false);pinnedFuel=null;highlightedFuel=null;suppressPreview=false;
-  }
   render();
   if(focus)controls.querySelector(`[data-slide="${index}"]`).focus();
  }
  viewOptions.addEventListener('change',event=>{
-  const useDots=event.target.value==='dots';
-  if(useDots&&index!==0)select(0);
-  setMarkerView(useDots);render();
+  setMarkerView(event.target.value==='dots');render();
  });
  controls.addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.slide!==undefined)select(Number(b.dataset.slide));else select(index+Number(b.dataset.slideStep))});
  controls.addEventListener('keydown',e=>{if(!e.target.matches('[data-slide]'))return;const key=e.key;if(['ArrowRight','ArrowLeft','Home','End'].includes(key)){e.preventDefault();select(key==='Home'?0:key==='End'?slides.length-1:index+(key==='ArrowRight'?1:-1),true)}});
