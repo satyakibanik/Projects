@@ -198,7 +198,7 @@ async function create(options){
   pinnedFuel=null;highlightedFuel=null;suppressPreview=true;updateMapFilter();
  });
  const clearOnOutside=e=>{
-  if(e.target.closest?.('[data-legend-filter]')||controls.contains(e.target)||e.target.closest?.('.plant-map-options'))return;
+  if(e.target.closest?.('[data-legend-filter],[data-plant-map-fullscreen]')||controls.contains(e.target)||e.target.closest?.('.plant-map-options'))return;
   const restore=Boolean(activeFilter&&!e.target.closest?.('.plant-map-marker'));
   if(restore)activeFilter=null;
   if(!e.target.closest?.('.plant-icon-key [data-highlight-fuel]')){pinnedFuel=null;suppressPreview=false;applyHighlight(null);}

@@ -122,7 +122,9 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
    const viewport=page.locator('.plant-map-layout .geomap-viewport');
    await viewport.evaluate(el=>Object.defineProperty(el,'requestFullscreen',{value:undefined}));
    const expand=page.getByRole('button',{name:'Enlarge map'}),collapse=page.getByRole('button',{name:'Exit full screen'});
+   await buttons.first().click();
    await expand.click();await collapse.waitFor();
+   assert.equal(await buttons.first().getAttribute('aria-pressed'),'true');
    assert(await viewport.evaluate(el=>el.classList.contains('is-plant-map-expanded')));
    await collapse.click();await expand.waitFor();
    await expand.click();await collapse.waitFor();

@@ -125,7 +125,7 @@
   const doc=viewport.ownerDocument,button=doc.createElement('button');
   const expand='M8 3H3v5m8-5h5v5M3 11v5h5m8-5v5h-5';
   const collapse='M3 8h5V3m8 5h-5V3M8 16v-5H3m8 5v-5h5';
-  button.type='button';
+  button.type='button';button.dataset.plantMapFullscreen='';
   button.innerHTML='<svg viewBox="0 0 19 19" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path/></svg>';
   viewport.querySelector('.map-controls').append(button);
   let fallback=false,wasExpanded=false;
