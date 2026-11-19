@@ -14,10 +14,10 @@
   const radians=Math.max(-85.051129,Math.min(85.051129,lat))*Math.PI/180;
   return [world*(lon/360+.5),world*(.5-Math.asinh(Math.tan(radians))/(2*Math.PI))];
  };
- function tileViewport(view,width,height){
+ function tileViewport(view,width,height,zoom){
   const scale=Math.min(width/view.w,height/view.h);
   const left=view.x+(view.w-width/scale)/2,top=view.y+(view.h-height/scale)/2;
-  const z=Math.max(0,Math.min(19,Math.round(Math.log2(world*scale/256))));
+  const z=zoom??Math.max(0,Math.min(19,Math.round(Math.log2(world*scale/256))));
   const tileCount=2**z,size=world/tileCount,tiles=[];
   const endX=Math.min(tileCount,Math.ceil((left+width/scale)/size));
   const endY=Math.min(tileCount,Math.ceil((top+height/scale)/size));
@@ -35,10 +35,11 @@
   },
   satellite:{
    url:({z,x,y})=>`https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/${z}/${y}/${x}.jpg`,
+   shortCredit:'<a href="https://cloudless.eox.at/documentation/license" target="_blank" rel="noopener">EOxCloudless · Sentinel 2016–17 · CC BY 4.0</a>',
    credit:'<a href="https://cloudless.eox.at/" target="_blank" rel="noopener">EOxCloudless</a> by <a href="https://eox.at/" target="_blank" rel="noopener">EOX IT Services GmbH</a> (Contains modified Copernicus Sentinel data 2016 &amp; 2017) · <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>'
   }
  };
- let preferredBasemap='boundaries';
+ let preferredBasemap='streets';
  function createBasemap(frame,svg,viewChanged){
   const doc=frame.ownerDocument;
   const tiles=doc.createElement('div');tiles.className='plant-basemap-tiles';tiles.setAttribute('aria-hidden','true');
@@ -46,47 +47,122 @@
   const status=doc.createElement('span');status.className='plant-basemap-status';status.setAttribute('role','status');
   frame.replaceChildren(tiles,svg,credit);
   const controls=doc.createElement('div');controls.className='plant-map-options';controls.setAttribute('data-html2canvas-ignore','');
-  controls.innerHTML='<label>Basemap <select><option value="boundaries">Boundaries only</option><option value="streets">OpenStreetMap streets</option><option value="satellite">Satellite · 2016–17</option></select></label>';
+  controls.innerHTML='<label>Basemap <select><option value="streets">OpenStreetMap streets</option><option value="boundaries">Boundaries only</option><option value="satellite">Satellite · 2016–17</option></select></label>';
   controls.append(status);frame.parentElement.append(controls);
   const picker=controls.querySelector('select');
-  const images=new Map();
+  const credits=frame.closest('.plant-map-panel').querySelector('.plant-map-attribution');
+  credits?.insertAdjacentHTML('beforeend',`<br>Basemaps · ${basemaps.streets.credit}. ${basemaps.satellite.credit}.`);
+  let current=null,previous=null;
+  function removeLayer(layer){layer?.element.remove()}
   function updateStatus(){
-   const available=[...images.values()].some(img=>img.naturalWidth>0);
+   const images=[...current?.images.values()||[]];
+   if(previous&&images.length&&images.every(img=>img.naturalWidth>0)){
+    removeLayer(previous);previous=null;
+   }
+   const available=images.some(img=>img.naturalWidth>0)||[...previous?.images.values()||[]].some(img=>!img.hidden&&img.naturalWidth>0);
    frame.classList.toggle('has-plant-basemap',available);
-   const unavailable=images.size>0&&!available&&[...images.values()].every(img=>img.complete);
+   const unavailable=images.length>0&&!available&&images.every(img=>img.complete);
    const message=unavailable?'Basemap tiles unavailable.':'';
    if(status.textContent!==message)status.textContent=message;
+  }
+  function place(img,tile){
+   img.style.left=`${tile.left}px`;img.style.top=`${tile.top}px`;
+   img.style.width=img.style.height=`${tile.size}px`;img.hidden=false;
   }
   function draw(view,width,height){
    const source=basemaps[picker.value];
    if(!source||!width||!height)return;
+   const visibleTiles=tileViewport(view,width,height);
+   if(!visibleTiles.length)return;
+   const z=visibleTiles[0].z;
+   if(current?.z!==z){
+    if(previous?.z===z){
+     removeLayer(current);current=previous;previous=null;
+    }else{
+     // Keep loaded imagery underneath the incoming zoom level.
+     if(!previous&&current&&[...current.images.values()].some(img=>img.naturalWidth>0))previous=current;
+     else removeLayer(current);
+     current={z,images:new Map(),element:doc.createElement('div')};
+     tiles.append(current.element);
+    }
+   }
+   if(previous){
+    for(const img of previous.images.values())img.hidden=true;
+    for(const tile of tileViewport(view,width,height,previous.z)){
+     const img=previous.images.get(source.url(tile));if(img)place(img,tile);
+    }
+   }
    const visible=new Set();
-   for(const tile of tileViewport(view,width,height)){
+   for(const tile of visibleTiles){
     const url=source.url(tile);visible.add(url);
-    let img=images.get(url);
+    let img=current.images.get(url);
     if(!img){
      img=doc.createElement('img');img.alt='';img.crossOrigin='anonymous';img.draggable=false;
      img.referrerPolicy='strict-origin-when-cross-origin';
-     img.addEventListener('load',()=>{img.classList.add('is-loaded');updateStatus()});img.addEventListener('error',updateStatus);
-     images.set(url,img);img.src=url;tiles.append(img);
+     img.addEventListener('load',()=>{img.classList.add('is-loaded');updateStatus()});
+     img.addEventListener('error',updateStatus);
+     current.images.set(url,img);img.src=url;current.element.append(img);
     }
-    img.style.left=`${tile.left}px`;img.style.top=`${tile.top}px`;
-    img.style.width=img.style.height=`${tile.size}px`;
+    place(img,tile);
    }
-   for(const [url,img] of images)if(!visible.has(url)){img.remove();images.delete(url)}
+   for(const [url,img] of current.images)if(!visible.has(url)){img.remove();current.images.delete(url)}
    updateStatus();
   }
-  function select(){
-   preferredBasemap=picker.value;
-   images.clear();tiles.replaceChildren();updateStatus();
+  function showCredit(){
    const source=basemaps[picker.value];
-   credit.hidden=!source;credit.innerHTML=source?.credit||'';
-   viewChanged();
+   frame.dataset.basemap=picker.value;
+   credit.hidden=!source;credit.innerHTML=source?.shortCredit||source?.credit||'';
   }
-  picker.value=preferredBasemap;
-  picker.addEventListener('change',select);
-  credit.hidden=!basemaps[picker.value];credit.innerHTML=basemaps[picker.value]?.credit||'';
+  picker.value=preferredBasemap;showCredit();
+  picker.addEventListener('change',()=>{
+   preferredBasemap=picker.value;
+   current=null;previous=null;tiles.replaceChildren();updateStatus();showCredit();
+   viewChanged();
+  });
   return draw;
+ }
+ function addFullscreenControl(viewport){
+  const doc=viewport.ownerDocument,button=doc.createElement('button');
+  const expand='M8 3H3v5m8-5h5v5M3 11v5h5m8-5v5h-5';
+  const collapse='M3 8h5V3m8 5h-5V3M8 16v-5H3m8 5v-5h5';
+  button.type='button';
+  button.innerHTML='<svg viewBox="0 0 19 19" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path/></svg>';
+  viewport.querySelector('.map-controls').append(button);
+  let fallback=false,wasExpanded=false;
+  const isExpanded=()=>fallback||doc.fullscreenElement===viewport;
+  function sync(){
+   const expanded=isExpanded(),label=expanded?'Exit full screen':'Enlarge map';
+   button.setAttribute('aria-label',label);button.title=label;
+   button.querySelector('path').setAttribute('d',expanded?collapse:expand);
+   if(wasExpanded&&!expanded&&button.isConnected)button.focus({preventScroll:true});
+   wasExpanded=expanded;
+  }
+  function setFallback(expanded){
+   fallback=expanded;viewport.classList.toggle('is-plant-map-expanded',expanded);sync();
+  }
+  function exit(){
+   if(fallback)setFallback(false);
+   else if(doc.fullscreenElement===viewport)doc.exitFullscreen().catch(()=>{});
+  }
+  function escape(event){
+   if(event.key==='Escape'&&isExpanded()){
+    event.preventDefault();exit();
+   }
+  }
+  button.addEventListener('click',async()=>{
+   if(isExpanded()){exit();return}
+   if(viewport.requestFullscreen){
+    try{await viewport.requestFullscreen();sync();return}catch{}
+   }
+   setFallback(true);
+  });
+  doc.addEventListener('fullscreenchange',sync);
+  doc.addEventListener('keydown',escape);
+  sync();
+  return ()=>{
+   doc.removeEventListener('fullscreenchange',sync);
+   doc.removeEventListener('keydown',escape);
+  };
  }
  const polygons=geometry=>geometry.type==='Polygon'?[geometry.coordinates]:geometry.type==='MultiPolygon'?geometry.coordinates:[];
  const geometryPath=geometry=>polygons(geometry).map(p=>p.map(r=>r.map((v,i)=>`${i?'L':'M'}${project(v).map(n=>n.toFixed(3)).join(' ')}`).join('')+'Z').join('')).join('');
@@ -163,6 +239,7 @@
   // Marker centers already pass the country fence; draw full circles across coastlines.
   const layer=make('g',{class:'plant-map-markers'});svg.append(layer);
   const drawBasemap=createBasemap(frame,svg,()=>drawBasemap(view,frame.clientWidth,frame.clientHeight));
+  const removeFullscreenControl=addFullscreenControl(frame.parentElement);
   const paintViewport=()=>{
    svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.w} ${view.h}`);
    drawBasemap(view,frame.clientWidth,frame.clientHeight);
@@ -234,7 +311,7 @@
   svg.addEventListener('pointerleave',()=>{if(!pinnedGroup)layer.querySelectorAll('.is-active').forEach(el=>el.classList.remove('is-active'))});
   const resize=new ResizeObserver(()=>repaint());resize.observe(frame);
   // A detached map has no live listeners or observers to retain on tab/date changes.
-  const detach=new MutationObserver(()=>{if(!frame.isConnected){stopZoom();resize.disconnect();detach.disconnect()}});detach.observe(doc.getElementById('content'),{childList:true});
+  const detach=new MutationObserver(()=>{if(!frame.isConnected){stopZoom();resize.disconnect();removeFullscreenControl();detach.disconnect()}});detach.observe(doc.getElementById('content'),{childList:true});
   return {getGroups(){return groups},setGroupingPixels(pixels){
    if(groupingPixels!==pixels){groupingPixels=pixels;repaint()}
   },update(rows){

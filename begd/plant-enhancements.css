@@ -111,13 +111,22 @@
 .plant-basemap-tiles{position:absolute;inset:0;overflow:hidden;pointer-events:none}
 .plant-basemap-tiles img{position:absolute;max-width:none;visibility:hidden}
 .plant-basemap-tiles img.is-loaded{visibility:visible}
-.plant-basemap-credit{position:absolute;left:0;bottom:0;max-width:75%;padding:2px 5px;background:var(--surface);color:var(--ink);font:10px/1.4 var(--mono)}
+.plant-basemap-tiles img[hidden]{display:none}
+.plant-basemap-credit{position:absolute;right:0;bottom:0;max-width:75%;padding:1px 4px;background:var(--surface);color:var(--ink);text-align:right;font:9px/1.35 var(--mono)}
 .plant-basemap-credit a{color:var(--green)}
 .plant-map-frame.has-plant-basemap .plant-map-country{fill-opacity:.08}
-.plant-map-frame.has-plant-basemap .plant-map-boundary{stroke:#f3f7fa}
-.plant-map-frame.has-plant-basemap :is(.plant-map-boundaries,.plant-map-country){filter:drop-shadow(0 0 1px #163549)}
+.plant-map-frame.has-plant-basemap[data-basemap="streets"] .plant-map-boundary{stroke:#426178}
+.plant-map-frame.has-plant-basemap[data-basemap="satellite"] .plant-map-boundary{stroke:#f3f7fa}
+.plant-map-frame.has-plant-basemap[data-basemap="satellite"] :is(.plant-map-boundaries,.plant-map-country){filter:drop-shadow(0 0 1px #163549)}
 .plant-map-options{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;margin-top:8px}
 .plant-map-options>label{display:flex;align-items:center;gap:7px;font-size:13px}
 .plant-map-options select{max-width:100%;min-height:34px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--surface);color:var(--ink);font:inherit}
 .plant-basemap-status{font:11px var(--mono);color:var(--muted)}
 .plant-basemap-status:empty{display:none}
+
+.geomap-viewport>.map-controls button svg{display:block}
+.geomap-viewport:is(:fullscreen,.is-plant-map-expanded){display:flex;flex-direction:column;gap:0;padding:8px;background:var(--bg)}
+.geomap-viewport.is-plant-map-expanded{position:fixed;inset:0;z-index:10000}
+html:has(.is-plant-map-expanded){overflow:hidden}
+.geomap-viewport:is(:fullscreen,.is-plant-map-expanded)>.plant-map-frame{flex:1;min-height:0;height:auto}
+.geomap-viewport:is(:fullscreen,.is-plant-map-expanded)>.map-controls{top:20px;right:20px}

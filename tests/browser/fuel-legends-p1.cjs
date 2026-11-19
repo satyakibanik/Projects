@@ -85,8 +85,12 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
   assert.equal(await icons.isChecked(),true);
   const basemap=page.getByRole('combobox',{name:'Basemap'});
   assert(await views.evaluate(el=>el.parentElement.previousElementSibling.classList.contains('map-controls')));
-  assert.equal(await basemap.inputValue(),'boundaries');
-  assert.equal(await page.locator('.plant-basemap-tiles img').count(),0);
+  assert.equal(await basemap.inputValue(),'streets');
+  await page.locator('.plant-basemap-tiles img.is-loaded[src*="tile.openstreetmap.org"]').first().waitFor();
+  const more=page.locator('.plant-map-panel .more-information');
+  await more.locator('summary').click();
+  assert.match(await more.innerText(),/OpenStreetMap contributors.*EOxCloudless/s);
+  await more.locator('summary').click();
   if(width>=800){
    const svg=page.locator('.plant-location-map'),viewBefore=await svg.getAttribute('viewBox');
    const outline=await page.locator('.plant-map-country').getAttribute('d');
@@ -98,6 +102,32 @@ const report=process.env.BEGD_P1_REPORT?JSON.parse(fs.readFileSync(process.env.B
     assert.equal(await page.locator('.plant-map-country').getAttribute('d'),outline);
     assert.equal(await page.locator('.plant-map-district-boundary').count(),64);
    }
+   await page.emulateMedia({reducedMotion:'reduce'});
+   let releaseTiles;
+   const delayedTiles=new Promise(resolve=>{releaseTiles=resolve});
+   const delaySatellite=async route=>{await delayedTiles;await route.fallback()};
+   await page.route('https://tiles.maps.eox.at/**',delaySatellite);
+   try{
+    await page.getByRole('button',{name:'Zoom in on power plants'}).click();
+    assert.notEqual(await svg.getAttribute('viewBox'),viewBefore);
+    assert.equal(await page.locator('.plant-basemap-tiles > div').count(),2);
+    assert(await page.locator('.plant-basemap-tiles > div').first().locator('img.is-loaded:visible').count()>0);
+    assert(await page.locator('.plant-map-frame').evaluate(el=>el.classList.contains('has-plant-basemap')));
+   }finally{releaseTiles()}
+   await page.locator('.plant-basemap-tiles > div').nth(1).waitFor({state:'detached'});
+   await page.unroute('https://tiles.maps.eox.at/**',delaySatellite);
+   await page.getByRole('button',{name:'Reset',exact:true}).click();
+
+   // Exercise the in-page fullscreen fallback used by embedded browsers.
+   const viewport=page.locator('.plant-map-layout .geomap-viewport');
+   await viewport.evaluate(el=>Object.defineProperty(el,'requestFullscreen',{value:undefined}));
+   const expand=page.getByRole('button',{name:'Enlarge map'}),collapse=page.getByRole('button',{name:'Exit full screen'});
+   await expand.click();await collapse.waitFor();
+   assert(await viewport.evaluate(el=>el.classList.contains('is-plant-map-expanded')));
+   await collapse.click();await expand.waitFor();
+   await expand.click();await collapse.waitFor();
+   await page.keyboard.press('Escape');await expand.waitFor();
+   assert.equal(await viewport.evaluate(el=>el.classList.contains('is-plant-map-expanded')),false);
    await basemap.selectOption('boundaries');
    assert.equal(await page.locator('.plant-basemap-tiles img').count(),0);
    assert.equal(await page.locator('.plant-basemap-credit').isVisible(),false);
