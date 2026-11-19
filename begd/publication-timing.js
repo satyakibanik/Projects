@@ -272,13 +272,9 @@
   }
 
   function historyDetails(row, observation) {
-    if (!row.slots.length && !row.reports.length) return observation ? recordsForDay(observation) : '—';
+    if (!row.slots.length) return observation ? recordsForDay(observation) : '—';
     const details = element('details');
-    details.append(element('summary', row.slots.length ? 'Reading slots' : 'Workbook metadata'));
-    if (row.slots.length) details.append(element('p', row.slots.join(', ')));
-    for (const report of row.reports) {
-      details.append(element('p', 'Report ' + report.report_id + ' · ' + workbookMetadata(report)));
-    }
+    details.append(element('summary', 'Reading slots'), element('p', row.slots.join(', ')));
     if (!observation) return details;
     const cell = element('div');
     cell.append(details, recordsForDay(observation));
@@ -362,9 +358,8 @@
       if (!details.open || details.childElementCount > 1) return;
       const list = element('ul');
       for (const row of day.records) {
-        list.append(element('li', recordLabel(row) + ' · First seen ' + format(row.first_seen_at)
-          + (row.absent_after ? ' · Absent at ' + format(row.absent_after) : '')
-          + (row.report_id ? ' · ' + workbookMetadata(row) : '')));
+        list.append(element('li', recordLabel(row) + (row.report_id ? ' · First fetched ' : ' · First seen ')
+          + format(row.first_seen_at) + (row.absent_after ? ' · Absent at ' + format(row.absent_after) : '')));
       }
       details.append(list);
     });
@@ -413,25 +408,17 @@
       const firstDate = archiveDays.at(-1)?.date;
       const days = daysBySource[select.value].filter(day => !firstDate || day.date >= firstDate);
       const note = element('p', workbook
-        ? 'Source date is the ERP listing’s publication date. First seen is when BEGD downloaded a workbook that passed parsing.'
+        ? 'Listed date comes from ERP. First fetched by BEGD is the recorded download time for a workbook that passed parsing. Older listings without a saved receipt are marked No fetch recorded.'
         : 'Source date and reading time come from the ERP table. First seen is when BEGD received the first newly observed reading for that date.');
       results.replaceChildren(note);
       const observed = new Map(days.map(day => [day.date, day]));
-      if (archiveDays.length) {
-        const evidence = workbook
-          ? 'The Excel plot shows file creation and modification clock times. Full dates are in the table.'
-          : 'Each dot is a dated ERP reading slot. First-seen times come from the live poll log.';
-        const archivedPlot = workbook
-          ? workbookPlotRows(archiveDays.flatMap(day => day.reports))
-          : archiveReadingPlot(archiveDays);
-        const chart = workbook
-          ? (archivedPlot.length ? plot(archivedPlot, 'Archived Excel workbook clock times') : null)
-          : archivedPlot;
-        if (chart) results.append(element('h3', workbook ? 'Archived Excel timestamps' : 'ERP reading times'),
-          element('p', evidence), chart);
+      if (!workbook) {
+        const chart = archiveReadingPlot(archiveDays);
+        if (chart) results.append(element('h3', 'ERP reading times'),
+          element('p', 'Each dot is a dated ERP reading slot. First-seen times come from the live poll log.'), chart);
       }
       if (days.length) {
-        results.append(element('h3', 'Observed publication windows'),
+        results.append(element('h3', workbook ? 'BEGD workbook fetch windows' : 'Observed publication windows'),
           element('p', 'Lines span the previous absence and first receipt. Hollow dots mark days excluded from the estimate. The shaded band shows the typical window when available.'),
           observedPlot(days, estimates[select.value]));
       }
@@ -441,19 +428,17 @@
       }
       const rows = archiveDays.map(row => {
         const day = observed.get(row.date);
-        const report = row.reports[0];
         const sourceData = row.slots.length
           ? row.slots[0] + ' – ' + row.slots.at(-1) + ' · ' + row.slots.length + ' slots'
           : row.unavailable ? 'Archive unavailable' : '—';
         return [
           row.date, workbook ? row.reports.map(item => '#' + item.report_id).join(', ') || '—' : sourceData,
-          ...(workbook ? [workbookTime(report?.excel_created_at), workbookTime(report?.excel_modified_at)] : []),
-          day?.bounded ? format(day.lower) : '—', day ? format(day.upper) : '—',
+          day?.bounded ? format(day.lower) : '—', day ? format(day.upper) : workbook && row.reports.length ? 'No fetch recorded' : '—',
           day ? dayStatus(day) : '—', historyDetails(row, day)
         ];
       });
       const headers = [workbook ? 'Listed date' : 'Reading date', workbook ? 'ERP reports' : 'Reading range',
-        ...(workbook ? ['Excel created', 'Excel modified'] : []), 'Previously absent', 'First seen', 'Estimate', 'Details'];
+        'Previously absent', workbook ? 'First fetched by BEGD' : 'First seen', 'Estimate', 'Details'];
       const historyTable = table(headers, rows);
       historyTable.classList.add('timing-daily-table');
       results.append(historyTable);

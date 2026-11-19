@@ -132,6 +132,7 @@ jobs:
         run: >-
           python scripts/publication_timing.py
           --published-url https://satyakibanik.github.io/Projects/begd/publication-timing.json
+          --import-observations scripts/publication-timing-import.json
       - name: Save ERP publication timing before building the site
         uses: actions/cache/save@v4
         with:
