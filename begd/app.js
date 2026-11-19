@@ -92,8 +92,18 @@ function chartLegend(series,balanceLegend,wrapLegend,familyLegend,forecastLegend
   return `<div class="legend legend-wrap">${series.filter(s=>s.family!=='forecast'&&s.family!=='published').map(label).join('')}</div>${group('forecast',typeof forecastLegend==='string'?forecastLegend:'Forecast')}${group('published',publishedLegend||'Published forecast')}`;
  }
  if(familyLegend){
-  const family=familyLegend.family,items=series.filter(s=>s.family===family);
-  return `<div class="legend family-legend"><label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" checked>${esc(familyLegend.label||"All sources")}</label><div class="family-legend-items">${items.map(s=>`<label><input type="checkbox" data-toggle-series="${s.key}" data-series-family="${family}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${icon(s)}${esc(s.name)}</span></label>`).join('')}</div></div>`;
+  const item=(s,family)=>`<label${s.key==='shortage_mw'?' class="legend-shortage"':''}><input type="checkbox" data-toggle-series="${s.key}"${family?' data-series-family="'+family+'"':''} ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${icon(s)}${esc(s.name)}</span></label>`;
+  const master=(family,label,items)=>`<label class="family-legend-master"><input type="checkbox" data-toggle-family="${family}" ${items.every(s=>s.defaultVisible!==false)?'checked':''}>${esc(label||'All sources')}</label>`;
+  if(Array.isArray(familyLegend)){
+   const groups=familyLegend.map(({family,label})=>{
+    const items=series.filter(s=>s.family===family);
+    return items.length?`<fieldset class="source-legend-group"><legend>${master(family,label,items)}</legend>${items.map(s=>item(s,family)).join('')}</fieldset>`:'';
+   }).join('');
+   const other=series.filter(s=>!familyLegend.some(group=>group.family===s.family));
+   return `<div class="legend">${groups}${other.map(s=>item(s)).join('')}</div>`;
+  }
+  const {family,label}=familyLegend,items=series.filter(s=>s.family===family);
+  return `<div class="legend family-legend">${master(family,label,items)}<div class="family-legend-items">${items.map(s=>item(s,family)).join('')}</div></div>`;
  }
  if(!balanceLegend){const legendSeries=series.filter(s=>s.key!=='shortage_mw').concat(series.filter(s=>s.key==='shortage_mw'));return `<div class="legend${wrapLegend?' legend-wrap':''}">${legendSeries.map(s=>`<label${s.key==='shortage_mw'?' class="legend-shortage"':''}><input type="checkbox" data-toggle-series="${s.key}" ${s.defaultVisible===false?'':'checked'}>${swatch(s)}<span data-series-label="${esc(s.key)}" tabindex="0">${icon(s)}${esc(s.name)}</span></label>`).join('')}</div>`;}
  const sources=[...new Set(series.map(s=>s.source).filter(Boolean))];
@@ -195,11 +205,14 @@ function overviewSnapshotMarkup(){
 }
 const energyShareSeries=[{key:'import_dependence_pct',name:'Import dependence (%)',color:'#347baf'},{key:'renewable_share_pct',name:'Renewable share (%)',color:'#36a77b'},{key:'clean_energy_share_pct',name:'Clean energy share (%)',color:colors.Nuclear}];
 const energyShareTitle='Import dependence (%), renewable share (%) & clean energy share (%)';
+const energyCurveSourceName=source=>String(source.name||source.key||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+const energyCurveImport=source=>/hvdc|adani|tripura|nepal|import|india/.test(energyCurveSourceName(source));
+const energyCurveLegend=[{family:'generation',label:'All generation sources'},{family:'imports',label:'All import sources'}];
 function overviewEnergyCompositionCharts(){
  const curve=data.en_curve,sources=(curve?.sources||[]).filter(source=>source.key!=='shortage_mw'),sourceGroups=new Map(),importKeys=[];
  for(const source of sources){
-  const label=String(source.name||source.key||'').trim(),normalized=label.toLowerCase().replace(/[^a-z0-9]/g,'');
-  if(/hvdc|adani|tripura|nepal|import|india/.test(normalized)){importKeys.push(source.key);continue;}
+  const label=String(source.name||source.key||'').trim(),normalized=energyCurveSourceName(source);
+  if(energyCurveImport(source)){importKeys.push(source.key);continue;}
   const category=normalized.includes('gas')?'Gas':/hfo|hsd|liquid|diesel|furnaceoil|heavyoil/.test(normalized)?'Liquid fuel':normalized.includes('coal')?'Coal':normalized.includes('hydro')?'Hydro':normalized.includes('solar')?'Solar':normalized.includes('wind')?'Wind':normalized.includes('nuclear')?'Nuclear':label;
   if(!sourceGroups.has(category))sourceGroups.set(category,[]);
   sourceGroups.get(category).push(source.key);
@@ -208,7 +221,7 @@ function overviewEnergyCompositionCharts(){
  const entries=[...sourceGroups].sort(([a],[b])=>{const ai=order.indexOf(a),bi=order.indexOf(b);return (ai<0?order.length:ai)-(bi<0?order.length:bi)||a.localeCompare(b)});
  const palette={Gas:colors.Gas,'Liquid fuel':colors.LiquidFuel,Coal:colors.Coal,Hydro:colors.Hydro,Solar:colors.Solar,Wind:colors.Wind,Nuclear:'#b07aa1'};
  const fallbackColors=['#e15759','#36a77b','#c48722','#76b7b2'];
- const fuelSeries=entries.map(([name],index)=>({key:'fuel_type_'+index,name,color:palette[name]||fallbackColors[index%fallbackColors.length]}));
+ const fuelSeries=entries.map(([name],index)=>({key:'fuel_type_'+index,name,color:palette[name]||fallbackColors[index%fallbackColors.length],family:'fuel'}));
  const groupValue=(row,name)=>{const keys=sourceGroups.get(name)||[];return keys.length&&keys.every(key=>Number.isFinite(row[key]))?keys.reduce((sum,key)=>sum+row[key],0):null};
  const shareSourcesAvailable=importKeys.length>0&&['Hydro','Solar','Wind'].every(name=>sourceGroups.has(name));
  const rows=(curve?.hourly||[]).map(row=>{
@@ -224,7 +237,7 @@ function overviewEnergyCompositionCharts(){
  const date=shortDate(curve?.date||data.date),xTicks=[{time:'00:00',label:'00:00'},{time:'06:00',label:'06:00'},{time:'12:00',label:'12:00'},{time:'18:00',label:'18:00'},{time:'24:00',label:'24:00'}];
  const hasFuelData=rows.some(row=>fuelSeries.some(series=>Number.isFinite(row[series.key])));
  const hasShareData=shareSourcesAvailable&&rows.some(row=>Number.isFinite(row.import_dependence_pct)||Number.isFinite(row.renewable_share_pct));
- const fuelBody=hasFuelData?chart(rows,fuelSeries,{unit:'MW',xMax:1440,xTicks,rightMargin:36,preserveGaps:true,key:'overview:energy-composition-fuels'}):'<p class="note">Half-hourly generation by fuel type is unavailable in this report.</p>';
+ const fuelBody=hasFuelData?chart(rows,fuelSeries,{unit:'MW',xMax:1440,xTicks,rightMargin:36,preserveGaps:true,key:'overview:energy-composition-fuels',familyLegend:{family:'fuel',label:'All fuel types'}}):'<p class="note">Half-hourly generation by fuel type is unavailable in this report.</p>';
  const shareBody=hasShareData?chart(rows,energyShareSeries,{unit:'%',xMax:1440,xTicks,rightMargin:36,preserveGaps:true,key:'overview:energy-composition-shares'}):'<p class="note">Complete half-hourly import and renewable readings are unavailable in this report.</p>';
  return `<div class="grid realtime-grid energy-composition-charts">${panel('Generation by fuel type',`Half-hourly workbook output · ${esc(date)} · imports are excluded from the fuel series`,fuelBody,'MW · BST')}${panel(energyShareTitle,`Half-hourly report share of total generation, including imports · Import dependence = imports / total generation · Renewable share = (domestic hydro + solar + wind) / total generation · Clean energy share = (domestic hydro + solar + wind + nuclear) / total generation · Imported renewables are not classified · ${esc(date)}`,shareBody,'%')}</div>`;
 }
@@ -237,7 +250,7 @@ function overview(){
  for(const point of [...(data.grid_generation||[]),...previousForecastRows])if(!dispatchRowsByTime.has(point.time))dispatchRowsByTime.set(point.time,{time:point.time,...Object.fromEntries(dispatch.series.map(item=>[item.key,null])),demand_mw:null,generation_mw:null});
  const dispatchRows=[...dispatchRowsByTime.values()].sort((a,b)=>a.time.localeCompare(b.time)).map(row=>{const grid=gridByTime.get(row.time),forecast=forecastByTime.get(row.time);return {...row,east_grid_mw:grid?.east_grid_mw??null,west_grid_mw:grid?.west_grid_mw??null,forecasted_demand_mw:forecast?.demand_mw??null}});
  const dispatchSeries=[{key:'demand_mw',name:'Demand · selected day',color:'#c48722',family:'demand',source:'selected',dash:true},{key:'generation_mw',name:'Generation · selected day',color:'#1976b9',family:'generation',source:'selected'},
-  ...(data.grid_generation?.length?[{key:'east_grid_mw',name:'East grid generation',color:'#50a57a',family:'generation',source:'selected',legendOnly:true,defaultVisible:false,fixedLine:true},{key:'west_grid_mw',name:'West grid generation',color:'#a178c2',family:'generation',source:'selected',legendOnly:true,defaultVisible:false,fixedLine:true}]:[]),
+  ...(data.grid_generation?.length?[{key:'east_grid_mw',name:'East grid generation',color:'#50a57a',family:'generation',source:'selected',legendOnly:true,fixedLine:true},{key:'west_grid_mw',name:'West grid generation',color:'#a178c2',family:'generation',source:'selected',legendOnly:true,fixedLine:true}]:[]),
   ...(previousForecastRows.length?[{key:'forecasted_demand_mw',name:'Forecasted demand · previous day file',color:'#df6f9b',family:'demand',source:'selected',legendOnly:true,defaultVisible:true,pointsOnly:true,connectPoints:true,dash:true,dot:true,pointRadius:2.5}]:[]),
   ...dispatch.series];
  const shedSeries=[{key:'shed_mw',name:'Load shedding · selected day',color:'#b95442',bar:true,dash:true},...shed.series.map(series=>({...series,bar:true}))];
@@ -828,7 +841,7 @@ function stackedAreaChart(rows,series){
   body+='<rect class="chart-hit" data-point="'+index+'" x="'+left+'" y="'+T+'" width="'+(right-left)+'" height="'+(H-T-B)+'" fill="transparent" tabindex="0" role="button" aria-label="'+esc(row.time+': '+label)+'"/>';
  });
  const controls='<div class="dispatch-chart-style"><label>Chart style <select data-chart-style="en-curve"><option value="area" selected>Stacked area</option><option value="line">Line chart</option></select></label></div>';
- return '<div class="interactive-chart en-curve-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+(window.BEGDDaylight?.legend(data?.date)||'')+chartLegend(series,false,true)+'<p class="chart-help"><span class="chart-mouse-help">Hover or focus the chart for values. Use the legend to select series.</span><span class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</span></p></div>';
+ return '<div class="interactive-chart en-curve-chart" data-chart="'+id+'">'+controls+'<svg class="chart" viewBox="0 0 '+W+' '+H+'" role="group" aria-label="Half-hourly generation by source and shortage, stacked in megawatts"><title>Half-hourly generation by source and shortage, stacked in MW</title>'+body+'<line class="chart-cursor" y1="'+T+'" y2="'+(H-B)+'" hidden/></svg><div class="chart-tooltip" role="status" hidden></div>'+(window.BEGDDaylight?.legend(data?.date)||'')+chartLegend(series,false,true,energyCurveLegend)+'<p class="chart-help"><span class="chart-mouse-help">Hover or focus the chart for values. Use the legend to select series.</span><span class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</span></p></div>';
 }
 function energyCurveHourlyTable(rows,series,totals={},mode='energy'){
  const sources=series.slice(),tableSources=sources.filter(source=>source.key!=='shortage_mw'),generationSources=sources.filter(source=>source.key!=='shortage_mw'),shortageSources=sources.filter(source=>source.key==='shortage_mw');
@@ -888,8 +901,8 @@ function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
  if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>Energy Curve data unavailable</h2><p>This archived report does not contain Energy Curve readings.</p></div><span class="tag">ENERGY CURVE</span></div></section>';
  const palette=['#1976b9','#347baf','#5d9bc2','#759398','#4d8e70','#72a984','#b07aa1','#8b72b4','#c48722','#d69a42','#b95442','#cf745c','#597a9d','#7a8da6','#4a9b8a'];
- const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,defaultVisible:chartVisibility.get('en-curve:en-curve|'+source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
- const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',wrapLegend:true});
+ const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,family:source.key==='shortage_mw'?null:energyCurveImport(source)?'imports':'generation',defaultVisible:chartVisibility.get('en-curve:en-curve|'+source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
+ const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',familyLegend:energyCurveLegend});
  const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
  const chartPanel=(title,subtitle,body,tag)=>'<section class="panel full"><div class="panel-head"><div><h2>'+title+'</h2><p>'+subtitle+'</p></div><span class="tag">'+tag+'</span></div>'+body+'</section>';

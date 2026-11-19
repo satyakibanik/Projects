@@ -248,3 +248,7 @@ circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
  nav{height:100dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;scrollbar-gutter:stable;scrollbar-width:thin;scrollbar-color:var(--muted) transparent}
  nav>*{flex-shrink:0}
 }
+
+.en-curve-chart .source-legend-group{display:grid;gap:4px;min-inline-size:0;margin:0;padding:5px 0 0;border:0;border-top:1px solid var(--line)}
+.en-curve-chart .source-legend-group legend{padding:0}
+.en-curve-chart .source-legend-group legend label{grid-template-columns:14px minmax(0,1fr)}
