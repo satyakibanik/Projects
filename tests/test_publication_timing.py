@@ -32,6 +32,20 @@ def workbook_metadata(xml, path="docProps/core.xml"):
 
 
 class PublicationTimingTest(unittest.TestCase):
+    def test_legacy_merge_keeps_collector_provenance_and_live_confirmation_separate(self):
+        row = {"date": "2026-11-19", "reading_time": "11:00", "first_seen_at": instant("19T12:00").isoformat()}
+        key = timing.observation_key(row)
+        saved = {"feeds": {"demand": {"observations": [row], "seen": {key: row["date"]}}}}
+        imported = {"demand": {"observations": [row]}}
+        github = timing.github_checkpoint(saved, imported)
+        self.assertEqual(github["demand"]["observations"], [])
+        self.assertIn(key, github["demand"]["seen"])
+        self.assertEqual(saved["feeds"]["demand"]["observations"], [row])
+        first_live_check = instant("19T12:30").isoformat()
+        confirmed = timing.confirm_publication({}, saved, first_live_check)
+        repeated = timing.confirm_publication({"live_confirmed": confirmed}, saved, instant("19T13:00").isoformat())
+        self.assertEqual(repeated["demand"][key], first_live_check)
+
     def test_document_properties_keep_explicit_or_unspecified_zone(self):
         workbook = workbook_metadata("""
           <cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties"

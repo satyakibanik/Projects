@@ -1,5 +1,6 @@
 """Poll the public ERP endpoints and preserve first successful observations."""
 import argparse
+import copy
 from concurrent.futures import ThreadPoolExecutor
 import datetime as dt
 import io
@@ -144,8 +145,8 @@ def update_feed(feed, source, snapshot, clock=now):
     }
 
 
-def read_state(path, published_url):
-    if path.is_file():
+def read_bundle(path, published_url):
+    if path is not None and path.is_file():
         state = json.loads(path.read_text(encoding="utf-8"))
     elif published_url:
         try:
@@ -159,7 +160,40 @@ def read_state(path, published_url):
         return {}
     if state.get("version") != 1 or not isinstance(state.get("feeds"), dict):
         raise ValueError("Unsupported publication timing history")
-    return state["feeds"]
+    return state
+
+
+def read_state(path, published_url):
+    return read_bundle(path, published_url).get("feeds", {})
+
+
+def observation_key(row):
+    return row.get("report_id") or f'{row["date"]}T{row["reading_time"]}'
+
+
+def github_checkpoint(saved, imported):
+    if "github_feeds" in saved:
+        return saved["github_feeds"]
+    feeds = copy.deepcopy(saved.get("feeds", {}))
+    for source, feed in feeds.items():
+        local = {observation_key(row): row["first_seen_at"]
+                 for row in imported.get(source, {}).get("observations", [])}
+        retained = []
+        for row in feed.get("observations", []):
+            key = observation_key(row)
+            if local.get(key) != row["first_seen_at"]:
+                retained.append(row)
+        feed["observations"] = retained
+    return feeds
+
+
+def confirm_publication(saved, published, confirmed_at):
+    confirmations = copy.deepcopy(saved.get("live_confirmed", {}))
+    for source, feed in published.get("feeds", {}).items():
+        known = confirmations.setdefault(source, {})
+        for row in feed.get("observations", []):
+            known.setdefault(observation_key(row), confirmed_at)
+    return confirmations
 
 
 def merge_imported_observations(feeds, imported, today):
@@ -178,7 +212,7 @@ def merge_imported_observations(feeds, imported, today):
                                            incoming["baseline_through"])
         by_id = {}
         for row in [*feed.get("observations", []), *retained]:
-            key = row.get("report_id") or f'{row["date"]}T{row["reading_time"]}'
+            key = observation_key(row)
             previous = by_id.get(key)
             if previous is None or dt.datetime.fromisoformat(row["first_seen_at"]) < dt.datetime.fromisoformat(previous["first_seen_at"]):
                 by_id[key] = row
@@ -187,7 +221,17 @@ def merge_imported_observations(feeds, imported, today):
 
 
 def collect(path, published_url=None, imported_path=None):
-    feeds = read_state(path, published_url)
+    try:
+        published = read_bundle(None, published_url) if published_url else {}
+    except (OSError, ValueError) as error:
+        if not path.is_file():
+            raise
+        print(f"Unable to confirm published timing data: {type(error).__name__}: {error}")
+        published = {}
+    confirmed_at = now().isoformat()
+    saved = read_bundle(path, None) if path.is_file() else published
+    imported = read_state(imported_path, None) if imported_path else {}
+    feeds = github_checkpoint(saved, imported)
     with ThreadPoolExecutor(max_workers=len(FEEDS)) as pool:
         requests = {source: pool.submit(poll, source) for source in FEEDS}
         for source, request in requests.items():
@@ -195,14 +239,23 @@ def collect(path, published_url=None, imported_path=None):
                 feeds[source] = update_feed(feeds.get(source, {}), source, request.result())
             except Exception as error:
                 print(f"Publication timing {source} poll failed: {type(error).__name__}: {error}")
-    if imported_path:
-        merge_imported_observations(feeds, read_state(imported_path, None), dhaka_date(now()))
+    combined = copy.deepcopy(feeds)
+    merge_imported_observations(combined, imported, dhaka_date(now()))
+    mac = {}
+    merge_imported_observations(mac, imported, dhaka_date(now()))
+    verified = confirm_publication(saved, published, confirmed_at) if published_url else saved.get("live_confirmed", {})
+    for source, records in verified.items():
+        active = {observation_key(row) for row in combined.get(source, {}).get("observations", [])}
+        verified[source] = {key: instant for key, instant in records.items() if key in active}
     state = {
         "version": 1,
         "retention_days": RETENTION_DAYS,
         "max_window_minutes": MAX_WINDOW_MINUTES,
         "min_estimate_days": MIN_ESTIMATE_DAYS,
-        "feeds": feeds,
+        "feeds": combined,
+        "github_feeds": feeds,
+        "mac_feeds": mac,
+        "live_confirmed": verified,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(".tmp")
