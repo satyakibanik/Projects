@@ -481,3 +481,15 @@ test('import map shows four routes, preserves zero energy, and excludes missing 
  assert.match(html,/40 MW max · 0 MW min/);
  assert.match(html,/100 MW max · 100 MW min/);
 });
+
+test('positive Nepal imports show direction on the mapped and schematic sections in one disclosure',()=>{
+ const c=app();
+ c.window.BEGDPlantMap=require('../begd/plant-map.js');
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/import-osm-paths.js'),'utf8'),c);
+ const html=vm.runInContext("importRoutesMap({date:'2026-11-15',imports:[{name:'HVDC(Nepal)',energy_mwh:960}]},[])",c);
+ assert.equal((html.match(/class="ewic-flow-arrow"/g)||[]).length,3);
+ assert.match(html,/stroke-dasharray="8 6"/);
+ assert.match(html,/stroke-dasharray="2 7"/);
+ assert.equal((html.match(/<details/g)||[]).length,1);
+ assert.match(html,/Purple dots mark its use of the shared Baharampur–Bheramara crossing/);
+});

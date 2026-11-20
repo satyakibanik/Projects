@@ -588,7 +588,7 @@ function importRoutesMap(report,history){
    return `<path d="${path}" class="import-map-halo${shared?' import-map-shared':''}" aria-hidden="true"/>
     <path d="${path}" class="import-map-line${shared?' import-map-shared':''}" stroke="${route.color}"${dash}/>
     <path d="${path}" class="import-map-hit${shared?' import-map-shared-hit':''}" aria-hidden="true"/>
-    ${flow&&(!schematic||!osm[route.key])?`<g aria-hidden="true" pointer-events="none">
+    ${flow?`<g aria-hidden="true" pointer-events="none">
      <path class="ewic-flow-motion" d="${path}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="3 15" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
      <path class="ewic-flow-arrow" transform="translate(${(a[0]+b[0])/2} ${(a[1]+b[1])/2}) rotate(${angle})" d="M-6,-5 L1,0 L-6,5" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
     </g>`:''}`;
@@ -609,8 +609,10 @@ function importRoutesMap(report,history){
   <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="Four import connections on OpenStreetMap streets">${lines}</svg>
   <div class="import-map-credit"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a></div></div><div class="import-map-tooltip-area" aria-live="polite">${cards}</div></div>
   <div class="import-map-legend">${routes.map(route=>`<button type="button" aria-pressed="false" data-import-map-route="${route.key}"><i style="background:${route.color}" aria-hidden="true"></i>${esc(route.name)}</button>`).join('')}</div>
-  <p class="note">Mapped sections follow OpenStreetMap transmission lines. Nepal’s long-dashed segment represents transit through India’s grid between the mapped crossings. Purple dots mark its use of the shared Baharampur–Bheramara crossing. Arrows show import direction for routes with reported positive energy. Hover or focus for details. Select a legend item to dim the other routes. Click elsewhere to show them all.</p>
-  ${Object.keys(osm).length?`<details><summary>OpenStreetMap transmission ways</summary>${routes.map(route=>`<p class="note"><strong>${esc(route.name)}</strong> · ${wayLinks(route.key)||'Unavailable'}${route.key==='nepal'?' · Shares the Baharampur–Bheramara crossing':''}</p>`).join('')}</details>`:''}</section>`;
+  <details class="more-information"><summary>More information</summary>
+   <p class="note">Arrows show import direction for routes with reported positive energy. Hover or focus for details. Select a legend item to dim the other routes. Click elsewhere to show them all.</p>
+   ${Object.keys(osm).length?`<h3>OpenStreetMap transmission ways</h3>${routes.map(route=>`<p class="note"><strong>${esc(route.name)}</strong> · ${wayLinks(route.key)||'Unavailable'}${route.key==='nepal'?'. Nepal’s long-dashed segment represents transit through India’s grid between the mapped crossings. Purple dots mark its use of the shared Baharampur–Bheramara crossing.':''}</p>`).join('')}`:''}
+  </details></section>`;
 }
 document.addEventListener('click',event=>{
  const map=document.querySelector('[data-import-map]');
