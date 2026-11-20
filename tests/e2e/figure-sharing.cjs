@@ -56,7 +56,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   }
   await page.locator('[data-trend-days="10y"]').click();await page.waitForSelector('.trends-heatmap');await coverage();await download(page.locator('.trends-heatmap').locator('xpath=ancestor::section[1]').locator('.figure-actions'),'heatmap-icons');
   for(const width of [1064,390]){await page.setViewportSize({width,height:858});await header();await page.screenshot({path:path.join(os.tmpdir(),`begd-icon-layout-${width}.png`),fullPage:true});}
-  await page.locator('#theme-toggle').click();await header();await download(page.locator('#content .figure-actions:visible').first(),'mobile-dark-icons');await page.screenshot({path:path.join(os.tmpdir(),'begd-icon-mobile-dark.png'),fullPage:true});
+  await page.locator('#theme-toggle').selectOption('dark');await header();await download(page.locator('#content .figure-actions:visible').first(),'mobile-dark-icons');await page.screenshot({path:path.join(os.tmpdir(),'begd-icon-mobile-dark.png'),fullPage:true});
   assert.deepEqual(errors,[]);console.log('PASS: in-site copy confirmation, no blank tab, delayed X.com handoff, failure fallbacks, exact dashboard message, fuel-control position, voltage omissions and '+(process.env.BEGD_FIGURE_SMOKE?'focused 365d/historical':'all figure/Trends')+' exports, mobile/dark layouts.');
  }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

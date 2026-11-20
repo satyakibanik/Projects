@@ -139,3 +139,96 @@ main :target{scroll-margin-top:150px}
 /* Keep the counter slot stable without showing its value before it has loaded. */
 .site-hit-counter strong{display:inline-block;min-width:4ch;text-align:right;visibility:hidden}
 .site-hit-counter strong[data-loaded="true"]{visibility:visible}
+
+/* Theme-specific comparison surfaces distinguish the controls from the report. */
+:root {
+  --comparison-fill:#eef5fa;
+  --comparison-border:#b5cdda;
+}
+:root[data-theme=dark] {
+  --comparison-fill:#1c3042;
+  --comparison-border:#516f87;
+}
+#day-sources {
+  background:var(--comparison-fill);
+  border-color:var(--comparison-border);
+}
+#day-sources legend {
+  background:var(--comparison-fill);
+  color:var(--ink);
+  border:1px solid var(--comparison-border);
+  border-radius:3px;
+}
+#day-sources :is(#comparison-date,#add-comparison,#custom-comparisons button):not(:hover) {
+  border-color:var(--comparison-border);
+}
+
+/* Solarized Light with darker foregrounds for small dashboard text. */
+:root[data-theme=solarized] {
+  color-scheme:light;
+  --bg:#fdf6e3;
+  --surface:#f7efd9;
+  --inset:#eee8d5;
+  --panel:var(--surface);
+  --ink:#073642;
+  --muted:#495f64;
+  --line:#c5b998;
+  --green:#17628f;
+  --blue:#17628f;
+  --lime:#80640b;
+  --red:#a13328;
+  --comparison-fill:#eee8d5;
+  --comparison-border:#a99973;
+}
+[data-theme=solarized] body {background:var(--bg);color:var(--ink)}
+[data-theme=solarized] :is(header,footer,nav,.dispatch-readings,.chart-selector,.tag,th) {
+  background:var(--inset);
+  color:var(--muted);
+}
+[data-theme=solarized] header {border-top-color:var(--blue)}
+[data-theme=solarized] :is(.brand,.brand-title) {color:var(--ink)}
+[data-theme=solarized] .brand .mark {background:#17628f;color:#fdf6e3}
+[data-theme=solarized] nav a {color:var(--muted)}
+[data-theme=solarized] nav a.active {background:#e2dcc8;color:var(--ink)}
+[data-theme=solarized] .rail-diagram svg {fill:var(--inset);stroke:#91a1a0}
+[data-theme=solarized] .rail-diagram circle {stroke:var(--blue)}
+[data-theme=solarized] :is(.panel,.region-card,.metrics,.dispatch-layout,.chart-tooltip,.trends-tooltip,.plant-tooltip) {
+  background:var(--surface);
+  color:var(--ink);
+}
+[data-theme=solarized] :is(select,input,button) {background:var(--surface);color:var(--ink);border-color:var(--line)}
+[data-theme=solarized] :is(button:hover,button:focus-visible) {background:#eee8d5;color:var(--ink);border-color:var(--blue)}
+[data-theme=solarized] :is(.metric:first-child .value,.method summary,.dispatch-title em) {color:var(--blue)}
+[data-theme=solarized] :is(.region-card:hover,tbody tr:hover) {background:#f2ead5}
+[data-theme=solarized] .chart text {fill:var(--muted)}
+[data-theme=solarized] .chart .axis {stroke:var(--line)}
+[data-theme=solarized] .chart-cursor {stroke:var(--muted)}
+[data-theme=solarized] .chart-tooltip.regional-snapshot-tooltip {
+  background:color-mix(in srgb,var(--tooltip-color, var(--line)) 12%,var(--surface));
+  color:var(--ink);
+}
+[data-theme=solarized] .daylight-day {fill:#f5e5a8;background:#f5e5a8}
+[data-theme=solarized] .daylight-night {fill:#e3ece1;background:#e3ece1}
+
+[data-theme=solarized] :is(
+  .region-map-panel .region-map-frame,.region-map-panel .region-map-detail,
+  .plant-map-frame,.plant-map-sidebar,.ewic-map-frame,.plant-table .plant-expanded>td
+) {background:var(--inset)}
+[data-theme=solarized] :is(
+  .plant-table .plant-expanded .plant-detail,.plant-map-fuels img,.fuel-tooltip
+) {background:var(--surface)}
+[data-theme=solarized] .plant-map-country {fill:#e5dbc0;stroke:#8d856c}
+[data-theme=solarized] .plant-map-district-boundary {stroke:#a29a82}
+[data-theme=solarized] .plant-map-division-boundary {stroke:#817861}
+[data-theme=solarized] .region-map-key .region-key-item.is-active {background:#e5dbc0;border-color:var(--blue)}
+
+:root[data-theme=solarized] {
+  scrollbar-color:#8c7753 var(--inset);
+}
+[data-theme=solarized] .region-card .track {
+  --green:#073642;
+  height:9px;
+  background:#efe4c3;
+  border:1px solid #82734f;
+}
+[data-theme=solarized] .region-card :is(.label,.mini) {color:var(--ink)}
