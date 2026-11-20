@@ -43,6 +43,41 @@ class NewsTests(unittest.TestCase):
         with self.assertRaises(ValueError): news.parse_feed(b'<html>Not RSS</html>', FEED, NOW)
         with self.assertRaises(ValueError): news.parse_feed(rss(date='Fri, 22 Jul 2022 11:05:00 +0600'), FEED, NOW)
 
+    def test_bangla_excerpt_needs_two_non_landmark_matches(self):
+        url = 'https://www.prothomalo.com/bangladesh/test'
+        title = 'কারখানায় শ্রমিকদের বিক্ষোভ'
+        cases = (
+            (title, 'এলাকায় বিদ্যুৎ ছিল।', False),
+            (title, 'পল্লী বিদ্যুৎ সমিতি এলাকায় ও পল্লী বিদ্যুৎ মোড়ে বিক্ষোভ।', False),
+            (title, 'বিদ্যুৎ সরবরাহ ব্যাহত। এলাকায় লোডশেডিং বেড়েছে।', True),
+            (title, 'বিদ্যুৎ সরবরাহ বন্ধ। কখন বিদ্যুৎ ফিরবে জানা যায়নি।', True),
+            ('বিদ্যুৎ সরবরাহে বিপর্যয়', '', True),
+        )
+        for headline, excerpt, expected in cases:
+            with self.subTest(headline=headline, excerpt=excerpt):
+                self.assertEqual(bool(news.parse_feed(rss(headline, url, description=excerpt), BN, NOW)), expected)
+
+    def test_confirmed_false_positives_are_removed_even_if_feeds_fail(self):
+        urls = [
+            'https://www.prothomalo.com/religion/islam/p22t722d7z',
+            'https://www.jagonews24.com/country/news/1181469?utm_source=rss',
+            'https://www.banglatribune.com/country/dhaka/981908/slug',
+        ]
+        saved = dict(curated_on='2026-10-27', event_labels={'curated-grid': 'Grid'},
+                     articles=[article(), *[article(str(i), url=url) for i, url in enumerate(urls)]])
+        with tempfile.TemporaryDirectory() as directory, patch.object(news, 'FEEDS', (BN,)):
+            (pathlib.Path(directory) / 'catalog.json').write_text(json.dumps(saved))
+
+            def failed(url):
+                raise OSError('offline')
+
+            result = news.collect(directory, NOW, failed)
+        self.assertEqual(result['collection_status'], 'failed')
+        self.assertEqual(result['articles'], [article()])
+        self.assertTrue(news.valid_catalog(result))
+        for url in urls:
+            self.assertFalse(news.relevant('বিদ্যুৎ সরবরাহে বিপর্যয়', '', news.canonical(url), 'bn'))
+
     def test_rolling_90_days_deduplication_and_curated_precedence(self):
         old = article()
         duplicate = dict(old, id='rss-new', url=old['url'] + '/?utm_source=rss#part', summary='Raw excerpt.')

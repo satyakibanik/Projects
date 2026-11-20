@@ -29,6 +29,13 @@ POWER = re.compile(r'\b(?:electricity|power plant|power sector|power supply|powe
 FUEL = re.compile(r'\b(?:lng|petrobangla|gas supply|gas shortage|gas tariff|coal import|coal supply)\b|এলএনজি|পেট্রোবাংলা|গ্যাস সরবরাহ|গ্যাসসংকট|গ্যাস সংকট|গ্যাসের দাম|কয়লা আমদানি|কয়লা আমদানি', re.I)
 BD = re.compile(r'\bbangladesh\b|বাংলাদেশ|ঢাকা|চট্টগ্রাম', re.I)
 FOREIGN = re.compile(r'/(?:world|international|foreign|offbeat|sports|entertainment|showbiz|opinion)/', re.I)
+# These phrases commonly name a landmark in otherwise unrelated local reporting.
+BANGLA_LANDMARK = re.compile(r'(?:পল্লী\s+)?বিদ্যু[ৎত]\s+(?:সমিতি\s+এলাকা|মোড়|মোড়)')
+EXCLUDED_ARTICLE_PATHS = {
+    'prothomalo.com': re.compile(r'^/religion/islam/p22t722d7z$'),
+    'jagonews24.com': re.compile(r'^/country/news/1181469$'),
+    'banglatribune.com': re.compile(r'^/country/dhaka/981908(?:/|$)'),
+}
 STOP = set('the a an and or of to for in on at by from with as is are over after amid bangladesh power electricity says said new bd বাংলাদেশের বিদ্যুৎ বিদ্যুতের ও এর যে এই নিয়ে নিয়ে'.split())
 
 class PlainText(HTMLParser):
@@ -71,10 +78,24 @@ def timestamp(value):
         except (ValueError, TypeError, AttributeError): return None
     return result.astimezone(BST) if result.tzinfo else None
 
-def relevant(title, excerpt, url):
+def excluded_article(url):
+    parts = urlsplit(url)
+    path_pattern = EXCLUDED_ARTICLE_PATHS.get(parts.hostname)
+    return bool(path_pattern and path_pattern.search(parts.path))
+
+
+def relevant(title, excerpt, url, language='en'):
     text = title + ' ' + excerpt
     if FOREIGN.search(url) and not BD.search(text): return False
-    return bool(POWER.search(text) or FUEL.search(text))
+    if excluded_article(url): return False
+    if language != 'bn':
+        return bool(POWER.search(text) or FUEL.search(text))
+
+    headline = BANGLA_LANDMARK.sub(' ', unicodedata.normalize('NFC', title))
+    if POWER.search(headline) or FUEL.search(headline): return True
+
+    excerpt = BANGLA_LANDMARK.sub(' ', unicodedata.normalize('NFC', excerpt))
+    return sum(1 for pattern in (POWER, FUEL) for _ in pattern.finditer(excerpt)) >= 2
 
 def tokens(title):
     return set(re.findall(r'[\w\u0980-\u09ff]+', unicodedata.normalize('NFKC', title).lower(), re.UNICODE)) - STOP
@@ -95,7 +116,7 @@ def parse_feed(content, feed, now):
         title, excerpt = plain(text('title')), plain(text('description'))
         url = canonical(text('link'))
         # Prothom Alo sometimes syndicates sister-site items: keep only the configured publisher.
-        if not title or not url or urlsplit(url).hostname != host or not relevant(title, excerpt[:1500], url): continue
+        if not title or not url or urlsplit(url).hostname != host or not relevant(title, excerpt[:1500], url, language): continue
         identifier = 'rss-' + hashlib.sha256(url.encode()).hexdigest()[:20]
         summary = excerpt[:280].rsplit(' ', 1)[0] + '…' if len(excerpt) > 280 else excerpt
         if not summary or summary == title:
@@ -157,11 +178,22 @@ def collect(cache_dir, now=None, fetcher=fetch, published_url=None):
                 candidate = json.loads(fetcher(published_url))
                 if valid_catalog(candidate): previous = candidate
             except Exception: pass
-    retained = dict(previous)
+    # Older catalogs store shortened excerpts, so only remove confirmed false positives.
+    retained_articles = [
+        a for a in previous['articles']
+        if not excluded_article(canonical(a['url']))
+    ]
+    retained = {**previous, 'articles': retained_articles}
+    used_events = {a['event'] for a in retained_articles}
+    retained['event_labels'] = {
+        key: label for key, label in previous['event_labels'].items() if key in used_events
+    }
+    previous = retained
     # Preserve manual additions in the repository, even when a cached catalog exists.
     previous = dict(previous)
-    known = {canonical(a['url']) for a in seed['articles']}
-    previous['articles'] = seed['articles'] + [a for a in previous['articles'] if canonical(a['url']) not in known]
+    seed_articles = [a for a in seed['articles'] if not excluded_article(canonical(a['url']))]
+    known = {canonical(a['url']) for a in seed_articles}
+    previous['articles'] = seed_articles + [a for a in previous['articles'] if canonical(a['url']) not in known]
     previous['event_labels'] = {**seed['event_labels'], **previous['event_labels']}
     def read(feed):
         try: return parse_feed(fetcher(feed[2]), feed, now), dict(source=feed[0], url=feed[2], status='ok')
