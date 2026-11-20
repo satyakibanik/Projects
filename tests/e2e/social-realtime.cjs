@@ -69,8 +69,8 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
       return Array.from(new Uint8Array(await (await window.previewPNG).arrayBuffer()));
     }));
     assert.equal(png.subarray(1,4).toString(),'PNG');
-    assert.equal(png.readUInt32BE(16),1400);
-    assert.equal(png.readUInt32BE(20),1050);
+    assert.equal(png.readUInt32BE(16),1050);
+    assert.equal(png.readUInt32BE(20),1400);
     return png;
   }
   const realtime=await shareTab('#realtime','Real time','realtime');

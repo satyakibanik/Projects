@@ -335,8 +335,10 @@
         const rampal=await waitForPreview(()=>[...doc.querySelectorAll('#plant-rows [data-plant]')]
           .find(row=>/^Rampal/i.test(decodeURIComponent(row.dataset.plant))));
         rampal.click();
-        return [[await capture('.plant-map-panel:has(.plant-gradient-key)','Power plant locations · Present capacity',placePlantLegend),
-          await capture('#plant-detail','')]];
+        return [
+          [await capture('.plant-map-panel:has(.plant-gradient-key)','Power plant locations · Present capacity',placePlantLegend)],
+          [await capture('#plant-detail','')]
+        ];
       }
       if(tab==='imports'){
         const importChart=async(target,title)=>{
@@ -387,7 +389,7 @@
     const previews=await dashboardPreviewRows(tab,date);
     if(!previews.length)throw new Error('Could not create the dashboard preview.');
 
-    const canvas=document.createElement('canvas'),width=1400,height=1050,pad=32;
+    const canvas=document.createElement('canvas'),width=1050,height=1400,pad=32;
     const figureTop=132,figureBottom=height-87,gap=20,headingHeight=28;
     const tabName=cleanText(document.querySelector('#title'));
     const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
