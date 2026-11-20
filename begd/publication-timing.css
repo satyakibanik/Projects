@@ -230,3 +230,20 @@
   border: 1px solid var(--line);
   border-radius: .4rem;
 }
+
+.timing-plot-dot.timing-mark-mac {
+  background: var(--green);
+}
+
+.timing-plot-dot.timing-mark-github {
+  border-color: var(--ink);
+  background: var(--ink);
+  border-radius: 0;
+}
+
+.timing-plot-dot.timing-mark-live {
+  border-color: var(--lime);
+  background: var(--surface);
+  border-radius: 0;
+  transform: translate(-50%, -50%) rotate(45deg);
+}

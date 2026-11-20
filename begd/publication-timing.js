@@ -435,7 +435,46 @@
     }));
   }
 
-  function keyTimingCharts(feeds, workbookDays, workbookEstimate, archive, minimum) {
+  function collectorStages(bundle) {
+    const section = element('section');
+    section.append(element('h2', 'From source to live site'),
+      element('p', 'Mac checks run every five minutes when awake. GitHub fetches run on the Pages workflow. A live check confirms the record was visible by that time.'));
+    const rows = [];
+    const chartRows = [];
+    for (const [source, name] of Object.entries(sources)) {
+      const key = row => row.report_id || row.date + 'T' + row.reading_time;
+      const mac = new Map((bundle.mac_feeds?.[source]?.observations || []).map(row => [key(row), row]));
+      const github = new Map((bundle.github_feeds?.[source]?.observations || []).map(row => [key(row), row]));
+      const candidates = [...mac.values(), ...github.values()].sort((a, b) =>
+        (b.date + (b.reading_time || '')).localeCompare(a.date + (a.reading_time || ''))
+        || Date.parse(b.first_seen_at) - Date.parse(a.first_seen_at));
+      const latest = candidates[0];
+      if (!latest) continue;
+      const id = key(latest);
+      const label = latest.report_id ? '#' + latest.report_id + ' · ' + latest.date : latest.date + ' ' + latest.reading_time;
+      const timestamps = [mac.get(id)?.first_seen_at, github.get(id)?.first_seen_at, bundle.live_confirmed?.[source]?.[id]];
+      const types = ['mac', 'github', 'live'];
+      const marks = timestamps.flatMap((value, index) => {
+        const instant = Date.parse(value);
+        return Number.isFinite(instant) ? [{time: offset(latest, instant), type: types[index]}] : [];
+      });
+      rows.push([name, label, ...timestamps.map(format)]);
+      chartRows.push({label: name, marks, range: marks.map(mark => mark.time),
+        description: label + ' · ' + timestamps.map((value, index) => types[index] + ' ' + format(value)).join(' · ')});
+    }
+    if (!rows.length) {
+      section.append(element('p', 'Collector-specific records will appear after the next successful refresh.'));
+      return section;
+    }
+    section.append(element('p', 'Circle: Mac · square: GitHub · diamond: confirmed live. The chart uses each record’s source date as day zero.'),
+      plot(chartRows, 'Mac, GitHub and live confirmation times'),
+      table(['Source', 'Latest tracked record', 'Mac first seen', 'GitHub first fetched', 'Confirmed live by'], rows,
+        'Collector timing comparison'));
+    return section;
+  }
+
+  function keyTimingCharts(bundle, workbookDays, workbookEstimate, archive, minimum) {
+    const {feeds, mac_feeds: mac = {}, github_feeds: github = {}} = bundle;
     const section = element('section');
     section.className = 'timing-key-charts';
     const workbook = element('section');
@@ -447,7 +486,7 @@
     workbook.append(element('p', estimate));
     if (workbookDays.length) {
       const recent = workbookDays.slice(0, 7);
-      workbook.append(element('p', 'First found by BEGD: ' + recent.slice(0, 2).map(day => format(day.upper)).join(' and ') + '.'),
+      workbook.append(element('p', (mac.operations?.observations?.length ? 'First seen on the Mac: ' : 'First fetched by GitHub: ') + recent.slice(0, 2).map(day => format(day.upper)).join(' and ') + '.'),
         element('p', 'Dots show the first successful fetch. Lines span the previous poll that found the workbook absent and the first fetch.'),
         observedPlot(recent, workbookEstimate));
     }
@@ -466,17 +505,20 @@
     if (reports.length) workbook.append(element('p', 'Workbook preparation clue: ' + lateMorning + ' of '
       + reports.length + ' files were last modified between 10:00 and 13:00 on their listing date. This is file metadata.'));
     erp.append(element('h2', 'When do ERP readings arrive?'),
-      element('p', 'Each dot marks a minute when a poll found new readings.'));
-    const groups = erpArrivalRows(feeds);
+      element('p', 'Each dot marks a minute when the named collector found new readings. Use Mac arrivals to look for the source’s update pattern.'));
     const clockScale = {start: 0, end: 1440, ticks: [0, 360, 720, 1080, 1440]};
-    for (const {date, rows} of groups) {
-      erp.append(element('h3', date), plot(rows, 'ERP arrivals on ' + date, null, clockScale));
-      const times = [...new Set(rows.flatMap(row => row.range.map(wallTime)))].sort();
-      erp.append(disclosure('Exact poll times by source', ...rows.map(row => element('p', row.description))));
-      if (times.length) erp.append(element('p', times.length + ' distinct arrival minutes across sources.'));
+    for (const [label, collector] of [['Mac polls', mac], ['GitHub fetches', github]]) {
+      const groups = erpArrivalRows(collector);
+      const target = label === 'Mac polls' ? erp : disclosure(label);
+      if (target !== erp) erp.append(target);
+      else target.append(element('h3', label));
+      for (const {date, rows} of groups) {
+        target.append(element('p', date), plot(rows, label + ' on ' + date, null, clockScale),
+          disclosure('Exact poll times by source', ...rows.map(row => element('p', row.description))));
+      }
+      if (!groups.length) target.append(element('p', 'No confirmed arrivals for this collector yet.'));
     }
-    if (!groups.length) erp.append(element('p', 'No ERP arrivals have been observed yet.'));
-    section.append(element('p', 'All times are Bangladesh time.'), workbook, erp);
+    section.append(element('p', 'All times are Bangladesh time.'), workbook, erp, collectorStages(bundle));
     return section;
   }
 
@@ -522,7 +564,7 @@
       const firstDate = archiveDays.at(-1)?.date;
       const days = daysBySource[select.value].filter(day => !firstDate || day.date >= firstDate);
       const note = element('p', workbook
-        ? 'Listed date comes from ERP. First fetched by BEGD is the recorded download time for a workbook that passed parsing. Older listings without a saved receipt are marked No fetch recorded.'
+        ? 'Listed date comes from ERP. This table shows the earliest recorded successful fetch across collectors. Older listings without a saved receipt are marked No fetch recorded.'
         : 'Source date and reading time come from the ERP table. First seen is when BEGD received the first newly observed reading for that date.');
       results.replaceChildren(note);
       const observed = new Map(days.map(day => [day.date, day]));
@@ -552,7 +594,7 @@
         ];
       });
       const headers = [workbook ? 'Listed date' : 'Reading date', workbook ? 'ERP reports' : 'Reading range',
-        'Previously absent', workbook ? 'First fetched by BEGD' : 'First seen', 'Estimate', 'Details'];
+        'Previously absent', workbook ? 'Earliest recorded fetch' : 'Earliest recorded arrival', 'Estimate', 'Details'];
       const historyTable = table(headers, rows);
       historyTable.classList.add('timing-daily-table');
       results.append(historyTable);
@@ -561,7 +603,7 @@
     renderHistory();
     const workbook = workbookArchive(archive, feeds.operations?.observations);
     const daily = disclosure('Daily observation history', historyHeading,
-      element('p', 'The table covers 60 calendar days.'), label, results);
+      element('p', 'The table shows the earliest recorded receipt across collectors for the last 60 days.'), label, results);
     historyHeading.tabIndex = -1;
     const overview = latestOverview(feeds, estimates, key => {
       select.value = key;
@@ -574,7 +616,11 @@
     const excel = disclosure('Excel file timestamps', workbook.section);
     const directWorkbook = new URLSearchParams(location.search).get('timing') === 'workbooks';
     excel.open = directWorkbook;
-    const keyCharts = keyTimingCharts(feeds, daysBySource.operations, estimates.operations, archive, minimum);
+    const workbookFeed = bundle.mac_feeds?.operations;
+    const githubWorkbook = bundle.github_feeds?.operations;
+    const primaryWorkbook = workbookFeed?.observations?.length ? workbookFeed : githubWorkbook;
+    const workbookDays = dailyRows(primaryWorkbook, maxWindow);
+    const keyCharts = keyTimingCharts(bundle, workbookDays, estimate(dailyRows(workbookFeed, maxWindow), minimum), archive, minimum);
     const latest = disclosure('Latest arrival by source', overview);
     panel.replaceChildren(...(directWorkbook ? [excel, keyCharts, latest, daily, comparison]
       : [keyCharts, latest, daily, comparison, excel]));
