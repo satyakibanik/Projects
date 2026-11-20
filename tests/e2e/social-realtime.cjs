@@ -33,7 +33,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
         id:figure.id,
         date:data.date,
         realtime:figure.matches('.realtime-dispatch-plots'),
-        plants:figure.matches('.plant-map-frame'),
+        plants:figure.matches('.plant-map-panel'),
         trends:figure.matches('.trends-generation-figure,.trends-chart')
       });
       return original(figure,options);
@@ -58,7 +58,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
     assert.equal(await page.evaluate(()=>window.opened.length),opened+1,
       await page.locator('#figure-share-progress [role=status]').allTextContents());
     const figures=await page.evaluate(()=>window.previewFigures);
-    assert.ok(figures.length>0&&figures.length<=2);
+    assert.ok(figures.length>0&&figures.length<=3);
     assert.ok(figures.some(figure=>figure[contentKey]));
     assert.ok(figures.every(figure=>figure.id!=='content'&&figure.date===initial.date));
     assert.equal(await page.evaluate(()=>location.hash),hash);

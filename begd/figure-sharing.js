@@ -158,13 +158,14 @@
           style.textContent+='.preview-figure :is(p,details,.news-meta,.organogram-node-arrow,.fuel-layer-actions,.fuel-window,.chart-style,.layer-actions,input[type=checkbox],select){display:none!important}'
             +'.preview-figure label:has(>.series-swatch){grid-template-columns:32px minmax(0,1fr)!important}'
             +'.preview-figure .source-legend-group legend label{grid-template-columns:minmax(0,1fr)!important}'
-            +'.preview-figure.en-curve-chart{display:block}.preview-figure.en-curve-chart>.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:8px 0 0}';
+            +'.preview-figure.en-curve-chart{grid-template-columns:minmax(0,1fr) 245px}.preview-figure.en-curve-chart>.legend{margin:0;gap:2px}.preview-figure .event-dial-list,.preview-figure .plant-map-sidebar,.preview-figure .plant-map-options,.preview-figure .plant-slide-controls{display:none!important}.preview-figure.event-dial-layout{display:block}.preview-figure .event-dial-svg{display:block;margin:auto;width:min(100%,440px)}';
           clone.classList.add('preview-figure');
         }else{
           doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
         }
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
         clone.style.height='auto';clone.style.minHeight='0';clone.style.maxHeight='none';
+        if(info.prepare)info.prepare(clone);
         simplifySingleLayerLegends(clone);
         clone.querySelectorAll('.en-curve-chart>svg.chart').forEach(svg=>{
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
@@ -213,37 +214,182 @@
   }
   const previewFigures={
     realtime:'.realtime-dispatch-plots',
-    overview:'.dispatch-main .interactive-chart,.fuel-report-chart',
-    plants:'.plant-map-frame:has(svg),.plant-detail .interactive-chart',
     regions:'.region-map-frame:has(svg),.regional-snapshot-chart-wrap',
-    'en-curve':'.en-curve-chart',
     substations:'.vb-combined',
     forecast:'.forecast-subplot',
-    fuel:'.fuel-chart',
     insight:'.insight-chart-wrap',
-    news:'.news-card',
-    organogram:'.organogram-node',
     'publication-timing':'.timing-plot'
   };
-  async function exportDashboardPNG(){
-    const tab=location.hash.slice(1)||'overview';
-    const selector=previewFigures[tab]||SELECTOR;
-    const figures=[...document.querySelectorAll('#content :is('+selector+')')]
-      .filter(node=>!node.closest('[hidden],details:not([open])')&&node.getBoundingClientRect().height>0);
-    const selected=figures.filter(node=>!figures.some(other=>other!==node&&other.contains(node))).slice(0,2);
-    if(!selected.length)throw new Error('No figures are available in this view yet.');
-    const previews=[];
-    for(const target of selected){
-      const {title}=describe(target);
-      const shot=await exportPNG(target,{preview:true});
-      if(shot.width&&shot.height)previews.push({shot,title:title==='Grid figure'||target.matches('.news-card')?'':title});
+  function waitForPreview(read){
+    return new Promise((resolve,reject)=>{
+      const deadline=Date.now()+12000;
+      function check(){
+        const value=read();
+        if(value)resolve(value);
+        else if(Date.now()>deadline)reject(new Error('The preview figures could not be loaded.'));
+        else setTimeout(check,75);
+      }
+      check();
+    });
+  }
+  function chartUnder(doc,heading,selector='.interactive-chart'){
+    const title=[...doc.querySelectorAll('#content h2')].find(node=>cleanText(node)===heading);
+    return title?.closest('section')?.querySelector(selector);
+  }
+  function placePlantLegend(clone){
+    const map=clone.querySelector('.plant-map-layout'),gradient=clone.querySelector('.plant-gradient-key'),icons=clone.querySelector('.plant-icon-key');
+    const key=clone.ownerDocument.createElement('aside');
+    key.style.cssText='display:grid;align-content:center;gap:14px;padding:12px;';
+    key.append(gradient,icons);
+    icons.querySelector('.plant-fuel-summary')?.remove();
+    icons.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;';
+    const viewport=map.querySelector('.geomap-viewport');
+    map.replaceChildren(viewport,key);
+    map.style.cssText='display:grid;grid-template-columns:minmax(0,2fr) minmax(230px,1fr);';
+    clone.replaceChildren(map);
+  }
+  function placeCostLegend(clone){
+    const legend=clone.ownerDocument.createElement('div');
+    legend.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-content:center;gap:10px 16px;';
+    for(const slice of clone.querySelectorAll('[data-cost-slice]')){
+      const name=slice.dataset.costSlice;
+      const item=clone.ownerDocument.createElement('div');
+      item.style.cssText='display:flex;gap:8px;align-items:center;font-size:15px;';
+      const color=clone.ownerDocument.createElement('span');
+      color.style.cssText='width:12px;height:12px;flex:none;background:'+slice.firstElementChild.getAttribute('fill');
+      const icon=[...clone.querySelectorAll('[data-cost-row]')].find(row=>row.dataset.costRow===name)?.querySelector('img');
+      item.append(color);
+      if(icon)item.append(icon.cloneNode());
+      item.append(name);legend.append(item);
     }
+    const layout=clone.querySelector('.bpdb-cost-layout'),pie=layout.querySelector('.bpdb-pie-wrap');
+    layout.style.cssText='display:grid;grid-template-columns:260px minmax(0,1fr);gap:36px;max-width:840px;margin:auto;';
+    pie.style.cssText='width:240px;min-width:0;';
+    pie.querySelector('svg').style.cssText='width:240px;height:240px;max-width:100%;';
+    layout.replaceChildren(pie,legend);
+    clone.replaceChildren(layout);
+  }
+  function arrangeOrganizationTree(clone){
+    const mainBranches=clone.querySelector(':scope > li > .organogram-tree');
+    if(!mainBranches)return;
+    mainBranches.style.cssText='display:grid;grid-template-columns:0.75fr 1.6fr 1.6fr;align-items:stretch;width:100%;';
+    for(const branch of mainBranches.children){
+      const row=branch.querySelector(':scope > .organogram-tree-row');
+      if(row)row.style.width='100%';
+      const divisions=branch.querySelector(':scope > .organogram-tree:not([hidden])');
+      if(!divisions)continue;
+      divisions.style.cssText='display:grid;grid-template-columns:repeat(2,minmax(0,1fr));width:100%;';
+      for(const division of divisions.children){
+        const divisionRow=division.querySelector(':scope > .organogram-tree-row');
+        if(divisionRow)divisionRow.style.width='100%';
+      }
+    }
+  }
+  async function dashboardPreviewRows(tab,date){
+    const staged=['trends','plants','operations','fuel','organogram'].includes(tab);
+    let frame;
+    try{
+      let doc=document;
+      if(staged){
+        const url=new URL(location.href);
+        if(date){url.searchParams.set('v','2');url.searchParams.set('date',date);}
+        if(tab==='trends')url.searchParams.set('days','365');
+        if(tab==='fuel')url.searchParams.set('fuelType','gas');
+        frame=document.createElement('iframe');
+        frame.title='Dashboard share preview rendering';
+        frame.setAttribute('aria-hidden','true');
+        frame.tabIndex=-1;
+        frame.style.cssText='position:fixed;left:-1800px;top:0;width:1440px;height:1000px;border:0;pointer-events:none;';
+        frame.src=url.href;document.body.append(frame);
+        doc=await waitForPreview(()=>frame.contentWindow?.BEGDView?.started&&frame.contentDocument);
+      }
+      const find=selector=>doc.querySelector('#content '+selector);
+      const capture=async(read,title,prepare)=>{
+        const target=await waitForPreview(typeof read==='string'?()=>find(read):read);
+        const section=target.closest('.trends-section[hidden]');
+        if(section)doc.querySelector('[aria-controls="'+section.id+'"]')?.click();
+        const shot=await exportPNG(target,{preview:true,prepare});
+        if(!shot.width||!shot.height)throw new Error('Could not create the dashboard preview.');
+        const label=title??describe(target).title;
+        return {shot,title:label==='Grid figure'?'':label};
+      };
+      if(tab==='trends'){
+        return [
+          [await capture('[data-trend-key="generation-demand"]','Generation & demand')],
+          [await capture('[data-trend-key="seasonal-load-duration"]','Seasonal load-duration curves'),
+           await capture('[data-trend-key="imports"]','Imports over time')]
+        ];
+      }
+      if(tab==='overview')return [
+        [await capture('.dispatch-main .interactive-chart','Demand and generation')],
+        [await capture(()=>chartUnder(doc,'Import dependence (%), renewable share (%) & clean energy share (%)'),'Import dependence (%), renewable share (%) & clean energy share (%)')]
+      ];
+      if(tab==='en-curve')return [
+        [await capture('.en-curve-chart','Generation by source')],
+        [await capture(()=>find('.bpdb-cost-panel:has([data-cost-slice])'),'Fuel cost by generation type',placeCostLegend)]
+      ];
+      if(tab==='plants'){
+        const icon=await waitForPreview(()=>find('.plant-marker-view [value="icons"]'));
+        icon.checked=true;icon.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));
+        find('[data-slide="1"]').click();
+        const rampal=await waitForPreview(()=>[...doc.querySelectorAll('#plant-rows [data-plant]')]
+          .find(row=>/^Rampal/i.test(decodeURIComponent(row.dataset.plant))));
+        rampal.click();
+        return [[await capture('.plant-map-panel:has(.plant-gradient-key)','Power plant locations · Present capacity',placePlantLegend),
+          await capture('#plant-detail','')]];
+      }
+      if(tab==='imports'){
+        const importChart=async(target,title)=>{
+          const legend=[...target.querySelectorAll('.legend label')].flatMap(label=>{
+            const sample=label.querySelector('.series-swatch path');
+            if(!sample||!label.querySelector('input')?.checked)return [];
+            return [{name:cleanText(label.querySelector('[data-series-label]')),color:sample.getAttribute('stroke'),dash:sample.getAttribute('stroke-dasharray')}];
+          });
+          const result=await capture(()=>target,title,clone=>clone.querySelector('.legend')?.remove());
+          return {...result,legend};
+        };
+        const total=await importChart(await waitForPreview(()=>chartUnder(doc,'Total imports')),'Total imports');
+        const routes=()=>doc.querySelectorAll('#content > .grid > .panel .interactive-chart');
+        const charts=[];
+        for(let i=0;i<Math.min(4,routes().length);i++)charts.push(await importChart(routes()[i]));
+        return [[total],charts.slice(0,2),charts.slice(2,4)].filter(row=>row.length);
+      }
+      if(tab==='operations'){
+        const dial=await waitForPreview(()=>find('[data-event-view-select="dial"]'));
+        dial.click();
+        return [[await capture(()=>chartUnder(doc,'East–west interconnector flows')||find('.ewic-chart-column .interactive-chart'),'EWIC flows')],
+          [await capture('.event-dial-layout','24-hour time dial')]];
+      }
+      if(tab==='fuel'){
+        const source=await capture(()=>chartUnder(doc,'Gas supply by source over time','.fuel-chart'),'Gas supply by source over time');
+        const destination=await capture(()=>chartUnder(doc,'Gas supply by destination over time','.fuel-chart'),'Gas supply by destination over time');
+        find('#fuel-tab-coal').click();
+        return [[source,destination],[await capture(()=>chartUnder(doc,'Annual Barapukuria coal production','.fuel-chart'),'Annual Barapukuria coal production')]];
+      }
+      if(tab==='organogram'){
+        const view=await waitForPreview(()=>find('[data-org-view]'));
+        view.value='tree';view.dispatchEvent(new doc.defaultView.Event('change',{bubbles:true}));
+        return [[await capture('.organogram-tree','Organization tree',arrangeOrganizationTree)]];
+      }
+      const selector=previewFigures[tab]||SELECTOR;
+      const figures=[...doc.querySelectorAll('#content :is('+selector+')')]
+        .filter(node=>!node.closest('[hidden],details:not([open])')&&node.getBoundingClientRect().height>0);
+      const rows=[];
+      for(const node of figures.filter(node=>!figures.some(other=>other!==node&&other.contains(node))).slice(0,2)){
+        rows.push([await capture(()=>node)]);
+      }
+      return rows;
+    }finally{frame?.remove();}
+  }
+  async function exportDashboardPNG(){
+    const tab=root.location?.hash.slice(1)||'overview';
+    const date=document.querySelector('#report-date')?.value;
+    const previews=await dashboardPreviewRows(tab,date);
     if(!previews.length)throw new Error('Could not create the dashboard preview.');
 
     const canvas=document.createElement('canvas'),width=1400,height=1050,pad=32;
     const figureTop=132,figureBottom=height-87,gap=20,headingHeight=28;
     const tabName=cleanText(document.querySelector('#title'));
-    const date=document.querySelector('#report-date')?.value;
     const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
       dateStyle:'long',timeZone:'Asia/Dhaka'
     }).format(new Date(date+'T12:00:00+06:00')):'Unavailable';
@@ -255,17 +401,31 @@
     ctx.font='23px sans-serif';ctx.fillText('Operating date '+operatingDate+' · All times BST',pad,92);
 
     const figureHeight=(figureBottom-figureTop-gap*(previews.length-1))/previews.length;
-    previews.forEach(({shot,title},index)=>{
-      const headingSpace=title?headingHeight:0;
-      const scale=Math.min((width-pad*2)/shot.width,(figureHeight-headingSpace)/shot.height);
-      const imageWidth=shot.width*scale,imageHeight=shot.height*scale;
-      const left=(width-imageWidth)/2;
-      const top=figureTop+index*(figureHeight+gap)+(figureHeight-imageHeight-headingSpace)/2;
-      if(title){
-        ctx.font='600 21px sans-serif';
-        ctx.fillText(title,Math.min(left,width-pad-ctx.measureText(title).width),top+21,width-pad*2);
-      }
-      ctx.drawImage(shot,left,top+headingSpace,imageWidth,imageHeight);
+    previews.forEach((row,index)=>{
+      const columnWidth=(width-pad*2-gap*(row.length-1))/row.length;
+      row.forEach(({shot,title,legend=[]},column)=>{
+        const headingSpace=title?headingHeight:0;
+        const legendHeight=Math.ceil(legend.length/2)*21;
+        const scale=Math.min(columnWidth/shot.width,(figureHeight-headingSpace-legendHeight)/shot.height);
+        const imageWidth=shot.width*scale,imageHeight=shot.height*scale;
+        const columnLeft=pad+column*(columnWidth+gap);
+        const left=columnLeft+(columnWidth-imageWidth)/2;
+        const top=figureTop+index*(figureHeight+gap)+(figureHeight-imageHeight-headingSpace-legendHeight)/2;
+        if(title){
+          ctx.font='600 21px sans-serif';
+          ctx.fillText(title,Math.min(left,columnLeft+Math.max(0,columnWidth-ctx.measureText(title).width)),top+21,columnWidth);
+        }
+        ctx.drawImage(shot,left,top+headingSpace,imageWidth,imageHeight);
+        ctx.font='16px sans-serif';
+        const legendWidth=Math.min(columnWidth,650)/2,legendLeft=columnLeft+(columnWidth-legendWidth*2)/2;
+        legend.forEach(({name,color,dash},i)=>{
+          const x=legendLeft+i%2*legendWidth,y=top+headingSpace+imageHeight+16+Math.floor(i/2)*21;
+          ctx.strokeStyle=color;ctx.lineWidth=2;
+          ctx.setLineDash(dash&&dash!=='none'?dash.split(/\s+/).map(Number):[]);
+          ctx.beginPath();ctx.moveTo(x,y-5);ctx.lineTo(x+26,y-5);ctx.stroke();ctx.setLineDash([]);
+          ctx.fillText(name,x+33,y,legendWidth-36);
+        });
+      });
     });
 
     ctx.font='600 19px sans-serif';ctx.fillText(COPYRIGHT,pad,height-43);
@@ -364,7 +524,9 @@
       else target.before(bar);
     });
   }
-  const website=document.querySelector('#share-dashboard');website.addEventListener('click',()=>openDashboardShare(website));
+  const website=document.querySelector('#share-dashboard');website.addEventListener('click',()=>{if(!website.hidden)openDashboardShare(website);});
+  const syncShareVisibility=()=>{website.hidden=root.location?.hash==='#news';};
+  root.addEventListener?.('hashchange',syncShareVisibility);syncShareVisibility();
   const observer=new MutationObserver(install);observer.observe(document.querySelector('#content'),{childList:true,subtree:true});install();
   root.BEGDFigures={shareURL,socialURL,filename,exportPNG,exportDashboardPNG,describe};
 })(window);
