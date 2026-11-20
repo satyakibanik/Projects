@@ -280,3 +280,4 @@ circle.regional-snapshot-point{stroke:transparent;stroke-width:12px}
 .import-map-halo.import-map-shared,.import-map-hit.import-map-shared-hit{display:none}
 .import-map-frame g .import-map-line.import-map-shared{stroke-width:2.5}
 .import-map-frame g.is-active .import-map-line.import-map-shared{stroke-width:4}
+#content:has([data-import-map]) .interactive-chart .legend [data-series-label]{font-size:12px}
