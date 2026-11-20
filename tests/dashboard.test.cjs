@@ -467,3 +467,17 @@ test('hourly import averages keep reported zeros and require complete route tota
  ],['Bheramara HVDC','Nepal'])`,c);
  assert.deepEqual({...result},{'00:00':870});
 });
+
+test('import map shows four routes, preserves zero energy, and excludes missing historical readings',()=>{
+ const c=app();
+ c.window.BEGDPlantMap=require('../begd/plant-map.js');
+ const html=vm.runInContext(`importRoutesMap({date:'2026-11-18',imports:[
+  {name:'Adani Power Jharkhanda Ltd',energy_mwh:2400},{name:'HVDC(Nepal)',energy_mwh:0}
+ ]},[{imports:[{name:'Adani',hourly:[{time:'00:00',mw:100},{time:'01:00',mw:null}]},
+  {name:'Nepal',hourly:[{time:'00:00',mw:0},{time:'01:00',mw:40}]}]}])`,c);
+ assert.equal((html.match(/<g data-import-map-route=/g)||[]).length,4);
+ assert.equal((html.match(/class="ewic-flow-motion"/g)||[]).length,1);
+ assert.match(html,/2,400 MWh \(2.4 GWh\)/);
+ assert.match(html,/40 MW max · 0 MW min/);
+ assert.match(html,/100 MW max · 100 MW min/);
+});

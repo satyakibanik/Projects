@@ -7,9 +7,13 @@ const {serve}=require('./fixture-site.cjs');
  try{
   for(const width of [390,1210])for(const theme of ['light','dark']){
    const context=await browser.newContext({viewport:{width,height:858},isMobile:width<800,hasTouch:width<800});
-   let release,fail=false;const delayed=new Promise(resolve=>release=resolve);
+   let release,fail=false,failBackground=false;const delayed=new Promise(resolve=>release=resolve);
    await context.route('**/*',async route=>{
-    if(new URL(route.request().url()).pathname.endsWith('/ewic-locations.json')){
+    const path=new URL(route.request().url()).pathname;
+    if(failBackground&&path.endsWith('/plant-administrative-boundaries.geojson')){
+     return route.fulfill({status:503,body:'Background unavailable'});
+    }
+    if(path.endsWith('/ewic-locations.json')){
      await delayed;
      if(fail)return route.fulfill({status:503,body:'Unavailable'});
     }
@@ -25,6 +29,14 @@ const {serve}=require('./fixture-site.cjs');
    await page.locator('[data-ewic-next]:enabled').waitFor();
    assert.equal(await map.locator('[data-ewic-circuit]').count(),3);
    assert((await map.locator('.plant-map-country').getAttribute('d')).length>100);
+   assert(await map.evaluate(svg=>{
+    const view=svg.viewBox.baseVal;
+    return [...svg.querySelectorAll('[data-ewic-circuit]')].every(path=>{
+     const box=path.getBBox();
+     return box.width>0&&box.x>=view.x&&box.x+box.width<=view.x+view.width&&
+      box.y>=view.y&&box.y+box.height<=view.y+view.height;
+    });
+   }),'Projected circuit strokes must be inside the SVG viewport');
    await page.locator('[data-ewic-next]').click();
    assert.equal(await page.locator('[data-ewic-readings]').isVisible(),true);
    assert.match(await page.locator('[data-ewic-time-label]').innerText(),/BST/);
@@ -39,6 +51,10 @@ const {serve}=require('./fixture-site.cjs');
    await page.locator('.ewic-location-map [data-ewic-circuit]').first().waitFor();
    await page.locator('[data-ewic-next]:enabled').waitFor();
    assert.equal(await page.locator('.ewic-location-map [data-ewic-circuit]').count(),3);
+   failBackground=true;await page.reload();
+   await page.locator('.ewic-location-map [data-ewic-circuit]').first().waitFor();
+   assert.equal(await page.locator('.ewic-location-map [data-ewic-circuit]').count(),3);
+   assert.match(await page.locator('[data-ewic-frame]').innerText(),/background layers are unavailable/);
    assert.deepEqual(errors,[]);
    console.log('PASS EWIC delayed assets and retry',width,theme);
    await context.close();

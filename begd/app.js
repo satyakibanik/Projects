@@ -476,6 +476,11 @@ async function setupRegionMap(){
 const importHistory=new Map();
 const importAverageSeries={key:'historical_average_mw',name:'Historical average · prior 14 days',color:'#805ca8',dashArray:'6 4',noMarkers:true};
 const importRouteKey=name=>name.toLowerCase().includes('nepal')?'nepal':name.toLowerCase().match(/bheramara|tripura|adani|hvdc/)?.[0];
+const importRouteNames={tripura:'Tripura - Cumilla',bheramara:'Bheramara HVDC',nepal:'Nepal HVDC',adani:'Adani Power'};
+function importRouteName(name){
+ const key=importRouteKey(name);
+ return importRouteNames[key==='hvdc'?'bheramara':key]||name;
+}
 function importMatch(report,name){
  const routes=report.imports||[],key=importRouteKey(name);
  return routes.find(route=>route.name===name)|| (key?routes.find(route=>importRouteKey(route.name)===key):null);
@@ -524,8 +529,8 @@ const importPoints={
 const importConnections={
  bheramara:{points:[importPoints.baharampur,importPoints.bheramara],source:'https://www.adb.org/projects/44192-013/main'},
  tripura:{points:[['Surajmaninagar (TPTL), India',23.7532782,91.3030487],importPoints.comilla],source:'https://www.pib.gov.in/PressReleasePage.aspx?PRID=2248339&lang=2&reg=48'},
- adani:{points:[importPoints.godda,['Monakasha border, Bangladesh'],['Rahanpur 400/230 kV, Bangladesh']],source:'https://erp.powergrid.gov.bd/web/projects/project_details/eyJpdiI6ImtiamZSUzFGakdnRXQyVjlLWGNuM2c9PSIsInZhbHVlIjoiSUlHcFE0a1k5SVM0VWsrYUZSRGhFQT09IiwibWFjIjoiM2EyNTkyZTViZmNiZDA0YjNhYWNkYTAxNjM1ZGQwMGJjMmQxYTNmY2ExMTMzZmFmNDg2YjY5NzA0ZmI1MTQyZSIsInRhZyI6IiJ9',note:'Dedicated 400 kV double-circuit line from the Godda switchyard to Rahanpur.'},
- nepal:{points:[importPoints.dhalkebar,['Muzaffarpur 400/220 kV, India',26.0670277,85.3672327],importPoints.baharampur,importPoints.bheramara],source:'https://radionepalonline.com/en/2024/11/15/394838.html',note:'Nepal power uses the Indian grid and shares the Baharampur–Bheramara crossing.'}
+ adani:{points:[importPoints.godda,['Monakasha border, Bangladesh'],['Rahanpur 400 kV, Bangladesh',24.7850515,88.3321354,1301517779]],source:'https://erp.powergrid.gov.bd/web/projects/project_details/eyJpdiI6ImtiamZSUzFGakdnRXQyVjlLWGNuM2c9PSIsInZhbHVlIjoiSUlHcFE0a1k5SVM0VWsrYUZSRGhFQT09IiwibWFjIjoiM2EyNTkyZTViZmNiZDA0YjNhYWNkYTAxNjM1ZGQwMGJjMmQxYTNmY2ExMTMzZmFmNDg2YjY5NzA0ZmI1MTQyZSIsInRhZyI6IiJ9',note:'Dedicated 400 kV double-circuit line from the Godda switchyard to Rahanpur.'},
+ nepal:{points:[importPoints.dhalkebar,['Muzaffarpur 400/220 kV, India',26.0670277,85.3672327],importPoints.baharampur,importPoints.bheramara],source:'https://www.isas.nus.edu.sg/papers/tripartite-pact-on-electricity-trade-climate-challenges-remain/',note:'NEA, BPDB and India’s NVVN signed the tripartite agreement on 3 October 2024 for 40 MW of seasonal imports, normally 15 June to 15 November. Power transits India’s grid and shares the Baharampur–Bheramara crossing.'}
 };
 function importRouteEndpoints(name){
  const key=importRouteKey(name);
@@ -540,6 +545,110 @@ function importRouteEndpoints(name){
   return `${esc(label)} <a href="${url}" target="_blank" rel="noopener">(${location})</a>`;
  }).join(' → ');
  return `<p class="note import-endpoints">${points}. ${route.note||''} <a href="${route.source}" target="_blank" rel="noopener">Route source</a> · Map data © OpenStreetMap contributors.</p>`;
+}
+function importRoutesMap(report,history){
+ const projection=window.BEGDPlantMap;
+ if(!projection)return '';
+ const colors={bheramara:'#166abb',tripura:'#087b58',adani:'#a23d14',nepal:'#793aa0'};
+ const routes=Object.entries(importConnections).map(([key,connection])=>{
+  const routeKey=key==='bheramara'?'Bheramara HVDC':key;
+  const selected=importMatch(report,routeKey);
+  const samples=(history||[]).flatMap(day=>(importMatch(day,routeKey)?.hourly||[]).map(row=>row.mw).filter(Number.isFinite));
+  const points=connection.points.filter(([,lat,lon])=>Number.isFinite(lat)&&Number.isFinite(lon));
+
+  return {key,color:colors[key],name:importRouteNames[key],
+   energy:selected?.energy_mwh,from:connection.points[0][0],to:connection.points.at(-1)[0],points,
+   max:samples.length?Math.max(...samples):null,min:samples.length?Math.min(...samples):null};
+ });
+ const width=920,height=490;
+ const projected=point=>projection.project([point[2],point[1]]);
+ const coordinates=routes.flatMap(route=>route.points.map(projected));
+ const xs=coordinates.map(point=>point[0]),ys=coordinates.map(point=>point[1]);
+ const spanX=Math.max(...xs)-Math.min(...xs),spanY=Math.max(...ys)-Math.min(...ys);
+ const scale=Math.min((width-110)/spanX,(height-110)/spanY);
+ const view={x:(Math.min(...xs)+Math.max(...xs)-width/scale)/2,y:(Math.min(...ys)+Math.max(...ys)-height/scale)/2,w:width/scale,h:height/scale};
+ const xy=point=>{const [x,y]=projected(point);return [(x-view.x)*scale,(y-view.y)*scale]};
+ const tiles=projection.tileViewport(view,width,height).map(tile=>`<img alt="" draggable="false" style="left:${100*tile.left/width}%;top:${100*tile.top/height}%;width:${100*tile.size/width}%;height:${100*tile.size/height}%" src="https://tile.openstreetmap.org/${tile.z}/${tile.x}/${tile.y}.png">`).join('');
+ const osm=window.BEGDImportPaths||{};
+ const lines=routes.map(route=>{
+  const stations=route.points.map(xy);
+  const sections=osm[route.key]?.map(({points})=>({points:points.map(([lon,lat])=>xy(['',lat,lon]))}))
+   ||[{points:stations,schematic:true}];
+  if(route.key==='nepal'&&osm.nepal&&osm.bheramara){
+   const shared=osm.bheramara[0].points.map(([lon,lat])=>xy(['',lat,lon]));
+   sections.push({points:[sections[0].points.at(-1),shared[0]],schematic:true});
+   sections.push({points:shared,shared:true});
+  }
+  const flow=Number.isFinite(route.energy)&&route.energy>0;
+  const paths=sections.map(({points,schematic,shared})=>{
+   const path='M'+points.map(point=>point.map(value=>value.toFixed(2)).join(',')).join(' L');
+   const middle=Math.floor((points.length-1)/2),a=points[middle],b=points[middle+1];
+   const angle=Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI;
+   const dash=schematic?' stroke-dasharray="8 6"':shared?' stroke-dasharray="2 7"':flow?'':' stroke-dasharray="5 4"';
+   return `<path d="${path}" class="import-map-halo${shared?' import-map-shared':''}" aria-hidden="true"/>
+    <path d="${path}" class="import-map-line${shared?' import-map-shared':''}" stroke="${route.color}"${dash}/>
+    <path d="${path}" class="import-map-hit${shared?' import-map-shared-hit':''}" aria-hidden="true"/>
+    ${flow&&(!schematic||!osm[route.key])?`<g aria-hidden="true" pointer-events="none">
+     <path class="ewic-flow-motion" d="${path}" fill="none" stroke="#fff" stroke-width="2" stroke-dasharray="3 15" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+     <path class="ewic-flow-arrow" transform="translate(${(a[0]+b[0])/2} ${(a[1]+b[1])/2}) rotate(${angle})" d="M-6,-5 L1,0 L-6,5" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+    </g>`:''}`;
+  }).join('');
+  return `<g data-import-map-route="${route.key}" aria-label="${esc(route.name)}" aria-pressed="false" role="button" tabindex="0">${paths}
+   ${stations.map(([x,y])=>`<circle cx="${x}" cy="${y}" r="4" fill="${route.color}" stroke="white" pointer-events="none"/>`).join('')}</g>`;
+ }).join('');
+ const wayLinks=(key)=>osm[key]?.flatMap(section=>section.ways).map(id=>
+  `<a href="https://www.openstreetmap.org/way/${id}" target="_blank" rel="noopener">Way ${id}</a>`).join(' · ');
+ const cards=routes.map(route=>{
+  const energy=Number.isFinite(route.energy)?`${fmt(route.energy,2)} MWh (${fmt(route.energy/1000,3)} GWh)`:'Unavailable';
+  const historyText=Number.isFinite(route.max)?`${fmt(route.max,2)} MW max · ${fmt(route.min,2)} MW min`:history?'Unavailable':'Loading…';
+  return `<div class="import-map-tooltip" data-import-map-card="${route.key}" hidden><strong>${esc(route.name)}</strong><div>From ${esc(route.from)}</div><div>To ${esc(route.to)}</div><div>Selected-day energy · ${energy}</div><div>Prior 14 days · ${historyText}</div></div>`;
+ }).join('');
+ return `<section class="panel full" aria-labelledby="import-map-title" data-import-map>
+  <div class="panel-head"><div><h2 id="import-map-title">Cross-border import routes</h2><p>Selected operating day · ${esc(shortDate(report.date))} · Bangladesh time</p></div></div>
+  <div class="import-map-stage"><div class="import-map-frame"><div class="import-map-tiles" aria-hidden="true">${tiles}</div>
+  <svg viewBox="0 0 ${width} ${height}" role="group" aria-label="Four import connections on OpenStreetMap streets">${lines}</svg>
+  <div class="import-map-credit"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">© OpenStreetMap contributors</a></div></div><div class="import-map-tooltip-area" aria-live="polite">${cards}</div></div>
+  <div class="import-map-legend">${routes.map(route=>`<button type="button" aria-pressed="false" data-import-map-route="${route.key}"><i style="background:${route.color}" aria-hidden="true"></i>${esc(route.name)}</button>`).join('')}</div>
+  <p class="note">Mapped sections follow OpenStreetMap transmission lines. Nepal’s long-dashed segment represents transit through India’s grid between the mapped crossings. Purple dots mark its use of the shared Baharampur–Bheramara crossing. Arrows show import direction for routes with reported positive energy. Hover or focus for details. Select a legend item to dim the other routes. Click elsewhere to show them all.</p>
+  ${Object.keys(osm).length?`<details><summary>OpenStreetMap transmission ways</summary>${routes.map(route=>`<p class="note"><strong>${esc(route.name)}</strong> · ${wayLinks(route.key)||'Unavailable'}${route.key==='nepal'?' · Shares the Baharampur–Bheramara crossing':''}</p>`).join('')}</details>`:''}</section>`;
+}
+document.addEventListener('click',event=>{
+ const map=document.querySelector('[data-import-map]');
+ if(map&&!event.target.closest?.('[data-import-map] .import-map-legend button'))map.dispatchEvent(new Event('import-map-reset'));
+});
+function setupImportRoutesMap(){
+ const map=document.querySelector('[data-import-map]');
+ if(!map)return;
+ let selected=null;
+ const routes=[...map.querySelectorAll('[data-import-map-route]')];
+ const cards=[...map.querySelectorAll('[data-import-map-card]')];
+ const show=key=>{
+  cards.forEach(card=>{card.hidden=card.dataset.importMapCard!==key});
+  routes.forEach(route=>{
+   const own=route.dataset.importMapRoute;
+   route.classList.toggle('is-active',own===(selected||key));
+   route.classList.toggle('is-dimmed',Boolean(selected&&own!==selected));
+   route.setAttribute('aria-pressed',String(own===selected));
+  });
+ };
+ const reset=()=>{selected=null;show(null)};
+ map.addEventListener('import-map-reset',reset);
+ for(const route of routes){
+  const key=route.dataset.importMapRoute;
+  const isLegend=route.tagName.toLowerCase()==='button';
+  const select=()=>{selected=selected===key?null:key;show(selected)};
+  route.addEventListener('pointerenter',()=>show(key));
+  route.addEventListener('pointerleave',()=>show(selected));
+  route.addEventListener('focus',()=>show(key));
+  route.addEventListener('blur',()=>show(selected));
+  if(isLegend)route.addEventListener('click',select);
+  route.addEventListener('keydown',event=>{
+   if(event.key==='Escape')reset();
+   if(!isLegend&&(event.key==='Enter'||event.key===' ')){
+    event.preventDefault();reset();show(key);
+   }
+  });
+ }
 }
 function imports(){
  const s=data.summary,sources=comparisonSources();
@@ -576,9 +685,9 @@ function imports(){
   const rows=(item.hourly||[]).map(row=>({...row})),series=[{key:'mw',name:'Reported import · selected day',color:'#347baf'}];
   for(const [day,report,color] of sources){const match=importMatch(report,item.name),byTime=new Map((match?.hourly||[]).map(row=>[row.time,row]));const key=`mw_${day}`;rows.forEach(row=>row[key]=byTime.get(row.time)?.mw??null);series.push({key,name:`Reported import · ${dayLabel(day)}`,color,dashArray:comparisonStyle(day).dash})}
   addAverage(rows,series,importAverage(historicalReports,[item.name]));
-  return panel(esc(item.name),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series,{key:'imports:'+item.name,preserveGaps:true})+importRouteEndpoints(item.name))
+  return panel(esc(importRouteName(item.name)),`${fmt(item.energy_mwh/1000,2)} GWh imported during the day`,chart(rows,series,{key:'imports:'+item.name,preserveGaps:true})+importRouteEndpoints(item.name))
  });
- return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara · Tripura · Adani · Nepal')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}<div class="grid">${graphs.join('')}</div><p class="note">${averageNote} Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
+ return `<div class="metrics">${metric('Total imported energy',fmt(s.import_mwh/1000,2),'GWh','Included in national energy total')}${metric('Share of total energy',fmt(s.import_mwh/s.energy_mwh*100,1),'%','Imported / national reported energy')}${metric('Import routes',(data.imports||[]).length,'','Bheramara HVDC · Tripura - Cumilla · Adani Power · Nepal HVDC')}${metric('Domestic energy',fmt((s.energy_mwh-s.import_mwh)/1000,2),'GWh','National total less imports')}</div>${totalPanel}${importRoutesMap(data,history?.reports)}<div class="grid">${graphs.join('')}</div><p class="note">${averageNote} Route energy comes from GenLog’s published Total KWH row. Route curves, total imports, and the selected-day curves come from the chosen workbook.</p>`
 }
 function realtimeYesterdayDate(){
  const day=currentDayData?.today_date||currentDayData?.date;
@@ -656,7 +765,7 @@ function realTime(){
  const routeColors=['#347baf','#c48722','#b95442','#36a77b'];
  const routeNames=[...new Set([...routes,...(realtimeYesterday?previousRoutes:[])].filter(route=>route.hourly?.length).map(route=>route.name))].sort((a,b)=>{const order=['Bheramara HVDC','Tripura','Adani','Nepal'];return (order.includes(a)?order.indexOf(a):4)-(order.includes(b)?order.indexOf(b):4)||a.localeCompare(b)});
  const importRows=realtimeImportRows(routes,routeNames),previousImportRows=realtimeImportRows(previousRoutes,routeNames);
- const importSeries=routeNames.map((name,index)=>({key:'import_'+index,name,color:routeColors[index%routeColors.length],family:'import'}));
+ const importSeries=routeNames.map((name,index)=>({key:'import_'+index,name:importRouteName(name),color:routeColors[index%routeColors.length],family:'import'}));
  const importCaption=`ERP import and generation pages · ${today} · ${routeNames.length} routes`;
  const totalImportsPanel=routeNames.length?panel('Total imports',importCaption,realtimePlot(importRows,[{key:'total_import_mw',name:'Total imports',color:'#263238'}],previousImportRows,{key:'realtime:total_import_mw'})):'';
  const importsByRoutePanel=routeNames.length?panel('Imports by route',importCaption,realtimePlot(importRows,importSeries,previousImportRows,{familyLegend:{family:'import',label:'All import routes'},wrapLegend:true,key:'realtime:import_0'})):'';
@@ -980,7 +1089,7 @@ function enCurve(){
  const curve=data.en_curve, totals=curve?.totals||{}, rows=curve?.hourly||[];
  if(!rows.length)return '<section class="panel full"><div class="panel-head"><div><h2>Energy Curve data unavailable</h2><p>This archived report does not contain Energy Curve readings.</p></div><span class="tag">ENERGY CURVE</span></div></section>';
  const palette=['#1976b9','#347baf','#5d9bc2','#759398','#4d8e70','#72a984','#b07aa1','#8b72b4','#c48722','#d69a42','#b95442','#cf745c','#597a9d','#7a8da6','#4a9b8a'];
- const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,family:source.key==='shortage_mw'?null:energyCurveImport(source)?'imports':'generation',defaultVisible:chartVisibility.get('en-curve:en-curve|'+source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
+ const generationSeries=(curve.sources||[]).map((source,index)=>{const energyMwh=rows.reduce((sum,row)=>{const value=Number(row[source.key]);return sum+(Number.isFinite(value)?value*0.5:0)},0);return {key:source.key,name:source.key==='shortage_mw'?'Shortage':energyCurveImport(source)?importRouteName(source.name):source.name,color:source.key==='shortage_mw'?'#ed4d4d':palette[index%palette.length],energyMwh,family:source.key==='shortage_mw'?null:energyCurveImport(source)?'imports':'generation',defaultVisible:chartVisibility.get('en-curve:en-curve|'+source.key)!==false}}).sort((a,b)=>b.energyMwh-a.energyMwh).map((source,index)=>({...source,hatch:true,hatchAngle:[0,45,90,135][index%4]}));
  const generationChart=enCurveChartStyle==='area'?stackedAreaChart(rows,generationSeries):chart(rows,generationSeries,{styleSetting:'en-curve',familyLegend:energyCurveLegend});
  const shortageChart=chart(rows,[{key:'shortage_mw',name:'Shortage',color:'#bf5b3c',bar:true}]);
  const gwh=value=>fmt(value==null?null:value/1000,2);
@@ -994,7 +1103,7 @@ function loadBriefingCosts(){if(briefingCostReady||briefingCostLoad)return;if(!w
 function updateDailyBriefing(){const region=$('#daily-grid-briefing');if(!region||!data||!isOverviewView())return;if(!window.BEGDBriefing){region.textContent='Briefing unavailable for this report. The underlying Overview data remains available below.';return}if(briefingDays){loadBriefingCosts();region.outerHTML=window.BEGDBriefing.render(data,briefingDays,previousForecastReport,briefingCostRows);return}if(briefingFailure){region.innerHTML='Briefing unavailable for this report. The underlying Overview data remains available below. <button type="button" data-briefing-retry>Retry</button>';return}if(!briefingLoad){region.textContent='Loading daily briefing…';briefingLoad=fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('unavailable');return response.json()}).then(bundle=>{if(!Array.isArray(bundle.days))throw Error('unavailable');briefingDays=bundle.days;briefingFailure=false}).catch(()=>{briefingFailure=true}).finally(()=>{briefingLoad=null;if(data&&isOverviewView())updateDailyBriefing()})}}
 function focusBriefingTarget(id,attempt=0){const target=document.getElementById(id);if(target){target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});target.focus({preventScroll:true});return}if(attempt<100)setTimeout(()=>focusBriefingTarget(id,attempt+1),100)}
 document.addEventListener('click',event=>{if(event.target.closest?.('[data-briefing-retry]')){briefingFailure=false;updateDailyBriefing();return}const link=event.target.closest?.('[data-briefing-target]');if(!link)return;event.preventDefault();const target=document.getElementById(link.dataset.briefingTarget);if(target){target.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'});target.focus({preventScroll:true});return}if(link.dataset.briefingView){location.hash='#'+link.dataset.briefingView;focusBriefingTarget(link.dataset.briefingTarget)}});
-function render(){const scrollX=operatingDateScrollLock?.x??window.scrollX,scrollY=operatingDateScrollLock?.y??window.scrollY;restoreScrollPosition(scrollX,scrollY);ewicChartObserver?.disconnect();plantDetailObserver?.disconnect();if(location.hash==='#fuel'){window.BEGDFuel?.mount();return}if(location.hash==='#organogram'){window.BEGDOrganogram?.mount();return}if(location.hash==='#news'){window.BEGDNews?.mount();return}if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);if(live)window.BEGDDataStatus?.realtime(currentDayData,currentDayChartUpdatedAt);else window.BEGDDataStatus?.set(valid,[{label:'Workbook snapshot updated',value:data.updated_at||window.BEGD_STATIC_DATA?.generated_at},...(valid==='forecast'?[{label:'ERP data updated',value:currentDayData?.updated_at},{label:'Forecast issued',value:window.BEGDIndependentStudy?.freshness()}]:[])]);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.some(note=>!note.startsWith('L-Curve omitted:'))?'<p class="note" role="note">'+data.quality_notes.filter(note=>!note.startsWith('L-Curve omitted:')).map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='overview')updateDailyBriefing();if(valid==='operations')setupEWICChartSize();if(valid==='operations')window.BEGDEWICMap?.mount(data.operations?.ewic||[],data.operations?.events||[],highlightEWICMoment);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(live||valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(live)$('#realtime-yesterday')?.addEventListener('change',event=>{realtimeYesterday=event.target.checked;render();$('#realtime-yesterday')?.focus({preventScroll:true})});if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
+function render(){const scrollX=operatingDateScrollLock?.x??window.scrollX,scrollY=operatingDateScrollLock?.y??window.scrollY;restoreScrollPosition(scrollX,scrollY);ewicChartObserver?.disconnect();plantDetailObserver?.disconnect();if(location.hash==='#fuel'){window.BEGDFuel?.mount();return}if(location.hash==='#organogram'){window.BEGDOrganogram?.mount();return}if(location.hash==='#news'){window.BEGDNews?.mount();return}if(location.hash==='#trends'){window.BEGDTrends?.mount();return}if(!data)return;currentPlantMap=null;chartData.clear();const view=location.hash.slice(1)||'overview';const valid=['overview','plants','regions','imports','realtime','substations','operations','forecast','en-curve'].includes(view)?view:'overview';const live=valid==='realtime';document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#'+valid));$('#title').textContent={overview:'National overview',plants:'Power plants',regions:'Regional data',imports:'Cross-border imports',realtime:'Real time',substations:'Substations',operations:'Operations detail',forecast:'Forecast','en-curve':'Energy Curve'}[valid];$('#subtitle').innerHTML=reportSubtitle(valid,data);if(live)window.BEGDDataStatus?.realtime(currentDayData,currentDayChartUpdatedAt);else window.BEGDDataStatus?.set(valid,[{label:'Workbook snapshot updated',value:data.updated_at||window.BEGD_STATIC_DATA?.generated_at},...(valid==='forecast'?[{label:'ERP data updated',value:currentDayData?.updated_at},{label:'Forecast issued',value:window.BEGDIndependentStudy?.freshness()}]:[])]);$('#report-date-controls').hidden=live;$('#date-status').hidden=live;$('#day-sources').hidden=live||valid==='forecast';document.querySelector('.header-meta .status').textContent=live?'ERP LIVE READINGS':'DAILY OPERATING REPORT';$('#content').innerHTML=(!live&&data.quality_notes?.some(note=>!note.startsWith('L-Curve omitted:'))?'<p class="note" role="note">'+data.quality_notes.filter(note=>!note.startsWith('L-Curve omitted:')).map(esc).join(' ')+'</p>':'')+({overview,plants,regions,imports,realtime:realTime,substations,operations,forecast,'en-curve':enCurve}[valid])();$('#source').textContent=live?'Source: ERP rows dated today in Bangladesh time; see per-panel availability below.':valid==='forecast'?`Source: Power Grid ERP · ${data.report_name||data.source_file} · Forecast date: ${data.forecast?.date||'unavailable'} · Actuals operating date: ${data.date}`:`Source: Power Grid ERP · ${data.report_name||data.source_file} · Operating date: ${data.date}`;setupCharts(valid);if(valid==='imports')setupImportRoutesMap();if(valid==='overview')updateDailyBriefing();if(valid==='operations')setupEWICChartSize();if(valid==='operations')window.BEGDEWICMap?.mount(data.operations?.ewic||[],data.operations?.events||[],highlightEWICMoment);if(valid==='en-curve')window.BEGDCosts?.mountDay(data.date,data);if(live||valid==='forecast')window.BEGDIndependentStudy?.bind(render);if(live)$('#realtime-yesterday')?.addEventListener('change',event=>{realtimeYesterday=event.target.checked;render();$('#realtime-yesterday')?.focus({preventScroll:true})});if(valid==='regions')setupRegionMap();$('#fuel-mix-style')?.addEventListener('change',event=>{fuelMixStyle=event.target.value;render()});if(valid==='plants'){updatePlants();setupPlantMap()}if(valid==='substations'){['substation-search','substation-sort','voltage-class'].forEach(id=>{const control=$('#'+id);control.addEventListener('input',updateSubstations);control.addEventListener('change',updateSubstations)});updateSubstations()}if(valid==='forecast'){['forecast-search','forecast-fuel'].forEach(id=>$('#'+id).addEventListener('input',updateForecast));updateForecast()}}
 const renderDashboard=render;
 function hideInsightNavigation(){
  const link=document.querySelector('nav a[href="#insight"]');
