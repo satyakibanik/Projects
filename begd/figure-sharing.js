@@ -23,7 +23,7 @@
     const basemap=target.querySelector('.plant-basemap-credit:not([hidden])');
     if(basemap)source.push(cleanText(basemap)+' · '+[...basemap.querySelectorAll('a')].map(link=>link.href).join(' · '));
     const footer=[...new Set([note,...source].filter(Boolean))];
-    return {title:heading+(label&&label!==heading?' · '+label:''),context:cleanText(document.querySelector('#subtitle')),footer};
+    return {title:heading+(label&&label!==heading?' · '+label:''),footer};
   }
   function lines(ctx,text,width){
     const result=[];let line='';
@@ -196,7 +196,7 @@
     const canvas=document.createElement('canvas'),width=Math.max(1200,info.dashboard?Math.ceil(widthBeforeClone):shot.width/2),pad=32;
     // Render the chart and all annotations at twice the previous PNG resolution.
     const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
-    const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=lines(ctx,info.context,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
+    const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=info.dashboard?lines(ctx,info.context,width-pad*2):[];ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
     const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
     const figureHeight=captureHeight*width/shot.width;
     const height=top+figureHeight+bottom;

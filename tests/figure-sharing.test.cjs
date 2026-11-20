@@ -18,17 +18,17 @@ test('dispatch export uses the main chart title instead of its load shedding sub
 });
 
 for(const [name,background,ink] of [['dark','rgb(12, 21, 32)','rgb(229, 237, 245)'],['light','rgb(255, 255, 255)','rgb(34, 60, 80)']]){
- test(`${name} PNG uses the active theme for the chart, title, notes and attribution`,async()=>{
+ test(`${name} PNG uses the active theme for the chart title, figure notes and attribution without a tab description`,async()=>{
   const fills=[],labels=[],style={backgroundColor:background,color:ink};
   const ctx={measureText:text=>({width:text.length*10}),scale(){},fillRect(...bounds){fills.push({color:this.fillStyle,bounds});},fillText(text){labels.push({text,color:this.fillStyle});},drawImage(){}};
   const canvas={getContext:()=>ctx,toBlob:callback=>callback('png')};
   const document={body:{},querySelector:()=>({addEventListener(){}}),querySelectorAll:()=>[],createElement:tag=>{assert.equal(tag,'canvas');return canvas;}};
   const window={html2canvas:async(target,options)=>{assert.equal(options.backgroundColor,background);style.color='changed during capture';return {width:2400,height:800};}};
   const a=api({window,document,getComputedStyle:()=>style});
-  assert.equal(await a.exportPNG({isConnected:true,matches:()=>false},{title:'Demand and generation',context:'Operating date',footer:['Source note']}),'png');
+  assert.equal(await a.exportPNG({isConnected:true,matches:()=>false},{title:'Demand and generation',context:'Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.',footer:['Source note']}),'png');
   assert.equal(fills.length,1);assert.equal(fills[0].color,background);
   assert.deepEqual(fills[0].bounds,[0,0,canvas.width/2,canvas.height/2]);
-  assert.deepEqual(labels.map(label=>label.text),['Demand and generation','Operating date','Source note','© Bangladesh Electric Grid Dashboard','https://satyakibanik.github.io/Projects/begd/']);
+  assert.deepEqual(labels.map(label=>label.text),['Demand and generation','Source note','© Bangladesh Electric Grid Dashboard','https://satyakibanik.github.io/Projects/begd/']);
   assert.ok(labels.every(label=>label.color===ink));
  });
 }
