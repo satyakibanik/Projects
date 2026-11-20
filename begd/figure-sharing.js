@@ -267,6 +267,7 @@
     pie.style.cssText='width:240px;min-width:0;';
     pie.querySelector('svg').style.cssText='width:240px;height:240px;max-width:100%;';
     layout.replaceChildren(pie,legend);
+    clone.style.width='840px';
     clone.replaceChildren(layout);
   }
   function arrangeOrganizationTree(clone){
@@ -285,7 +286,7 @@
       }
     }
   }
-  async function dashboardPreviewRows(tab,date){
+  async function dashboardPreviewRows(tab,date,themeName){
     const staged=['trends','plants','operations','fuel','organogram'].includes(tab);
     let frame;
     try{
@@ -302,6 +303,7 @@
         frame.style.cssText='position:fixed;left:-1800px;top:0;width:1440px;height:1000px;border:0;pointer-events:none;';
         frame.src=url.href;document.body.append(frame);
         doc=await waitForPreview(()=>frame.contentWindow?.BEGDView?.started&&frame.contentDocument);
+        if(themeName)doc.documentElement.dataset.theme=themeName;
       }
       const find=selector=>doc.querySelector('#content '+selector);
       const capture=async(read,title,prepare)=>{
@@ -316,8 +318,8 @@
       if(tab==='trends'){
         return [
           [await capture('[data-trend-key="generation-demand"]','Generation & demand')],
-          [await capture('[data-trend-key="seasonal-load-duration"]','Seasonal load-duration curves'),
-           await capture('[data-trend-key="imports"]','Imports over time')]
+          [await capture('[data-trend-key="seasonal-load-duration"]','Seasonal load-duration curves')],
+          [await capture('[data-trend-key="imports"]','Imports over time')]
         ];
       }
       if(tab==='overview')return [
@@ -360,13 +362,18 @@
         const dial=await waitForPreview(()=>find('[data-event-view-select="dial"]'));
         dial.click();
         return [[await capture(()=>chartUnder(doc,'East–west interconnector flows')||find('.ewic-chart-column .interactive-chart'),'EWIC flows')],
-          [await capture('.event-dial-layout','24-hour time dial')]];
+          [await capture('.event-dial-layout','24-hour time dial',clone=>{
+            clone.style.width='460px';
+            const dial=clone.querySelector('.event-dial-svg');
+            clone.replaceChildren(dial);
+            dial.style.cssText='display:block;width:100%;height:auto;';
+          })]];
       }
       if(tab==='fuel'){
         const source=await capture(()=>chartUnder(doc,'Gas supply by source over time','.fuel-chart'),'Gas supply by source over time');
         const destination=await capture(()=>chartUnder(doc,'Gas supply by destination over time','.fuel-chart'),'Gas supply by destination over time');
         find('#fuel-tab-coal').click();
-        return [[source,destination],[await capture(()=>chartUnder(doc,'Annual Barapukuria coal production','.fuel-chart'),'Annual Barapukuria coal production')]];
+        return [[source],[destination],[await capture(()=>chartUnder(doc,'Annual Barapukuria coal production','.fuel-chart'),'Annual Barapukuria coal production')]];
       }
       if(tab==='organogram'){
         const view=await waitForPreview(()=>find('[data-org-view]'));
@@ -386,33 +393,55 @@
   async function exportDashboardPNG(){
     const tab=root.location?.hash.slice(1)||'overview';
     const date=document.querySelector('#report-date')?.value;
-    const previews=await dashboardPreviewRows(tab,date);
+    const themeName=document.documentElement.dataset.theme;
+    const {backgroundColor,color}=getComputedStyle(document.body);
+    const previews=await dashboardPreviewRows(tab,date,themeName);
     if(!previews.length)throw new Error('Could not create the dashboard preview.');
 
     const canvas=document.createElement('canvas'),width=1050,height=1400,pad=32;
-    const figureTop=132,figureBottom=height-87,gap=20,headingHeight=28;
+    const figureTop=114,figureBottom=height-76,gap=14,headingHeight=25;
     const tabName=cleanText(document.querySelector('#title'));
     const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
       dateStyle:'long',timeZone:'Asia/Dhaka'
     }).format(new Date(date+'T12:00:00+06:00')):'Unavailable';
     canvas.width=width;canvas.height=height;
-    const ctx=canvas.getContext('2d'),theme=getComputedStyle(document.body);
-    ctx.fillStyle=theme.backgroundColor;ctx.fillRect(0,0,width,height);
-    ctx.fillStyle=theme.color;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle=backgroundColor;ctx.fillRect(0,0,width,height);
+    ctx.fillStyle=color;
     ctx.font='bold 38px sans-serif';ctx.fillText('BEGD · '+tabName,pad,57);
     ctx.font='23px sans-serif';ctx.fillText('Operating date '+operatingDate+' · All times BST',pad,92);
 
-    const figureHeight=(figureBottom-figureTop-gap*(previews.length-1))/previews.length;
-    previews.forEach((row,index)=>{
+    const rows=previews.map(row=>{
       const columnWidth=(width-pad*2-gap*(row.length-1))/row.length;
-      row.forEach(({shot,title,legend=[]},column)=>{
+      return row.map(figure=>({
+        ...figure,columnWidth,
+        chrome:(figure.title?headingHeight:0)+Math.ceil((figure.legend?.length||0)/2)*21
+      }));
+    });
+    const rowHeight=(row,factor)=>Math.max(...row.map(({shot,columnWidth,chrome})=>
+      (columnWidth/shot.width)*shot.height*factor+chrome));
+    const totalHeight=factor=>rows.reduce((total,row)=>total+rowHeight(row,factor),gap*(rows.length-1));
+    const availableHeight=figureBottom-figureTop;
+    let factor=1;
+    if(totalHeight(1)>availableHeight){
+      let low=0,high=1;
+      for(let i=0;i<16;i++){
+        const mid=(low+high)/2;
+        if(totalHeight(mid)>availableHeight)high=mid;
+        else low=mid;
+      }
+      factor=low;
+    }
+    let rowTop=figureTop;
+    rows.forEach(row=>{
+      const height=rowHeight(row,factor);
+      row.forEach(({shot,title,legend=[],columnWidth},column)=>{
         const headingSpace=title?headingHeight:0;
-        const legendHeight=Math.ceil(legend.length/2)*21;
-        const scale=Math.min(columnWidth/shot.width,(figureHeight-headingSpace-legendHeight)/shot.height);
+        const scale=columnWidth/shot.width*factor;
         const imageWidth=shot.width*scale,imageHeight=shot.height*scale;
         const columnLeft=pad+column*(columnWidth+gap);
         const left=columnLeft+(columnWidth-imageWidth)/2;
-        const top=figureTop+index*(figureHeight+gap)+(figureHeight-imageHeight-headingSpace-legendHeight)/2;
+        const top=rowTop;
         if(title){
           ctx.font='600 21px sans-serif';
           ctx.fillText(title,Math.min(left,columnLeft+Math.max(0,columnWidth-ctx.measureText(title).width)),top+21,columnWidth);
@@ -428,6 +457,7 @@
           ctx.fillText(name,x+33,y,legendWidth-36);
         });
       });
+      rowTop+=height+gap;
     });
 
     ctx.font='600 19px sans-serif';ctx.fillText(COPYRIGHT,pad,height-43);
