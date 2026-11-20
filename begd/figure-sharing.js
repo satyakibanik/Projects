@@ -499,7 +499,10 @@
   }
   function copyDashboard(){
     if(!root.isSecureContext||!navigator.clipboard?.write||!root.ClipboardItem)throw new Error('Image copy is unavailable here.');
-    return navigator.clipboard.write([new root.ClipboardItem({'image/png':exportDashboardPNG()})]);
+    const png=exportDashboardPNG();
+    // A denied clipboard write can reject before the browser consumes the PNG.
+    png.catch(()=>{});
+    return navigator.clipboard.write([new root.ClipboardItem({'image/png':png})]);
   }
   function download(blob,title){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename(title);a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
   function button(label,action){const element=document.createElement('button');element.type='button';element.textContent=label;element.addEventListener('click',action);return element;}
