@@ -142,13 +142,9 @@
     }
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
-    const bounds=info.dashboard?capture.getBoundingClientRect():null;
-    const widthBeforeClone=bounds?Math.max(bounds.width,capture.scrollWidth):0;
-    const heightBeforeClone=bounds?Math.max(bounds.height,capture.scrollHeight):0;
-    // Keep long tabs within browser canvas limits while retaining all panels.
-    const captureScale=info.dashboard?dashboardCanvasScale(widthBeforeClone,heightBeforeClone):4;
-    const hasPlantMap=target.matches('.plant-map-panel')||
-      (info.dashboard&&Boolean(target.querySelector('.plant-map-panel')));
+    const preview=info.preview;
+    const captureScale=preview?2:4;
+    const hasPlantMap=target.matches('.plant-map-panel,.plant-map-frame');
     // Capture the theme once so chart, title and footer use the same palette.
     const theme=getComputedStyle(document.body),background=theme.backgroundColor,ink=theme.color;
     let contentBounds;
@@ -158,7 +154,13 @@
         const style=doc.createElement('style');
         style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.forecast-subplot-controls label,.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend" "daylight legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "daylight" "legend"}}';
         doc.head.append(style);
-        if(!info.dashboard){
+        if(preview){
+          style.textContent+='.preview-figure :is(p,details,.news-meta,.organogram-node-arrow,.fuel-layer-actions,.fuel-window,.chart-style,.layer-actions,input[type=checkbox],select){display:none!important}'
+            +'.preview-figure label:has(>.series-swatch){grid-template-columns:32px minmax(0,1fr)!important}'
+            +'.preview-figure .source-legend-group legend label{grid-template-columns:minmax(0,1fr)!important}'
+            +'.preview-figure.en-curve-chart{display:block}.preview-figure.en-curve-chart>.legend{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));margin:8px 0 0}';
+          clone.classList.add('preview-figure');
+        }else{
           doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
         }
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
@@ -184,44 +186,91 @@
         // Measure after removing controls/help so their former height is not exported.
         const bounds=clone.getBoundingClientRect();
         const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
-        if(!info.dashboard&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
+        if(!preview&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
         // html2canvas does not parse CSS Color 4 color(srgb ...) values.
-        normalizeColorFunctions(doc,clone,info.dashboard||hasPlantMap);
+        normalizeColorFunctions(doc,clone,preview||hasPlantMap);
         if(hasPlantMap)await inlinePlantIcons(clone);
       },
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
+    if(preview)return shot;
     const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*captureScale)):shot.height;
-    const canvas=document.createElement('canvas'),width=Math.max(1200,info.dashboard?Math.ceil(widthBeforeClone):shot.width/2),pad=32;
+    const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width/2),pad=32;
     // Render the chart and all annotations at twice the previous PNG resolution.
     const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
-    const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=info.dashboard?lines(ctx,info.context,width-pad*2):[];ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
-    const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
+    const heading=lines(ctx,info.title,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
+    const top=pad+heading.length*40+16,bottom=notes.length*28+100;
     const figureHeight=captureHeight*width/shot.width;
     const height=top+figureHeight+bottom;
-    const outputScale=info.dashboard?dashboardCanvasScale(width,height):2;
-    canvas.width=Math.floor(width*outputScale);canvas.height=(info.dashboard?Math.floor:Math.ceil)(height*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle=background;ctx.fillRect(0,0,width,canvas.height/outputScale);ctx.fillStyle=ink;ctx.font='bold 32px sans-serif';
-    let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
+    const outputScale=2;
+    canvas.width=Math.floor(width*outputScale);canvas.height=Math.ceil(height*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle=background;ctx.fillRect(0,0,width,canvas.height/outputScale);ctx.fillStyle=ink;ctx.font='bold 32px sans-serif';
+    let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}
     ctx.drawImage(shot,0,0,shot.width,captureHeight,0,top,width,figureHeight);y=top+figureHeight+8;ctx.font='20px sans-serif';for(const line of notes){y+=28;ctx.fillText(line,pad,y);}
     ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height/outputScale-48);
     ctx.font='18px sans-serif';ctx.fillText(canonical,width-pad,canvas.height/outputScale-22);
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create the PNG.')),'image/png'));
   }
-  function dashboardCanvasScale(width,height){
-    return Math.min(2,16000/Math.max(width,height),Math.sqrt(15000000/(width*height)));
-  }
+  const previewFigures={
+    realtime:'.realtime-dispatch-plots',
+    overview:'.dispatch-main .interactive-chart,.fuel-report-chart',
+    plants:'.plant-map-frame:has(svg),.plant-detail .interactive-chart',
+    regions:'.region-map-frame:has(svg),.regional-snapshot-chart-wrap',
+    'en-curve':'.en-curve-chart',
+    substations:'.vb-combined',
+    forecast:'.forecast-subplot',
+    fuel:'.fuel-chart',
+    insight:'.insight-chart-wrap',
+    news:'.news-card',
+    organogram:'.organogram-node',
+    'publication-timing':'.timing-plot'
+  };
   async function exportDashboardPNG(){
-    const content=document.querySelector('#content');
-    if(!content?.firstElementChild||!content.getBoundingClientRect().height){
-      throw new Error('Wait for the dashboard tab to load, then try again.');
+    const tab=location.hash.slice(1)||'overview';
+    const selector=previewFigures[tab]||SELECTOR;
+    const figures=[...document.querySelectorAll('#content :is('+selector+')')]
+      .filter(node=>!node.closest('[hidden],details:not([open])')&&node.getBoundingClientRect().height>0);
+    const selected=figures.filter(node=>!figures.some(other=>other!==node&&other.contains(node))).slice(0,2);
+    if(!selected.length)throw new Error('No figures are available in this view yet.');
+    const previews=[];
+    for(const target of selected){
+      const {title}=describe(target);
+      const shot=await exportPNG(target,{preview:true});
+      if(shot.width&&shot.height)previews.push({shot,title:title==='Grid figure'||target.matches('.news-card')?'':title});
     }
-    return exportPNG(content,{
-      title:'BEGD · '+cleanText(document.querySelector('#title')),
-      context:cleanText(document.querySelector('#subtitle')),
-      footer:[],
-      dashboard:true
+    if(!previews.length)throw new Error('Could not create the dashboard preview.');
+
+    const canvas=document.createElement('canvas'),width=1400,height=1050,pad=32;
+    const figureTop=132,figureBottom=height-87,gap=20,headingHeight=28;
+    const tabName=cleanText(document.querySelector('#title'));
+    const date=document.querySelector('#report-date')?.value;
+    const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
+      dateStyle:'long',timeZone:'Asia/Dhaka'
+    }).format(new Date(date+'T12:00:00+06:00')):'Unavailable';
+    canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d'),theme=getComputedStyle(document.body);
+    ctx.fillStyle=theme.backgroundColor;ctx.fillRect(0,0,width,height);
+    ctx.fillStyle=theme.color;
+    ctx.font='bold 38px sans-serif';ctx.fillText('BEGD · '+tabName,pad,57);
+    ctx.font='23px sans-serif';ctx.fillText('Operating date '+operatingDate+' · All times BST',pad,92);
+
+    const figureHeight=(figureBottom-figureTop-gap*(previews.length-1))/previews.length;
+    previews.forEach(({shot,title},index)=>{
+      const headingSpace=title?headingHeight:0;
+      const scale=Math.min((width-pad*2)/shot.width,(figureHeight-headingSpace)/shot.height);
+      const imageWidth=shot.width*scale,imageHeight=shot.height*scale;
+      const left=(width-imageWidth)/2;
+      const top=figureTop+index*(figureHeight+gap)+(figureHeight-imageHeight-headingSpace)/2;
+      if(title){
+        ctx.font='600 21px sans-serif';
+        ctx.fillText(title,Math.min(left,width-pad-ctx.measureText(title).width),top+21,width-pad*2);
+      }
+      ctx.drawImage(shot,left,top+headingSpace,imageWidth,imageHeight);
     });
+
+    ctx.font='600 19px sans-serif';ctx.fillText(COPYRIGHT,pad,height-43);
+    ctx.font='18px sans-serif';ctx.textAlign='right';ctx.fillText(canonical,width-pad,height-43);
+    return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create the PNG.')),'image/png'));
   }
   function copyDashboard(){
     if(!root.isSecureContext||!navigator.clipboard?.write||!root.ClipboardItem)throw new Error('Image copy is unavailable here.');
@@ -284,8 +333,7 @@
     dialog.replaceChildren();const title=document.createElement('h2');title.id='figure-share-title';title.textContent='Share dashboard';dialog.setAttribute('aria-labelledby',title.id);dialog.append(title);
     const label=document.createElement('label');label.textContent='Custom message';label.htmlFor='figure-share-message';const message=document.createElement('textarea');message.id=label.htmlFor;message.rows=4;message.value='Check out Bangladesh Electric Grid Dashboard. See how the grid is performing live or any given day!';dialog.append(label,message);
     const hint=document.createElement('p');const tabTitle=cleanText(document.querySelector('#title'))||'the current tab';
-    const period=cleanText(document.querySelector('#subtitle .operating-date-highlight'));
-    hint.textContent='Copies '+tabTitle+(period?' ('+period+')':'')+' as a PNG. Paste the image into your X post.';dialog.append(hint);
+    hint.textContent='Copies a figure preview of '+tabTitle+' as a PNG. Paste the image into your X post.';dialog.append(hint);
     // Share one stable, crawlable URL instead of a separately cached card for every view.
     const url=canonical,link=document.createElement('p');link.className='figure-share-link';link.textContent=url;dialog.append(link);
     const actions=toolbar(),x=document.createElement('a');x.className='dashboard-x-link x-share-control';x.setAttribute('aria-label','Share dashboard on X.com');x.title='Share dashboard on X.com';x.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg><span aria-hidden="true">.com</span>';

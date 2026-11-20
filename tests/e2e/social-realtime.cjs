@@ -25,27 +25,30 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
   await plots.nth(1).locator('[data-point]').first().hover();assert.equal(await plots.locator('.chart-tooltip:visible').count(),2);
   await page.mouse.move(0,0);assert.equal(await plots.locator('.chart-tooltip:visible').count(),0);
   await page.screenshot({path:'/private/tmp/begd-realtime-subplots.png',fullPage:true});
-  // Observe the live tab passed to the real PNG renderer.
+  // Observe the figures passed to the real PNG renderer and intercept the native clipboard item.
   await page.evaluate(()=>{
     const original=window.html2canvas;
-    window.html2canvas=(target,options)=>{
-      if(target.id==='content')window.snapshot={
-        title:document.querySelector('#title').textContent,
-        subtitle:document.querySelector('#subtitle').innerText,
+    window.html2canvas=(figure,options)=>{
+      window.previewFigures.push({
+        id:figure.id,
         date:data.date,
-        realtime:!!target.querySelector('.realtime-dispatch-plots'),
-        plants:!!target.querySelector('.plant-map-panel'),
-        trends:!!target.querySelector('[data-trend-chart]'),
-        comparisons:!!target.querySelector('#day-sources')
-      };
-      return original(target,options);
+        realtime:figure.matches('.realtime-dispatch-plots'),
+        plants:figure.matches('.plant-map-frame'),
+        trends:figure.matches('.trends-generation-figure,.trends-chart')
+      });
+      return original(figure,options);
+    };
+    const write=navigator.clipboard.write.bind(navigator.clipboard);
+    navigator.clipboard.write=items=>{
+      window.previewPNG=items[0].getType('image/png');
+      return write(items);
     };
   });
   async function shareTab(hash,title,contentKey){
-    const opened=await page.evaluate(()=>window.opened.length);
+    const opened=await page.evaluate(()=>{window.previewFigures=[];return window.opened.length;});
     await page.locator('#share-dashboard').click();
     const dialog=page.locator('.figure-share-dialog[open]');
-    assert.match(await dialog.innerText(),new RegExp('Copies '+title));
+    assert.match(await dialog.innerText(),new RegExp('Copies a figure preview of '+title));
     assert.equal(await dialog.locator('.figure-share-link').innerText(),'https://satyakibanik.github.io/Projects/begd/');
     await dialog.getByLabel('Custom message').fill('Bangladesh grid today');
     await dialog.getByRole('link',{name:'Share dashboard on X.com'}).click();
@@ -54,34 +57,31 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
       opened+1,{timeout:60000});
     assert.equal(await page.evaluate(()=>window.opened.length),opened+1,
       await page.locator('#figure-share-progress [role=status]').allTextContents());
-    const snapshot=await page.evaluate(()=>window.snapshot);
-    assert.equal(snapshot.title,title);
-    assert.equal(snapshot[contentKey],true);
-    assert.equal(snapshot.comparisons,false);
-    assert.equal(snapshot.date,initial.date);
+    const figures=await page.evaluate(()=>window.previewFigures);
+    assert.ok(figures.length>0&&figures.length<=2);
+    assert.ok(figures.some(figure=>figure[contentKey]));
+    assert.ok(figures.every(figure=>figure.id!=='content'&&figure.date===initial.date));
     assert.equal(await page.evaluate(()=>location.hash),hash);
     const url=new URL(await page.evaluate(()=>window.opened.at(-1)));
     assert.equal(url.searchParams.get('text'),'Bangladesh grid today');
     assert.equal(url.searchParams.get('url'),'https://satyakibanik.github.io/Projects/begd/');
     const png=Buffer.from(await page.evaluate(async()=>{
-      const item=(await navigator.clipboard.read()).find(item=>item.types.includes('image/png'));
-      return Array.from(new Uint8Array(await (await item.getType('image/png')).arrayBuffer()));
+      return Array.from(new Uint8Array(await (await window.previewPNG).arrayBuffer()));
     }));
     assert.equal(png.subarray(1,4).toString(),'PNG');
-    assert.ok(png.readUInt32BE(16)>0);
-    assert.ok(png.readUInt32BE(20)>0);
-    return {snapshot,png};
+    assert.equal(png.readUInt32BE(16),1400);
+    assert.equal(png.readUInt32BE(20),1050);
+    return png;
   }
   const realtime=await shareTab('#realtime','Real time','realtime');
   await page.evaluate(()=>{location.hash='plants';});
-  await page.locator('#content .plant-map-panel').waitFor();
+  await page.locator('#plant-map-frame svg').first().waitFor();
   const plants=await shareTab('#plants','Power plants','plants');
-  assert.match(plants.snapshot.subtitle,/Operating date/);
-  assert.notDeepEqual(plants.png,realtime.png);
+  assert.notDeepEqual(plants,realtime);
   await page.evaluate(()=>{location.hash='trends';});
   await page.locator('#content [data-trend-chart]').first().waitFor();
   const trends=await shareTab('#trends','Long-term trends','trends');
-  assert.notDeepEqual(trends.png,plants.png);
+  assert.notDeepEqual(trends,plants);
   await page.evaluate(()=>{location.hash='realtime';});
   await page.locator('#content .realtime-dispatch-plots').waitFor();
   await page.evaluate(()=>{navigator.clipboard.write=()=>Promise.reject(new Error('Clipboard denied'));});await page.locator('#share-dashboard').click();await page.locator('.dashboard-x-link').click();await page.getByRole('status').filter({hasText:'X was not opened'}).waitFor();assert.equal(await page.evaluate(()=>window.opened.length),3);await page.locator('#figure-share-progress').getByRole('button',{name:'Close',exact:true}).click();
