@@ -14,7 +14,7 @@
     operations:'Operations',
     development:'Grid development',
   };
-  let activeSection='generation';
+  let activeSection=root.location?.search&&new URLSearchParams(root.location.search).get('trends')==='operations'?'operations':'generation';
   let chartSerial=0,costTrendline=false;
   const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
@@ -124,8 +124,8 @@
     if(values.length&&finite(options.reference?.value))values.push(options.reference.value);
     const extentMin=values.length?Math.min(...values):0,extentMax=values.length?Math.max(...values):1;
     const extentPadding=Math.max((extentMax-extentMin)*0.08,Math.abs(extentMax)*0.01,0.01);
-    const min=fitted?Math.min(0,...values):options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
-    const max=options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08;
+    const min=options.domain?.[0] ?? (fitted?Math.min(0,...values):options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0);
+    const max=options.domain?.[1] ?? (options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08);
     const x=i=>L+i/Math.max(1,rows.length-1)*(W-L-R), y=v=>H-B-(v-min)/(max-min)*(H-T-B);
     const secondaryMin=secondaryValues.length?Math.floor(Math.min(...secondaryValues)-2):0;
     const secondaryMax=secondaryValues.length?Math.ceil(Math.max(...secondaryValues)+2):1;
@@ -194,7 +194,7 @@
     const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
     hoverCharts.set(id,{key,rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${options.selectAll?`<label><input type="checkbox" data-trend-all="${escape(key)}" ${allSeries.every(s=>!hidden.has(stableId(s.name)))?'checked':''}>Select / unselect all</label>`:''}${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
+    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for reported values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${options.selectAll?`<label><input type="checkbox" data-trend-all="${escape(key)}" ${allSeries.every(s=>!hidden.has(stableId(s.name)))?'checked':''}>Select / unselect all</label>`:''}${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -217,20 +217,55 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Historical generation & annual system loss':'Ending on the latest available operating day'}</span></div>`;
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full historical coverage by section':'Ending on the latest available operating day'}</span></div>`;
   }
   function sectionViews(panels){
-    const buttons=Object.entries(sections).map(([id,label])=>
-      `<button type="button" id="trend-section-${id}" data-trend-section="${id}" aria-controls="trend-view-${id}" aria-pressed="${activeSection===id}">${escape(label)}</button>`).join('');
+    const current = Object.hasOwn(panels,activeSection)?activeSection:Object.keys(panels)[0];
+    const buttons=Object.keys(panels).map(id=>[id,sections[id]||'Historical generation & system loss']).map(([id,label])=>
+      `<button type="button" id="trend-section-${id}" data-trend-section="${id}" aria-controls="trend-view-${id}" aria-pressed="${current===id}">${escape(label)}</button>`).join('');
     const views=Object.entries(panels).map(([id,body])=>
-      `<section class="trends-section" id="trend-view-${id}" aria-labelledby="trend-section-${id}"${activeSection===id?'':' hidden'}>${body}</section>`).join('');
+      `<section class="trends-section" id="trend-view-${id}" aria-labelledby="trend-section-${id}"${current===id?'':' hidden'}>${body}</section>`).join('');
     return `<div class="trends-section-picker" role="group" aria-label="Trends sections">${buttons}</div>${views}`;
   }
   function waterLevelRows(end,count) {
     return windowDays({end_date:end,days:bundle?.days||[]},count);
   }
+  function monthlyOperations(history) {
+    const yearControl=history?'':'<div class="availability-controls"><label>Year <select data-availability-year></select></label></div>';
+    const archiveURL='https://erp.powergrid.gov.bd/w/report/eyJpdiI6Ik53OTZRKzRRTVoxUUY4a3RMb250Y0E9PSIsInZhbHVlIjoiQmxnNjFqUUROVnk2RFh1OHJ0NGVkQT09IiwibWFjIjoiZDBlYmM3ZTUzMzBkNDM4NTNkZDQxYjc0YTc2NDQ3YTYzYmY1MjRjNDRjNTQ2MmQwOGM5MzY4MGRjNTIwYTFlYiIsInRhZyI6IiJ9/show_report';
+    const sources='<p><a href="'+archiveURL+'">Power Grid Bangladesh monthly operational report archive</a> · <a href="circle-availability.json">Parsed values and workbook references</a></p>';
+    const availabilityTable=history?'':'<details class="availability-sources"><summary>Reported values and source cells</summary><div class="table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Reporting circle</th><th scope="col">Substation</th><th scope="col">Transmission line</th><th scope="col">Workbook</th></tr></thead><tbody></tbody></table></div></details>';
+    const reliabilityTable=history?'':'<details class="reliability-sources availability-sources"><summary>Outage categories and source cells</summary><div class="table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Unit</th><th scope="col">Tripping</th><th scope="col">Emergency</th><th scope="col">Scheduled</th><th scope="col">Published total</th><th scope="col">Total minus categories</th><th scope="col">Workbook and cells</th></tr></thead><tbody></tbody></table></div></details>';
+    return `<div class="monthly-operations" data-monthly-operations>
+      <section class="panel full">
+        <div class="panel-head"><div><h2>Reporting cycle availability</h2><p data-keep-visible>Monthly substation and transmission line availability by reporting circle, from forms QF-LDC-29 and QF-LDC-30 of Power Grid Bangladesh’s operational workbooks.</p></div>${yearControl}</div>
+        <p role="status" aria-live="polite" class="availability-status note">Loading availability…</p>
+        <div class="availability-charts" data-availability-plots></div>
+        <details class="more-information"><summary>More information</summary><div>
+          <p>BEGD reads the availability rows in section B of each downloaded workbook. Excel fractions and values already expressed as percentages are displayed as percentages on the same zoomed axis. Each circle has its own line. Historical Dhaka and the later Dhaka (North) and Dhaka (South) circles keep distinct series.</p>
+          <p>The archive provided 161 workbooks from January 2013 to August 2026. February 2013 and December 2015 have no retrievable workbook, and July 2015 has no dated listing. Missing circle values leave gaps, including where a workbook reports only part of the circle table.</p>
+          ${sources}${availabilityTable}
+        </div></details>
+      </section>
+      <section class="panel full">
+        <div class="panel-head"><div><h2>National outage reliability</h2><p data-keep-visible>Monthly totals across all reporting areas for tripping and outages (events) and outage-related unserved energy (MWh), from forms QF-LDC-27 and QF-LDC-28 of the same workbooks.</p></div></div>
+        <p role="status" aria-live="polite" class="reliability-status note">Loading outage reliability…</p>
+        <div class="reliability-charts availability-charts"></div>
+        <details class="more-information"><summary>More information</summary><div>
+          <p>BEGD reads the published national Total rows for tripping, emergency outages and scheduled outages. The current-month figure takes precedence. Where the direct report is unavailable, the next workbook’s previous-month total can supply a value. An asterisk in the yearly charts and the tooltip identify these observations.</p>
+          <p>Missing category values stay blank. Where category values and the published total differ, the chart retains the published total. The energy measure covers the outages summarized in form 28. Months with neither a direct nor a previous-month value appear as gaps.</p>
+          ${sources}${reliabilityTable}
+        </div></details>
+      </section>
+    </div>`;
+  }
+
   function content() {
-    if(period==='10y')return controls()+(historyPending?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||'');
+    if(period==='10y')return controls()+sectionViews({
+      historical:(historyPending?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||''),
+      operations:monthlyOperations(true)+'<div id="operational-event-explorer"></div>',
+      development:root.BEGDGridDevelopment?.render(plot)||'',
+    });
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
@@ -279,8 +314,7 @@
     imports+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
     return html+sectionViews({generation,load,fuel,imports,
       assets:'<div id="entity-histories"></div>',
-      operations:'<div id="operational-event-explorer"></div>',
-      development:root.BEGDGridDevelopment?.render(plot)||'',
+      operations:(period===365?monthlyOperations(false):'')+'<div id="operational-event-explorer"></div>',
     });
   }
   function tooltipRows(record,index) {
@@ -479,6 +513,7 @@
     setupTooltips(host);
     root.BEGDDemandTrends?.bind(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
+    root.BEGDCircleAvailability?.mount(host.querySelector('[data-monthly-operations]'),{plot,setupTooltips,releaseCharts},period==='10y');
     root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),period,bundle?.end_date);
     bindControls(host);
     document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';

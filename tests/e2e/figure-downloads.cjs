@@ -115,7 +115,14 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
     if(await page.locator('#content .figure-actions:visible').count())await clickEveryFigure(`trends-${range}-${section}`);
    }
   }
-  await page.locator('[data-trend-days="10y"]').click();await page.locator('.trends-heatmap').waitFor();await clickEveryFigure('trends-10y');
+  await page.locator('[data-trend-days="10y"]').click();
+  await page.locator('[data-monthly-operations] .figure-actions:visible').first().waitFor();
+  await clickEveryFigure('trends-10y-operations');
+  await page.locator('[data-trend-section="development"]').click();
+  await clickEveryFigure('trends-10y-development');
+  await page.locator('[data-trend-section="historical"]').click();
+  await page.locator('.trends-heatmap').waitFor();
+  await clickEveryFigure('trends-10y-historical');
   assert.ok(firstDownload,'at least one figure should trigger a download');
   const image=fs.readFileSync(await firstDownload.path());assert.equal(image.subarray(1,4).toString(),'PNG');assert.ok(image.readUInt32BE(16)>=2400);
   assert.deepEqual(errors,[]);console.log('PASS: '+checkedDownloads+' figure download clicks produced PNG downloads without page errors.');

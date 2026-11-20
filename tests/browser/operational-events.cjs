@@ -43,7 +43,26 @@ const bundle={version:1,end_date:'2026-10-29',days:[
     assert.equal(await page.locator('#operational-event-category option[value="trip"]').innerText(),'Tripped (Automatic Trip) (1)');
     assert.match(await page.locator('[data-event-rows]').innerText(),/Older generator Tripped/);
    }
-   await page.locator('[data-trend-days="10y"]').click();assert.equal(await page.locator('#operational-event-explorer').count(),0);
+   const development=page.locator('[data-trend-section="development"]');
+   assert.equal(await development.count(),0);
+   assert.equal(await page.locator('[data-availability-year]').count(),1);
+   await page.locator('[data-trend-days="10y"]').click();
+   assert.equal(await development.isVisible(),true);
+   assert.equal(await page.locator('[data-availability-year]').count(),0);
+   assert.match(await page.locator('[data-event-result]').innerText(),/3 days with P1 logs in the local archive/);
+   await page.locator('#operational-event-category').selectOption('');
+   const pageLabel=page.locator('[data-event-page]');
+   await page.locator('[data-event-end]').click();
+   assert.equal(await pageLabel.innerText(),'Page 2 of 2');
+   assert.equal(await page.locator('[data-event-end]').isDisabled(),true);
+   await page.locator('[data-event-start]').click();
+   assert.equal(await pageLabel.innerText(),'Page 1 of 2');
+   await page.locator('[data-event-jump-year]').selectOption('2026');
+   await page.locator('[data-event-jump-month]').selectOption('09');
+   await page.locator('[data-event-jump-day]').selectOption('29');
+   await page.getByRole('button',{name:'Go to date'}).click();
+   assert.equal(await pageLabel.innerText(),'Page 2 of 2');
+   assert.match(await page.locator('[data-event-rows]').innerText(),/Older generator Tripped/);
    await page.locator('[data-trend-days="30"]').click();assert.equal(requests,1,'range changes must reuse the event bundle');
    // Fail only the independent log request; the generation charts remain mounted.
    fail=true;await page.reload();
