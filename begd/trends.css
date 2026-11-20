@@ -75,3 +75,25 @@
   display: grid;
   gap: .25rem;
 }
+
+.trends-custom-range { max-width: 100%; }
+.trends-custom-range summary { cursor: pointer; }
+.trends-custom-range form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .5rem .85rem;
+  padding-block: .55rem;
+}
+.trends-custom-range label { display: grid; gap: .25rem; }
+.trends-custom-message { flex-basis: 100%; margin: 0; }
+.trends-custom-message:empty { display: none; }
+.trends-custom-range summary {
+  box-sizing: border-box;
+  display: list-item;
+  padding: .65rem .85rem;
+  border: 1px solid var(--line);
+  width: max-content;
+  max-width: 100%;
+}
+.trends-custom-range[open] { flex-basis: 100%; }

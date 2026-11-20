@@ -196,3 +196,19 @@ test('colliding date hashes get distinct comparison colors consistently across a
  const colors=plain(run("[...customComparisons.keys()].map(date=>comparisonStyle(date).color)"));
  assert.equal(new Set(colors).size,colors.length);
 });
+
+test('custom Trends dates round-trip and invalid ranges fall back to 30 days',()=>{
+ const api=codec();
+ const base='https://example.test/?v=2#trends';
+ const dates={days:'custom',trendStart:'2025-11-19',trendEnd:'2026-11-18'};
+ const url=api.encode(base,dates);
+ assert.equal(api.decode(url).state.days,'custom');
+ assert.equal(api.decode(url).state.trendStart,dates.trendStart);
+ assert.equal(api.decode(url).state.trendEnd,dates.trendEnd);
+ assert.equal(api.validTrendRange('2026-11-18','2026-11-18'),true);
+ assert.equal(api.validTrendRange('2025-11-18','2026-11-18'),false);
+ const invalid=api.decode('https://example.test/?days=custom&trendStart=2026-11-18&trendEnd=2025-11-19#trends');
+ assert.equal(invalid.state.days,'30');
+ assert.equal(invalid.warnings.length,1);
+ assert.equal(new URL(api.encode(url,{days:'365'})).searchParams.has('trendStart'),false);
+});

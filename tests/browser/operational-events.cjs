@@ -63,6 +63,15 @@ const bundle={version:1,end_date:'2026-10-29',days:[
    await page.getByRole('button',{name:'Go to date'}).click();
    assert.equal(await pageLabel.innerText(),'Page 2 of 2');
    assert.match(await page.locator('[data-event-rows]').innerText(),/Older generator Tripped/);
+   await page.locator('.trends-custom-range summary').click();
+   await page.locator('[name="trendStart"]').fill('2026-09-29');
+   await page.locator('[name="trendEnd"]').fill('2026-10-01');
+   await page.getByRole('button',{name:'Apply range'}).click();
+   assert.match(await page.locator('.trends-coverage').innerText(),/29 Sept? 2026 – 1 Oct 2026.*3 \/ 3 daily reports/);
+   assert.match(await page.locator('[data-event-result]').innerText(),/1 of 1 entries.*1 \/ 3 days with P1 logs/);
+   assert.match(await page.locator('[data-event-rows]').innerText(),/Older generator Tripped/);
+   assert.equal(new URL(page.url()).searchParams.get('trendStart'),'2026-09-29');
+   assert.equal(new URL(page.url()).searchParams.get('trendEnd'),'2026-10-01');
    await page.locator('[data-trend-days="30"]').click();assert.equal(requests,1,'range changes must reuse the event bundle');
    // Fail only the independent log request; the generation charts remain mounted.
    fail=true;await page.reload();

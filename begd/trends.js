@@ -27,11 +27,15 @@
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
     // Include settings for charts not mounted in this session yet.
     for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
-    return {costTrend:costTrendline?'linear':'off',days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+    return {costTrend:costTrendline?'linear':'off',days:String(period),...(period==='custom'?{trendStart:customRange.start,trendEnd:customRange.end}:{}),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
   }
   function setViewState(state){
     costTrendline=state.costTrend==='linear';
-    period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
+    if(state.days==='custom'&&root.BEGDViewCodec?.validTrendRange(state.trendStart,state.trendEnd)){
+      customRange={start:state.trendStart,end:state.trendEnd};
+      period='custom';
+    }else period=state.days==='10y'?'10y':Number(state.days==='custom'?30:state.days);
+    chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
     for(const [id,visible] of state.trendLayers||[]){const split=id.indexOf('|');if(split<0)continue;const chart=id.slice(0,split),name=id.slice(split+1);if(!hiddenLayers.has(chart))hiddenLayers.set(chart,new Set());if(!knownLayers.has(chart))knownLayers.set(chart,new Set());knownLayers.get(chart).add(name);if(!visible)hiddenLayers.get(chart).add(name);}
@@ -42,7 +46,17 @@
   const chartUnits={generation:'GWh',imports:'GWh'};
   let temperatureUnit='°C',temperatureDetail=null;
   let period = 30, bundle = null, history = null, pending = null, failure = null;
-  let supplementalStarted=false, historyPending=false;
+  let supplementalStarted=false, historyPending=false, customRange=null, rangeMessage='';
+  function archiveBounds() {
+    if(!bundle?.end_date||!bundle.days.length)return null;
+    return {start:bundle.days.reduce((first,row)=>row.date<first?row.date:first,bundle.end_date),end:bundle.end_date};
+  }
+  function selectedWindow() {
+    return period==='custom'?{
+      count:(Date.parse(customRange.end)-Date.parse(customRange.start))/86400000+1,
+      end:customRange.end,
+    }:{count:period,end:bundle?.end_date};
+  }
   function windowDays(data, count) {
     if (!data.end_date) return [];
     const byDate = new Map(data.days.map(day => [day.date, day]));
@@ -217,7 +231,17 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full historical coverage by section':'Ending on the latest available operating day'}</span></div>`;
+    const bounds=archiveBounds();
+    const form=bounds?`<details class="trends-custom-range"${period==='custom'||rangeMessage?' open':''}>
+      <summary>${period==='custom'?'Custom range selected':'Custom range'}</summary>
+      <form data-trend-custom-range aria-label="Custom Trends date range">
+        <label>Start date <input name="trendStart" type="date" min="${escape(bounds.start)}" max="${escape(bounds.end)}" value="${escape(customRange?.start||bounds.start)}" required></label>
+        <label>End date <input name="trendEnd" type="date" min="${escape(bounds.start)}" max="${escape(bounds.end)}" value="${escape(customRange?.end||bounds.end)}" required></label>
+        <button type="submit">Apply range</button>
+        <p class="trends-custom-message" role="status">${escape(rangeMessage)}</p>
+      </form>
+    </details>`:'';
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}${form}</div><span>${period==='10y'?'Full historical coverage by section':period==='custom'?'Selected operating dates · inclusive':'Ending on the latest available operating day'}</span></div>`;
   }
   function sectionViews(panels){
     const current = Object.hasOwn(panels,activeSection)?activeSection:Object.keys(panels)[0];
@@ -269,11 +293,12 @@
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
-    const rows=windowDays(bundle,period).map(row=>selected.get(row.date)||row);
+    const {count,end}=selectedWindow();
+    const rows=windowDays({...bundle,end_date:end},count).map(row=>selected.get(row.date)||row);
     if(!rows.length)return controls()+'<p class="empty">No historical reports are available in this build.</p>';
     const gen=total(rows,'generation_mwh'), demand=total(rows,'demand_mwh'), imported=total(rows,'imports_mwh');
     const shed=rows.map(r=>r.shed_peak_mw).filter(finite), unserved=total(rows,'unserved_mwh');
-    const coverage=n=>`${n} / ${period} days reported`;
+    const coverage=n=>`${n} / ${count} days reported`;
     const actual=rows.filter(row=>row.report_id!=null).length;
     const fuelSeries=Object.entries(FUELS).map(([name,color])=>({name,color,value:r=>finite(r.fuels?.[name])?r.fuels[name]/1000:null}));
     const completeMix=rows.filter(r=>fuelSeries.every(s=>finite(s.value(r)))&&fuelSeries.reduce((n,s)=>n+s.value(r),0)>0).length;
@@ -285,20 +310,20 @@
     const routeColors=['#347baf','#c48722','#b95442','#36a77b'];
     const routeSeries=[...routeGroups].map(([name,aliases],i)=>({name,color:routeColors[i%routeColors.length],
       value:r=>energyValue(aliases.map(alias=>r.routes?.[alias]).find(finite),chartUnits.imports)}));
-    let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${period} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
+    let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${count} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
     html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports',rows)+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement',rows)+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading',rows)+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count),rows)+'</div>';
     html+=`<p class="note trends-method">Totals cover reported days only; incomplete windows are partial totals. Missing values stay blank and lines break at gaps. Demand requirement uses the matching-date En-Curve total, or P1 generation plus reported energy not served when that total is unavailable. This energy requirement is not a separately metered demand total. Reported load shedding is taken directly from P4; it is not inferred from demand minus generation. Energy not served: ${format(unserved.value==null?null:unserved.value/1000)} GWh (${coverage(unserved.count)}), a separate published P1 energy measure.</p>`;
     const generationUnit=chartUnits.generation, importUnit=chartUnits.imports;
     const showTemperature=hiddenLayers.has('generation-demand')&&!hiddenLayers.get('generation-demand').has('temperature_c');
     const powerNote='Daily average power = published daily energy ÷ 24 hours · MW';
-    const detail=temperatureDetail||(period>=60?'weekly':'daily');
+    const detail=temperatureDetail||(count>=60?'weekly':'daily');
     const averaged=showTemperature&&detail==='weekly',comparisonRows=averaged?weeklyComparisonRows(rows):rows;
     const comparisonSeries=[energy('generation_mwh','Generation','#4e79a7',false,generationUnit),energy('demand_mwh','Demand requirement','#d88931',true,generationUnit),{...temperatureSeries(),legendOnly:true}].map(series=>showTemperature?{...series,unit:series.unit||generationUnit,markers:true,width:series.axis==='right'?2.8:1.9}:series);
     const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('generation-demand')?.has(stableId(series.name))):null;
     const comparisonNote=(averaged?'7-day averages · ':'')+(generationUnit==='MW'?powerNote:'Daily energy · GWh')+' · generation includes imports · value axis fitted to visible data';
     const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${detailControls(detail)}${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
     let generation=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${unitControls('generation')}</div>`);
-    if(showTemperature)generation+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
+    if(showTemperature)generation+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${count} days reported. °F = °C × 9/5 + 32.</p>`;
     const demandPanels=root.BEGDDemandTrends?.demandPanels(rows,plot);
     generation+=demandPanels?.hourly||'';
     let load=demandPanels?.duration||'';
@@ -309,7 +334,7 @@
     load+=root.BEGDDemandTrends?.sheddingPanel(rows,regionNames)||'';
     load+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
     let fuel=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
-    fuel+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:period})||'';
+    fuel+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:count})||'';
     let imports=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'}`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
     imports+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
     return html+sectionViews({generation,load,fuel,imports,
@@ -507,6 +532,10 @@
   function draw() {
     if(root.location.hash!=='#trends')return;
     hideFloatingTooltip();
+    const bounds=archiveBounds();
+    if(period==='custom'&&bounds&&(customRange.start<bounds.start||customRange.end>bounds.end)){
+      period=30;customRange=null;rangeMessage='The saved range is outside the daily archive. Choose dates within the available window.';
+    }
     root.BEGDDataStatus?.set('trends',[{label:period==='10y'?'Historical dataset updated':'Trends data updated',value:period==='10y'?history?.generated_at:bundle?.generated_at},...(period==='10y'?[{label:'Historical coverage through',value:history?.end_date}]:[])]);
     hoverCharts.clear();
     const host=document.querySelector('#content');host.innerHTML=content();
@@ -514,7 +543,8 @@
     root.BEGDDemandTrends?.bind(host);
     root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
     root.BEGDCircleAvailability?.mount(host.querySelector('[data-monthly-operations]'),{plot,setupTooltips,releaseCharts},period==='10y');
-    root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),period,bundle?.end_date);
+    const range=selectedWindow();
+    root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),range.count,range.end);
     bindControls(host);
     document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';
     document.querySelector('#source').textContent=period==='10y'?'Sources: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0; Power Division / Power Cell annual system-loss table. Each panel shows its own coverage.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
@@ -528,7 +558,24 @@
         host.querySelector('#'+sectionButton.getAttribute('aria-controls')).hidden=!active;
       });
     }));
-    host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
+    host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{
+      rangeMessage='';period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw();
+    }));
+    host.querySelector('[data-trend-custom-range]')?.addEventListener('submit',event=>{
+      event.preventDefault();
+      const form=event.currentTarget;
+      const {trendStart,trendEnd}=form.elements;
+      const start=trendStart.value,end=trendEnd.value;
+      const bounds=archiveBounds();
+      if(!root.BEGDViewCodec.validTrendRange(start,end)||start<bounds.start||end>bounds.end){
+        form.querySelector('[role="status"]').textContent='Choose up to 365 days within the daily archive, with the start date on or before the end date.';
+        return;
+      }
+      customRange={start,end};rangeMessage='';period='custom';
+      draw();
+      host.querySelector('[data-trend-custom-range] button')?.focus({preventScroll:true});
+      root.BEGDView?.commit();
+    });
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
   }
   async function mount() {

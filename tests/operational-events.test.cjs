@@ -32,7 +32,7 @@ test('clock parsing preserves midnight, accepts 24:00 and rejects invalid source
 test('explorer mounts in the Operations section and its script loads before trend initialization',()=>{
  const trends=fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),index=fs.readFileSync(path.join(__dirname,'../begd/index.html'),'utf8');
  assert.equal((trends.match(/<div id="operational-event-explorer"><\/div>/g)||[]).length,2);
- assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),period,bundle\?\.end_date\)/);
+ assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),range\.count,range\.end\)/);
  assert.ok(index.indexOf('src="operational-events.js')<index.indexOf('src="trends.js'));
 });
 

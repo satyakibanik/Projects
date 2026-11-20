@@ -42,9 +42,10 @@
     const hour=Number(match[1]),minute=Number(match[2]);
     return minute<60&&(hour<24||(hour===24&&minute===0))?hour*60+minute:null;
   }
+  const validWindowLength=count=>Number.isInteger(Number(count))&&Number(count)>0&&Number(count)<=365;
   function selectWindow(bundle,count,endDate){
     const fullArchive=count==='10y';
-    if(!fullArchive&&(!endDate||![7,30,60,90,365].includes(Number(count))))return {rows:[],available:0};
+    if(!fullArchive&&(!endDate||!validWindowLength(count)))return {rows:[],available:0};
     const end=fullArchive?null:Date.parse(endDate+'T00:00:00Z'),start=fullArchive?null:end-(count-1)*86400000;
     const days=fullArchive?bundle.days:bundle.days.filter(day=>{
       const time=Date.parse(day.date+'T00:00:00Z');return time>=start&&time<=end;
@@ -81,7 +82,7 @@
     return pending;
   }
   async function mount(host,count,endDate){
-    if(!host||(count!=='10y'&&(![7,30,60,90,365].includes(Number(count))||!endDate)))return;
+    if(!host||(count!=='10y'&&(!validWindowLength(count)||!endDate)))return;
     const key=String(count)+'|'+endDate;if(key!==windowKey){page=0;windowKey=key}
     host.innerHTML=shell();
     if(count==='10y'){
