@@ -9,7 +9,8 @@ test('calendar windows are inclusive, use the trends end date and count empty lo
  const api=load(),data={days:[{date:'2026-09-29',events:[{description:'Old shutdown'}]},{date:'2026-09-30',events:[]},{date:'2026-10-28',events:null},{date:'2026-10-29',events:[{description:'Unit tripped',outage_time:'23:30',restoration_time:'—'}]},{date:'2026-10-30',events:[{description:'Future shutdown'}]}]};
  for(const count of [30,60,90,365]){const result=api.selectWindow(data,count,'2026-10-29');assert.ok(result.rows.every(r=>r.date<='2026-10-29'));assert.equal(result.available,count===30?2:3)}
  const result=api.selectWindow(data,30,'2026-10-29');assert.equal(result.rows.length,1);assert.equal(result.rows[0].category,'trip');assert.equal(result.rows[0].outage_time,'23:30');
- assert.equal(api.selectWindow(data,'10y','2026-10-29').rows.length,0);
+ const full=api.selectWindow(data,'10y');
+ assert.equal(full.available,4);assert.deepEqual(Array.from(full.rows,row=>row.date),['2026-10-30','2026-10-29','2026-09-29']);
 });
 test('entries sort by newest report then clock time, using restoration for restoration-only rows',()=>{
  const rows=load().selectWindow({days:[{date:'2026-10-29',events:[{description:'Late shutdown',outage_time:'23:59'},{description:'Restored',outage_time:'—',restoration_time:'08:10'},{description:'Unknown shutdown'},{description:'Early trip',outage_time:'00:00'}]},{date:'2026-10-28',events:[{description:'Older trip',outage_time:'12:00'}]}]},30,'2026-10-29').rows;
@@ -30,8 +31,8 @@ test('clock parsing preserves midnight, accepts 24:00 and rejects invalid source
 });
 test('explorer mounts in the Operations section and its script loads before trend initialization',()=>{
  const trends=fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),index=fs.readFileSync(path.join(__dirname,'../begd/index.html'),'utf8');
- assert.match(trends,/operations:'<div id="operational-event-explorer"><\/div>'/);
- assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),period,bundle\?\.end_date\)/);
+ assert.equal((trends.match(/<div id="operational-event-explorer"><\/div>/g)||[]).length,2);
+ assert.match(trends,/BEGDOperationalEvents\?\.mount\(host.querySelector\('#operational-event-explorer'\),range\.count,range\.end\)/);
  assert.ok(index.indexOf('src="operational-events.js')<index.indexOf('src="trends.js'));
 });
 

@@ -42,10 +42,12 @@
     const hour=Number(match[1]),minute=Number(match[2]);
     return minute<60&&(hour<24||(hour===24&&minute===0))?hour*60+minute:null;
   }
+  const validWindowLength=count=>Number.isInteger(Number(count))&&Number(count)>0&&Number(count)<=365;
   function selectWindow(bundle,count,endDate){
-    if(!endDate||![7,30,60,90,365].includes(Number(count)))return {rows:[],available:0};
-    const end=Date.parse(endDate+'T00:00:00Z'),start=end-(count-1)*86400000;
-    const days=bundle.days.filter(day=>{
+    const fullArchive=count==='10y';
+    if(!fullArchive&&(!endDate||!validWindowLength(count)))return {rows:[],available:0};
+    const end=fullArchive?null:Date.parse(endDate+'T00:00:00Z'),start=fullArchive?null:end-(count-1)*86400000;
+    const days=fullArchive?bundle.days:bundle.days.filter(day=>{
       const time=Date.parse(day.date+'T00:00:00Z');return time>=start&&time<=end;
     });
     const rows=days.flatMap(day=>Array.isArray(day.events)?day.events.map((event,index)=>({...event,date:day.date,report_id:day.report_id,source_url:day.source_url,index,category:classify(event.description)})):[]);
@@ -70,7 +72,7 @@
     return `<option value="">All categories (${matches.length.toLocaleString('en-US')})</option>${CATEGORIES.map(([id,label])=>`<option value="${id}"${selected===id?' selected':''}>${escape(label)} (${counts.get(id)||0})</option>`).join('')}`;
   }
   function shell(){
-    return `<section class="panel full operational-event-explorer" aria-labelledby="operational-event-heading"><div class="panel-head"><div><h2 id="operational-event-heading">Operational Event Explorer (logs)</h2><p>P1 event log · Bangladesh time (Asia/Dhaka)</p></div></div><div class="event-explorer-tabs" role="tablist" aria-label="Operational event explorer views"><button type="button" role="tab" data-event-explorer-view="logs" aria-controls="event-explorer-logs" aria-selected="${view==='logs'}">Logs</button><button type="button" role="tab" data-event-explorer-view="heatmap" aria-controls="event-explorer-heatmap" aria-selected="${view==='heatmap'}">Category × hour</button></div><p class="note">Dates identify the operating report; start and end retain the workbook’s outage/event and restoration fields. A dash means no time was reported. After-midnight entries can refer to the following day. Categories follow the wording; generic shutdowns stay unspecified.</p><div class="event-explorer-filters"><label for="operational-event-search" data-event-search-field>Search description<input id="operational-event-search" type="search" placeholder="Search full source descriptions" value="${escape(query)}"></label><label for="operational-event-category" data-event-category-field>Category<select id="operational-event-category">${categoryOptions([],query,category)}</select></label></div><p class="note" role="status" aria-live="polite" data-event-result></p><div id="event-explorer-logs" role="tabpanel"><div class="table-wrap event-explorer-scroll" tabindex="0" role="region" aria-label="Operational event log table"><table><thead><tr><th scope="col">Date / time (start–end)</th><th scope="col">Category</th><th scope="col">Full source description</th></tr></thead><tbody data-event-rows></tbody></table></div><div class="event-explorer-pages"><button type="button" data-event-prev>Previous</button><span data-event-page></span><button type="button" data-event-next>Next</button></div></div><div id="event-explorer-heatmap" role="tabpanel" hidden></div></section>`;
+    return `<section class="panel full operational-event-explorer" aria-labelledby="operational-event-heading"><div class="panel-head"><div><h2 id="operational-event-heading">Operational Event Explorer (logs)</h2><p>P1 event log · Bangladesh time (Asia/Dhaka)</p></div></div><div class="event-explorer-tabs" role="tablist" aria-label="Operational event explorer views"><button type="button" role="tab" data-event-explorer-view="logs" aria-controls="event-explorer-logs" aria-selected="${view==='logs'}">Logs</button><button type="button" role="tab" data-event-explorer-view="heatmap" aria-controls="event-explorer-heatmap" aria-selected="${view==='heatmap'}">Category × hour</button></div><p class="note">Dates identify the operating report; start and end retain the workbook’s outage/event and restoration fields. A dash means no time was reported. After-midnight entries can refer to the following day. Categories follow the wording; generic shutdowns stay unspecified.</p><div class="event-explorer-filters"><label for="operational-event-search" data-event-search-field>Search description<input id="operational-event-search" type="search" placeholder="Search full source descriptions" value="${escape(query)}"></label><label for="operational-event-category" data-event-category-field>Category<select id="operational-event-category">${categoryOptions([],query,category)}</select></label></div><p class="note" role="status" aria-live="polite" data-event-result></p><div id="event-explorer-logs" role="tabpanel"><form class="event-date-jump" aria-label="Jump to log date"><label>Year <select data-event-jump-year disabled><option value="">Select year</option></select></label><label>Month <select data-event-jump-month disabled><option value="">Any month</option></select></label><label>Day <select data-event-jump-day disabled><option value="">Any day</option></select></label><button type="submit" disabled>Go to date</button></form><div class="table-wrap event-explorer-scroll" tabindex="0" role="region" aria-label="Operational event log table"><table><thead><tr><th scope="col">Date / time (start–end)</th><th scope="col">Category</th><th scope="col">Full source description</th></tr></thead><tbody data-event-rows></tbody></table></div><div class="event-explorer-pages" role="group" aria-label="Event log pages"><button type="button" data-event-start>To start</button><button type="button" data-event-prev><span aria-hidden="true">← </span>Previous</button><span data-event-page aria-live="polite"></span><button type="button" data-event-next>Next<span aria-hidden="true"> →</span></button><button type="button" data-event-end>To end</button></div></div><div id="event-explorer-heatmap" role="tabpanel" hidden></div></section>`;
   }
   async function load(){
     if(data)return data;
@@ -80,12 +82,61 @@
     return pending;
   }
   async function mount(host,count,endDate){
-    if(!host||![7,30,60,90,365].includes(Number(count))||!endDate)return;
+    if(!host||(count!=='10y'&&(!validWindowLength(count)||!endDate)))return;
     const key=String(count)+'|'+endDate;if(key!==windowKey){page=0;windowKey=key}
     host.innerHTML=shell();
+    if(count==='10y'){
+      const dates=host.querySelector('.operational-event-explorer > .note');
+      dates.append(' The daily log archive has its own coverage, separate from the monthly Operations reports.');
+    }
     const search=host.querySelector('#operational-event-search'),select=host.querySelector('#operational-event-category');
     const tbody=host.querySelector('[data-event-rows]'),status=host.querySelector('[data-event-result]');
-    const previous=host.querySelector('[data-event-prev]'),next=host.querySelector('[data-event-next]'),pageLabel=host.querySelector('[data-event-page]');
+    const pager=host.querySelector('.event-explorer-pages');
+    const first=pager.querySelector('[data-event-start]'),last=pager.querySelector('[data-event-end]');
+    const previous=pager.querySelector('[data-event-prev]'),next=pager.querySelector('[data-event-next]'),pageLabel=pager.querySelector('[data-event-page]');
+    const jump=host.querySelector('.event-date-jump');
+    const year=jump.querySelector('[data-event-jump-year]');
+    const month=jump.querySelector('[data-event-jump-month]');
+    const day=jump.querySelector('[data-event-jump-day]');
+    const go=jump.querySelector('button');
+    const monthName=new Intl.DateTimeFormat('en',{month:'short',timeZone:'UTC'});
+    let lastPage=0,dateIndexes=new Map();
+
+    function updateJumpOptions(){
+      function options(control,values,placeholder,label=value=>value){
+        const current=control.value;
+        control.replaceChildren(new Option(placeholder,''),...values.map(value=>new Option(label(value),value)));
+        if(values.includes(current))control.value=current;
+        control.disabled=!values.length;
+      }
+      const dates=[...dateIndexes.keys()];
+      options(year,[...new Set(dates.map(date=>date.slice(0,4)))],'Select year');
+      const yearDates=year.value?dates.filter(date=>date.startsWith(year.value+'-')):[];
+      options(month,[...new Set(yearDates.map(date=>date.slice(5,7)))],'Any month',
+        value=>monthName.format(new Date('2000-'+value+'-01T00:00:00Z')));
+      options(day,month.value?yearDates.filter(date=>date.slice(5,7)===month.value).map(date=>date.slice(8)) : [],'Any day');
+      go.disabled=!year.value;
+    }
+
+    year.addEventListener('change',()=>{
+      month.value='';
+      day.value='';
+      updateJumpOptions();
+    });
+    month.addEventListener('change',()=>{
+      day.value='';
+      updateJumpOptions();
+    });
+    jump.addEventListener('submit',event=>{
+      event.preventDefault();
+      if(!year.value)return;
+      const prefix=[year.value,month.value,day.value].filter(Boolean).join('-');
+      const entry=[...dateIndexes].find(([date])=>date.startsWith(prefix));
+      if(!entry)return;
+      const index=entry[1];
+      goToPage(Math.floor(index/PAGE_SIZE));
+      tbody.rows[index%PAGE_SIZE]?.scrollIntoView({block:'nearest'});
+    });
     function render(){
       if(!host.isConnected)return;
       if(phone?.matches)view='logs';
@@ -98,19 +149,29 @@
       if(!data){
         status.textContent=error?'Operational event logs could not be loaded.':'Loading operational event logs…';
         tbody.innerHTML='<tr><td colspan="3" class="empty">'+(error?'Event log data is unavailable.':'Loading…')+'</td></tr>';
-        previous.disabled=true;next.disabled=true;pageLabel.textContent='';
+        first.disabled=previous.disabled=next.disabled=last.disabled=true;pageLabel.textContent='';
         if(error){const retry=document.createElement('button');retry.type='button';retry.textContent='Retry event logs';retry.addEventListener('click',async()=>{error=null;render();await load();render()});status.append(' ',retry)}
         return;
       }
       const window=selectWindow(data,count,endDate);
       select.innerHTML=categoryOptions(window.rows,query,category);
       const matches=filterRows(window.rows,query,category);
-      page=Math.max(0,Math.min(page,Math.ceil(matches.length/PAGE_SIZE)-1));
+      dateIndexes=new Map();
+      matches.forEach((row,index)=>{
+        if(!dateIndexes.has(row.date))dateIndexes.set(row.date,index);
+      });
+      updateJumpOptions();
+      lastPage=Math.max(0,Math.ceil(matches.length/PAGE_SIZE)-1);
+      page=Math.max(0,Math.min(page,lastPage));
       const start=page*PAGE_SIZE,visible=matches.slice(start,start+PAGE_SIZE);
-      status.textContent=`${matches.length.toLocaleString('en-US')} of ${window.rows.length.toLocaleString('en-US')} entries match · ${matches.length?start+1:0}–${Math.min(start+PAGE_SIZE,matches.length)} shown · ${window.available} / ${count} days with P1 logs`;
+      const coverage=count==='10y'
+        ? `${window.available} days with P1 logs in the local archive`
+        : `${window.available} / ${count} days with P1 logs`;
+      status.textContent=`${matches.length.toLocaleString('en-US')} of ${window.rows.length.toLocaleString('en-US')} entries match · ${matches.length?start+1:0}–${Math.min(start+PAGE_SIZE,matches.length)} shown · ${coverage}`;
       tbody.innerHTML=rowsHTML(visible)||(window.available?' <tr><td colspan="3" class="empty">No entries match these filters.</td></tr>':'<tr><td colspan="3" class="empty">No P1 event logs are available for this window.</td></tr>');
-      previous.disabled=page===0;next.disabled=start+PAGE_SIZE>=matches.length;
-      pageLabel.textContent=`Page ${page+1} of ${Math.max(1,Math.ceil(matches.length/PAGE_SIZE))}`;
+      first.disabled=previous.disabled=page===0;
+      last.disabled=next.disabled=page===lastPage;
+      pageLabel.textContent=`Page ${page+1} of ${lastPage+1}`;
       if(view==='heatmap'){
         status.textContent='';
         root.BEGDEventHeatmap?.render(host.querySelector('#event-explorer-heatmap'),window.rows,window.available,heatSettings,CATEGORIES,render);
@@ -126,8 +187,27 @@
     });
     search.addEventListener('input',()=>{query=search.value;page=0;render()});
     select.addEventListener('change',()=>{category=select.value;page=0;render()});
-    previous.addEventListener('click',()=>{page=Math.max(0,page-1);render()});
-    next.addEventListener('click',()=>{page++;render()});
+    function goToPage(target){
+      const nextPage=Math.max(0,Math.min(target,lastPage));
+      if(nextPage===page)return;
+      const focused=document.activeElement;
+      page=nextPage;
+      render();
+      host.querySelector('.event-explorer-scroll').scrollTop=0;
+      if(pager.contains(focused)&&focused.disabled){
+        (page===0?next:previous).focus({preventScroll:true});
+      }
+    }
+    first.addEventListener('click',()=>goToPage(0));
+    previous.addEventListener('click',()=>goToPage(page-1));
+    next.addEventListener('click',()=>goToPage(page+1));
+    last.addEventListener('click',()=>goToPage(lastPage));
+    pager.addEventListener('keydown',event=>{
+      const targets={ArrowLeft:page-1,ArrowRight:page+1,Home:0,End:lastPage};
+      if(!Object.hasOwn(targets,event.key))return;
+      event.preventDefault();
+      goToPage(targets[event.key]);
+    });
     render();if(!data&&!error){await load();render()}
   }
   root.BEGDOperationalEvents={mount,classify,categoryLabel,selectWindow,filterRows,rowsHTML,clockMinutes};

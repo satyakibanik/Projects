@@ -42,7 +42,7 @@
       <section class="organogram-branches" aria-labelledby="organogram-branches" data-org-tree-view hidden>
         <h2 id="organogram-branches">Organization tree</h2>
         <p data-org-status role="status" hidden></p>
-        <div data-org-tree></div>
+        <div data-org-tree role="region" aria-label="Organization tree branches" tabindex="0"></div>
       </section>
     </div>`;
     const search = host.querySelector('[data-org-query]');
@@ -85,7 +85,10 @@
       </button>`;
     }
 
-    const collapsed = new Set();
+    const wideTree = root.matchMedia('(min-width: 1050px)');
+    const collapsed = new Set(wideTree.matches ? organizations
+      .filter(entry => children.get(entry.id).length && byId.get(entry.parent)?.parent)
+      .map(entry => entry.id) : []);
     const filteredCollapsed = new Set();
     let filtering = false;
 
@@ -195,6 +198,7 @@
       if (!isExpanded) closed.add(id);
       toggle.setAttribute('aria-expanded', String(isExpanded));
       document.getElementById(toggle.getAttribute('aria-controls')).hidden = !isExpanded;
+      if (wideTree.matches) toggle.scrollIntoView({block: 'nearest', inline: 'nearest'});
     });
     host.querySelector('.organogram').addEventListener('click', event => {
       const button = event.target.closest('[data-org-open]');

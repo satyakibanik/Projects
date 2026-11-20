@@ -183,3 +183,94 @@
   .organogram-cards { grid-template-columns: minmax(0, 1fr); }
   .organogram-parent { width: 100%; }
 }
+
+@media (min-width: 1050px) {
+  [data-org-tree] {
+    --org-connector: color-mix(in srgb, var(--org-muted) 65%, var(--org-paper));
+    padding: .75rem .5rem 1.5rem;
+  }
+  [data-org-tree] .organogram-tree > li {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 0;
+    padding: 0;
+  }
+  [data-org-tree] .organogram-tree .organogram-tree > li::before,
+  [data-org-tree] .organogram-tree .organogram-tree > li::after {
+    content: none;
+  }
+  [data-org-tree] li > .organogram-tree {
+    position: relative;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .65rem;
+    width: min(100%, 74rem);
+    margin: 1.1rem 0 0;
+    padding: .8rem;
+    border: 1px solid var(--org-rule);
+    border-block-start-color: var(--org-connector);
+    border-radius: .65rem;
+    background: color-mix(in srgb, var(--org-muted) 5%, var(--org-paper));
+  }
+  [data-org-tree] li > .organogram-tree::before {
+    content: '';
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    height: 1.1rem;
+    border-inline-start: 1px solid var(--org-connector);
+  }
+  [data-org-tree] li > .organogram-tree:has(> li:only-child) {
+    padding: 0;
+    border: 0;
+    background: none;
+  }
+  [data-org-tree] .organogram-tree .organogram-tree > li:has(> .organogram-tree:not([hidden])) {
+    flex-basis: min(100%, 24rem);
+  }
+  [data-org-tree] li > .organogram-tree > li {
+    flex: 0 1 min(100%, 10.5rem);
+  }
+  [data-org-tree] li > .organogram-tree > li:has(
+    > .organogram-tree:not([hidden]) > li:nth-child(3),
+    > .organogram-tree:not([hidden]) > li > .organogram-tree:not([hidden])
+  ) {
+    flex-basis: 100%;
+  }
+  [data-org-tree] li > .organogram-tree > li:not(:has(> .organogram-tree:not([hidden]))) > .organogram-tree-row {
+    flex: 1;
+    width: 100%;
+  }
+  [data-org-tree] .organogram-tree-row {
+    position: relative;
+    width: min(100%, 18rem);
+    align-items: stretch;
+  }
+  [data-org-tree] button.organogram-node {
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: .45rem;
+    padding: .7rem .5rem;
+    text-align: center;
+    font: inherit;
+  }
+  [data-org-tree] .organogram-mark {
+    flex: 0 0 2.65rem;
+    inline-size: 2.65rem;
+    min-inline-size: 2.65rem;
+    block-size: 2.65rem;
+    border-radius: 50%;
+    font-size: .59rem;
+  }
+  [data-org-tree] .organogram-node-text strong { font-size: .88rem; }
+  [data-org-tree] .organogram-node-text small { font-size: .75rem; }
+  [data-org-tree] button.organogram-toggle {
+    position: absolute;
+    top: .55rem;
+    right: .55rem;
+    width: 2rem;
+    min-height: 2rem;
+  }
+}
