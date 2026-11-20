@@ -398,19 +398,12 @@
     const previews=await dashboardPreviewRows(tab,date,themeName);
     if(!previews.length)throw new Error('Could not create the dashboard preview.');
 
-    const canvas=document.createElement('canvas'),width=1050,height=1400,pad=32;
-    const figureTop=114,figureBottom=height-76,gap=14,headingHeight=25;
+    const canvas=document.createElement('canvas'),width=1050,maxHeight=1400,pad=32;
+    const figureTop=114,footerHeight=60,gap=14,headingHeight=25;
     const tabName=cleanText(document.querySelector('#title'));
     const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
       dateStyle:'long',timeZone:'Asia/Dhaka'
     }).format(new Date(date+'T12:00:00+06:00')):'Unavailable';
-    canvas.width=width;canvas.height=height;
-    const ctx=canvas.getContext('2d');
-    ctx.fillStyle=backgroundColor;ctx.fillRect(0,0,width,height);
-    ctx.fillStyle=color;
-    ctx.font='bold 38px sans-serif';ctx.fillText('BEGD · '+tabName,pad,57);
-    ctx.font='23px sans-serif';ctx.fillText('Operating date '+operatingDate+' · All times BST',pad,92);
-
     const rows=previews.map(row=>{
       const columnWidth=(width-pad*2-gap*(row.length-1))/row.length;
       return row.map(figure=>({
@@ -421,7 +414,7 @@
     const rowHeight=(row,factor)=>Math.max(...row.map(({shot,columnWidth,chrome})=>
       (columnWidth/shot.width)*shot.height*factor+chrome));
     const totalHeight=factor=>rows.reduce((total,row)=>total+rowHeight(row,factor),gap*(rows.length-1));
-    const availableHeight=figureBottom-figureTop;
+    const availableHeight=maxHeight-figureTop-footerHeight;
     let factor=1;
     if(totalHeight(1)>availableHeight){
       let low=0,high=1;
@@ -432,6 +425,14 @@
       }
       factor=low;
     }
+    const height=Math.ceil(figureTop+totalHeight(factor)+footerHeight);
+    canvas.width=width;canvas.height=height;
+    const ctx=canvas.getContext('2d');
+    ctx.fillStyle=backgroundColor;ctx.fillRect(0,0,width,height);
+    ctx.fillStyle=color;
+    ctx.font='bold 38px sans-serif';ctx.fillText('BEGD · '+tabName,pad,57);
+    ctx.font='23px sans-serif';ctx.fillText('Operating date '+operatingDate+' · All times BST',pad,92);
+
     let rowTop=figureTop;
     rows.forEach(row=>{
       const height=rowHeight(row,factor);
@@ -460,8 +461,8 @@
       rowTop+=height+gap;
     });
 
-    ctx.font='600 19px sans-serif';ctx.fillText(COPYRIGHT,pad,height-43);
-    ctx.font='18px sans-serif';ctx.textAlign='right';ctx.fillText(canonical,width-pad,height-43);
+    ctx.font='600 19px sans-serif';ctx.fillText(COPYRIGHT,pad,height-25);
+    ctx.font='18px sans-serif';ctx.textAlign='right';ctx.fillText(canonical,width-pad,height-25);
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create the PNG.')),'image/png'));
   }
   function copyDashboard(){

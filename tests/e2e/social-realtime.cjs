@@ -70,7 +70,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
     }));
     assert.equal(png.subarray(1,4).toString(),'PNG');
     assert.equal(png.readUInt32BE(16),1050);
-    assert.equal(png.readUInt32BE(20),1400);
+    assert.ok(png.readUInt32BE(20)>0&&png.readUInt32BE(20)<=1400);
     return png;
   }
   const realtime=await shareTab('#realtime','Real time','realtime');
