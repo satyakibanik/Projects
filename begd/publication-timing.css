@@ -126,10 +126,6 @@
   background: var(--surface);
 }
 
-.timing-archive-link {
-  margin-bottom: 1rem;
-}
-
 .timing-workbook-archive .table-wrap {
   max-height: 24rem;
 }
@@ -181,4 +177,49 @@
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+.timing-overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: .75rem;
+  margin-block: 1rem 1.5rem;
+}
+
+.timing-overview-card {
+  min-width: 0;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .4rem;
+}
+
+#publication-timing-panel .timing-overview-card h3 {
+  margin-block: 0 .6rem;
+  font-size: 1rem;
+}
+
+#publication-timing-panel .timing-latest-time {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.timing-overview-card button {
+  margin-top: .75rem;
+}
+
+.timing-disclosure {
+  margin-block: .65rem;
+  border: 1px solid var(--line);
+  border-radius: .4rem;
+  padding: .75rem 1rem;
+}
+
+.timing-disclosure > summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+.timing-disclosure[open] > summary {
+  margin-bottom: 1rem;
 }

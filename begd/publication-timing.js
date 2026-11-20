@@ -366,6 +366,45 @@
     return details;
   }
 
+  function disclosure(title, ...content) {
+    const details = element('details');
+    details.className = 'timing-disclosure';
+    details.append(element('summary', title), ...content);
+    return details;
+  }
+
+  function latestOverview(feeds, estimates, openHistory) {
+    const section = element('section');
+    const tiles = element('div');
+    tiles.className = 'timing-overview-grid';
+    for (const [key, name] of Object.entries(sources)) {
+      const feed = feeds[key];
+      const latest = (feed?.observations || []).reduce((mostRecent, row) =>
+        !mostRecent || Date.parse(row.first_seen_at) > Date.parse(mostRecent.first_seen_at) ? row : mostRecent, null);
+      const tile = element('article');
+      tile.className = 'timing-overview-card';
+      const time = element('p', latest ? format(latest.first_seen_at) : 'No arrival recorded yet');
+      time.className = 'timing-latest-time';
+      tile.append(element('h3', name), time);
+      if (latest) tile.append(element('p', latest.reading_time
+        ? 'ERP reading · ' + latest.date + ' at ' + latest.reading_time
+        : 'Workbook #' + latest.report_id + ' · listed ' + latest.date));
+      const estimate = estimates[key];
+      const typical = estimate.lower === undefined ? 'Typical window: still collecting'
+        : 'Typical window: ' + wallTime(estimate.lower) + ' – ' + wallTime(estimate.upper);
+      tile.append(element('p', typical));
+      const button = element('button', 'View history');
+      button.type = 'button';
+      button.setAttribute('aria-label', 'View history for ' + name);
+      button.addEventListener('click', () => openHistory(key));
+      tile.append(button);
+      tiles.append(tile);
+    }
+    section.append(element('h2', 'Latest arrivals'),
+      element('p', 'The large time shows when BEGD last found something new. All times are Bangladesh time.'), tiles);
+    return section;
+  }
+
   function show(panel, bundle, archive, readings) {
     const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum} = bundle;
     const daysBySource = Object.fromEntries(Object.keys(sources).map(key => [key, dailyRows(feeds[key], maxWindow)]));
@@ -446,16 +485,21 @@
     select.addEventListener('change', renderHistory);
     renderHistory();
     const workbook = workbookArchive(archive, feeds.operations?.observations);
-    const jump = element('button', 'View Excel creation and modification times');
-    jump.className = 'timing-archive-link';
-    jump.type = 'button';
-    jump.addEventListener('click', () => workbook.heading.focus());
-    const timing = [heading, guide, typicalPlot, summary, element('h2', 'Source coverage for the last 60 days'),
-      coveragePlot(counts), historyHeading,
-      element('p', 'The table covers 60 calendar days. Existing records at the first poll establish the baseline.'),
-      label, results];
-    panel.replaceChildren(...(new URLSearchParams(location.search).get('timing') === 'workbooks'
-      ? [workbook.section, ...timing] : [jump, ...timing, workbook.section]));
+    const daily = disclosure('Daily observation history', historyHeading,
+      element('p', 'The table covers 60 calendar days.'), label, results);
+    historyHeading.tabIndex = -1;
+    const overview = latestOverview(feeds, estimates, key => {
+      select.value = key;
+      daily.open = true;
+      renderHistory();
+      historyHeading.focus();
+    });
+    const comparison = disclosure('Compare typical windows and source coverage',
+      heading, guide, typicalPlot, summary, element('h2', 'Source coverage for the last 60 days'), coveragePlot(counts));
+    const excel = disclosure('Excel file timestamps', workbook.section);
+    const directWorkbook = new URLSearchParams(location.search).get('timing') === 'workbooks';
+    excel.open = directWorkbook;
+    panel.replaceChildren(...(directWorkbook ? [excel, overview, daily, comparison] : [overview, daily, comparison, excel]));
     if (bundle.unavailable) panel.prepend(element('p', 'Publication timing history is unavailable. Try reloading the page.'));
   }
 
