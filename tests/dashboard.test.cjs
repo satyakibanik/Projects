@@ -171,18 +171,22 @@ test('yesterday extends the timeline with ERP supply and reported shedding, pres
  const c=app();
  vm.runInContext(`currentDayData={today_date:'2026-01-01',demand_hourly:[{time:'00:00',demand_mw:100,supply_mw:95,shed_mw:4}],generation_hourly:[],imports:[],forecast_history:{'2025-12-31':{demand_hourly:[{time:'00:00',demand_mw:90,supply_mw:90,shed_mw:0},{time:'23:00',demand_mw:110,supply_mw:100,shed_mw:9}]},'2025-12-30':{demand_hourly:[{time:'12:00',demand_mw:999}]}}}`,c);
  let html=vm.runInContext('realTime()',c);
- assert.match(html,/id="realtime-yesterday">/);assert.doesNotMatch(html,/yesterday_demand_mw/);
+ assert.match(html,/id="realtime-yesterday">/);assert.doesNotMatch(html,/chart-day-boundary/);
  vm.runInContext('chartData.clear();realtimeYesterday=true',c);
  html=vm.runInContext('realTime()',c);
  assert.match(html,/id="realtime-yesterday" checked/);assert.match(html,/31 Dec 2025/);
  const models=vm.runInContext('[...chartData.values()].filter(m=>m.syncGroup)',c);
- assert.equal(models[0].rows.length,3);assert.equal(models[0].rows[1].demand_mw,null);
- assert.equal(models[0].rows[0].yesterday_supply_mw,90);
- assert.equal(models[1].rows[0].yesterday_shed_mw,0);assert.equal(models[1].rows[1].yesterday_shed_mw,9);
+ assert.equal(models[0].rows.length,3);assert.equal(models[0].rows[1].demand_mw,110);
+ assert.equal(models[0].rows[0].supply_mw,90);
+ assert.equal(models[1].rows[0].shed_mw,0);assert.equal(models[1].rows[1].shed_mw,9);
  assert.equal(models[1].rows[2].shed_mw,4);
  assert.equal(models[0].rows[2].minute,1440);assert.match(models[0].rows[2].label,/1 Jan 2026/);
  assert(models[0].x(models[0].rows[2])>models[0].x(models[0].rows[1]));
- assert(models[0].series.filter(s=>s.key.startsWith('yesterday_')).every(s=>s.dashArray==='6 4'));
+ assert.equal(models[0].series.length,2);
+ const boundaryX=models[0].x(models[0].rows[2]);
+ assert(html.includes(`class="chart-day-boundary" x1="${boundaryX}" x2="${boundaryX}"`));
+ const demandGroup=html.split('data-series="demand_mw"')[1].split('</g>')[0];
+ assert.equal((demandGroup.match(/<polyline/g)||[]).length,1,'Demand paths should continue across midnight');
  assert.equal(models[0].x(models[0].rows[1]),models[1].x(models[1].rows[1]));
  vm.runInContext('delete currentDayData.forecast_history["2025-12-31"];chartData.clear()',c);
  html=vm.runInContext('realTime()',c);
@@ -199,11 +203,11 @@ test('the shared yesterday control extends fuel, shares, total imports and every
  assert.match(html,/Liquid fuel is the ERP page's combined category; these hourly readings do not split HFO and HSD/);
  const models=vm.runInContext('[...chartData.values()]',c);
  const byScope=key=>models.find(m=>m.scope===key);
- const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].yesterday_gas_mw,25);assert.equal(fuel.rows[0].yesterday_solar_mw,0);assert.equal(fuel.rows[0].yesterday_nuclear_mw,5);
- const shares=byScope('realtime:import_dependence_pct');assert.equal(shares.rows[0].yesterday_import_dependence_pct,10);assert.equal(shares.rows[0].yesterday_renewable_share_pct,10);assert.equal(shares.rows[0].yesterday_clean_energy_share_pct,15);assert.equal(shares.unit,'%');
- const total=byScope('realtime:total_import_mw');assert.equal(total.rows[0].yesterday_total_import_mw,10);
- const imports=byScope('realtime:import_0');assert.equal(imports.series.filter(s=>s.key.startsWith('yesterday_')).length,4);
- for(const item of imports.series.filter(s=>!s.key.startsWith('yesterday_')))assert.equal(imports.rows[0]['yesterday_'+item.key],imports.rows[1][item.key],'Route order changed the comparison');
+ const fuel=byScope('realtime:gas_mw');assert.equal(fuel.rows[0].gas_mw,25);assert.equal(fuel.rows[0].solar_mw,0);assert.equal(fuel.rows[0].nuclear_mw,5);
+ const shares=byScope('realtime:import_dependence_pct');assert.equal(shares.rows[0].import_dependence_pct,10);assert.equal(shares.rows[0].renewable_share_pct,10);assert.equal(shares.rows[0].clean_energy_share_pct,15);assert.equal(shares.unit,'%');
+ const total=byScope('realtime:total_import_mw');assert.equal(total.rows[0].total_import_mw,10);
+ const imports=byScope('realtime:import_0');assert.equal(imports.series.length,4);
+ for(const item of imports.series)assert.equal(imports.rows[0][item.key],imports.rows[1][item.key],'Route order changed the comparison');
  for(const model of [fuel,shares,total,imports]){assert.match(model.rows[0].label,/31 Dec 2025/);assert.match(model.rows[1].label,/1 Jan 2026/);assert(model.x(model.rows[0])<model.x(model.rows[1]));}
  vm.runInContext('currentDayData.realtime_history={};chartData.clear()',c);
  const missing=vm.runInContext('realTime()',c);assert.match(missing,/Yesterday’s readings unavailable for this plot/);
@@ -451,4 +455,41 @@ test('overview energy composition mirrors realtime fuel and share charts from En
  assert.equal(shares[0].clean_energy_share_pct,20);
  assert.equal(shares[0].renewable_share_pct,15);
  assert.equal(shares[1].clean_energy_share_pct,null,'A missing reading in a reported nuclear series remains a gap');
+});
+
+test('hourly import averages keep reported zeros and require complete route totals',()=>{
+ const c=app();
+ const result=vm.runInContext(`importAverage([
+  {imports:[{name:'Bheramara (HVDC)',hourly:[{time:'00:00',mw:800},{time:'01:00',mw:900}]},
+            {name:'HVDC(Nepal)',hourly:[{time:'00:00',mw:0},{time:'01:00',mw:null}]}]},
+  {imports:[{name:'Bheramara HVDC',hourly:[{time:'00:00',mw:900}]},
+            {name:'Nepal',hourly:[{time:'00:00',mw:40}]}]}
+ ],['Bheramara HVDC','Nepal'])`,c);
+ assert.deepEqual({...result},{'00:00':870});
+});
+
+test('import map shows four routes, preserves zero energy, and excludes missing historical readings',()=>{
+ const c=app();
+ c.window.BEGDPlantMap=require('../begd/plant-map.js');
+ const html=vm.runInContext(`importRoutesMap({date:'2026-11-18',imports:[
+  {name:'Adani Power Jharkhanda Ltd',energy_mwh:2400},{name:'HVDC(Nepal)',energy_mwh:0}
+ ]},[{imports:[{name:'Adani',hourly:[{time:'00:00',mw:100},{time:'01:00',mw:null}]},
+  {name:'Nepal',hourly:[{time:'00:00',mw:0},{time:'01:00',mw:40}]}]}])`,c);
+ assert.equal((html.match(/<g data-import-map-route=/g)||[]).length,4);
+ assert.equal((html.match(/class="ewic-flow-motion"/g)||[]).length,1);
+ assert.match(html,/2,400 MWh \(2.4 GWh\)/);
+ assert.match(html,/40 MW max · 0 MW min/);
+ assert.match(html,/100 MW max · 100 MW min/);
+});
+
+test('positive Nepal imports show direction on the mapped and schematic sections in one disclosure',()=>{
+ const c=app();
+ c.window.BEGDPlantMap=require('../begd/plant-map.js');
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/import-osm-paths.js'),'utf8'),c);
+ const html=vm.runInContext("importRoutesMap({date:'2026-11-15',imports:[{name:'HVDC(Nepal)',energy_mwh:960}]},[])",c);
+ assert.equal((html.match(/class="ewic-flow-arrow"/g)||[]).length,3);
+ assert.match(html,/stroke-dasharray="8 6"/);
+ assert.match(html,/stroke-dasharray="2 7"/);
+ assert.equal((html.match(/<details/g)||[]).length,1);
+ assert.match(html,/Purple dots mark its use of the shared Baharampur–Bheramara crossing/);
 });

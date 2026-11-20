@@ -5,19 +5,61 @@ function fixture(c,forecastDate='2026-10-23'){
  vm.runInContext('currentDayData=fixture',c);
 }
 function live(){const bundle=archive();bundle.days={};bundle.pgcb_forecasts={};const state=load(bundle);fixture(state.c);return state}
-function plot(c){return vm.runInContext('[...chartData.values()].filter(p=>p.series.some(s=>s.key==="demand_forecast_mw")).at(-1)',c)}
+function plot(c){return vm.runInContext('[...chartData.values()].filter(p=>p.scope.startsWith("today-forecast:")&&p.scope.endsWith(":demand")).at(-1)',c)}
 test('today forecast waits safely while the ERP snapshot is loading',()=>{
  const {c}=load();
  assert.equal(vm.runInContext('window.BEGDIndependentStudy.renderToday()',c),'');
  vm.runInContext("data={date:'2026-10-23'}",c);
  assert.equal(vm.runInContext('window.BEGDIndependentStudy.renderToday()',c),'');
 });
-test('first panel is wholly substation-side, with reported shedding and no ERP generation or forecast layers',()=>{
+test('first panel combines substation-side readings and the BEGD demand forecast',()=>{
  const {c}=live();const html=vm.runInContext('realTime()',c),models=vm.runInContext('[...chartData.values()].filter(p=>p.syncGroup)',c);
- assert.equal(models.length,2);assert.deepEqual(Array.from(models[0].series,s=>s.key),['demand_mw','supply_mw']);
+ assert.equal(models.length,2);assert.deepEqual(Array.from(models[0].series,s=>s.key),['demand_mw','supply_mw','demand_forecast_mw']);
+ assert.deepEqual(Array.from(models[1].series,s=>s.key),['shed_mw']);
+ assert.equal(models[0].rows[23].demand_forecast_mw,13523);
+ assert.equal(models[0].rows[23].supply_mw,undefined);
  assert.equal(models[0].rows[0].supply_mw,14490);assert.equal(models[1].rows[0].shed_mw,10);
  assert.match(html,/demand − supply/);assert.doesNotMatch(html.split('id="independent-study-panel"')[0],/Generation · realtime|forecasted_demand_mw|independent_generation_mw/);
  assert.deepEqual(Array.from(models[0].rows,r=>r.time),Array.from(models[1].rows,r=>r.time));
+});
+test('realtime demand overlay starts unchecked and defaults on only for an adjusted current day',()=>{
+ const {c}=live();
+ const render=()=>vm.runInContext('chartData.clear();realTime()',c);
+ const visibility=()=>vm.runInContext('[...chartData.values()].find(m=>m.scope==="realtime-demand-supply").series.find(s=>s.key==="demand_forecast_mw").defaultVisible',c);
+ render();assert.equal(visibility(),false);
+ c.fixture.independent_forecast.hourly[0].adjusted_demand_mw=13000;
+ render();assert.equal(visibility(),false);
+ for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=13000;
+ render();assert.equal(visibility(),true);
+ vm.runInContext("chartVisibility.set('realtime-demand-supply|demand_forecast_mw',false)",c);
+ render();assert.equal(visibility(),false);
+});
+test('dispatch uses the matching archived curve at rollover and joins hourly forecasts across off-hour readings',()=>{
+ const {c}=live();
+ const issued=c.fixture.independent_forecast;
+ const dated=(date,value)=>({...issued,date,hourly:issued.hourly.map(row=>({...row,demand_models:{...row.demand_models,Trees:value}}))});
+ c.fixture.independent_forecast=null;
+ c.fixture.forecast_history={
+  '2026-10-21':{forecast:dated('2026-10-21',12000)},
+  '2026-10-22':{forecast:dated('2026-10-22',13000),demand_hourly:[{time:'00:30',demand_mw:13100}]},
+  '2026-10-23':{forecast:dated('2026-10-23',14000)},
+ };
+ const render=()=>vm.runInContext('chartData.clear();realTime()',c);
+ const dispatch=()=>vm.runInContext('[...chartData.values()].find(model=>model.scope==="realtime-demand-supply")',c);
+ render();
+ assert.equal(dispatch().rows[0].demand_forecast_mw,14000);
+ vm.runInContext('realtimeYesterday=true',c);
+ const html=render(),model=dispatch();
+ assert.equal(model.rows[0].demand_forecast_mw,13000);
+ assert.equal(model.rows[1].demand_mw,13100);
+ assert.equal(model.rows.find(row=>row.minute===1440).demand_forecast_mw,14000);
+ assert.equal(model.rows.some(row=>row.demand_forecast_mw===12000),false);
+ const group=html.split('data-series="demand_forecast_mw"')[1].split('</g>')[0];
+ assert.equal((group.match(/<polyline/g)||[]).length,1);
+ c.fixture.today_date='2026-10-24';
+ render();
+ assert.equal(dispatch().rows[0].demand_forecast_mw,14000);
+ assert.equal(dispatch().rows.find(row=>row.minute===1440).demand_forecast_mw,undefined);
 });
 test('expanded live forecast has all 24 horizons while future demand and generation actuals stay absent',()=>{
  const {c,open}=live();open();const html=vm.runInContext('realTime()',c),model=plot(c);

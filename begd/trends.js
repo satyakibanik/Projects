@@ -21,7 +21,7 @@
   // IDs form part of the shared-link contract. Keep these mappings stable.
   const chartIds={'Generation and demand':'generation-demand','Reported load shedding':'load-shedding','Fuel mix':'fuel-mix','Imports':'imports','Import dependence and renewable share':'dependence-renewables','Unserved energy share':'unserved-share','Daily mean and 30-day rolling generation':'historical-generation'};
   const seriesIds={'Generation':'generation_mwh','Demand requirement':'demand_mwh','Maximum temperature':'temperature_c','Reported load shedding':'shed_peak_mw','Total imports':'imports_mwh','Import share':'import-share','Renewable share':'renewable-share','Unserved energy share':'unserved-share','Daily mean':'daily-mean','30-day rolling mean':'rolling-mean'};
-  const stableId=name=>seriesIds[name]||String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const stableId=name=>({'Tripura - Cumilla':'import-tripura-','Bheramara HVDC':'bheramara-hvdc-','Nepal HVDC':'hvdc-nepal-','Adani Power':'adani-power-jharkhanda-ltd'})[name]||seriesIds[name]||String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-');
   function getViewState(){
     const layers=[];
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
@@ -242,9 +242,14 @@
     const actual=rows.filter(row=>row.report_id!=null).length;
     const fuelSeries=Object.entries(FUELS).map(([name,color])=>({name,color,value:r=>finite(r.fuels?.[name])?r.fuels[name]/1000:null}));
     const completeMix=rows.filter(r=>fuelSeries.every(s=>finite(s.value(r)))&&fuelSeries.reduce((n,s)=>n+s.value(r),0)>0).length;
-    const routeNames=[...new Set(rows.flatMap(row=>Object.keys(row.routes||{})))].sort();
-    const routeColors=['#4e79a7','#b07aa1','#d88931','#59a14f','#76b7b2','#e15759'];
-    const routeSeries=routeNames.map((name,i)=>({name,color:routeColors[i%routeColors.length],value:r=>energyValue(r.routes?.[name],chartUnits.imports)}));
+    const routeGroups=new Map();
+    for(const raw of [...new Set(rows.flatMap(row=>Object.keys(row.routes||{})))].sort()){
+      const name=typeof importRouteName==='function'?importRouteName(raw):raw;
+      routeGroups.set(name,[...(routeGroups.get(name)||[]),raw]);
+    }
+    const routeColors=['#347baf','#c48722','#b95442','#36a77b'];
+    const routeSeries=[...routeGroups].map(([name,aliases],i)=>({name,color:routeColors[i%routeColors.length],
+      value:r=>energyValue(aliases.map(alias=>r.routes?.[alias]).find(finite),chartUnits.imports)}));
     let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${period} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
     html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports',rows)+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement',rows)+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading',rows)+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count),rows)+'</div>';
     html+=`<p class="note trends-method">Totals cover reported days only; incomplete windows are partial totals. Missing values stay blank and lines break at gaps. Demand requirement uses the matching-date En-Curve total, or P1 generation plus reported energy not served when that total is unavailable. This energy requirement is not a separately metered demand total. Reported load shedding is taken directly from P4; it is not inferred from demand minus generation. Energy not served: ${format(unserved.value==null?null:unserved.value/1000)} GWh (${coverage(unserved.count)}), a separate published P1 energy measure.</p>`;
@@ -270,7 +275,7 @@
     load+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
     let fuel=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
     fuel+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:period})||'';
-    let imports=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
+    let imports=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'}`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
     imports+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
     return html+sectionViews({generation,load,fuel,imports,
       assets:'<div id="entity-histories"></div>',

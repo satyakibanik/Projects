@@ -70,14 +70,28 @@
   // Readability moves source notes into the panel disclosure while assets load.
   const panel=host.closest('.ewic-flow-panel')||host;
   try{
-   const [catalog,boundary,admin]=await Promise.all(['ewic-locations.json','bangladesh-boundary.geojson','plant-administrative-boundaries.geojson'].map(async url=>{const r=await fetch(url);if(!r.ok)throw Error('Map asset unavailable');return r.json()}));
+   const fetchMapAsset=async url=>{
+    const response=await fetch(url);
+    if(!response.ok)throw Error('Map asset unavailable: '+url);
+    return response.json();
+   };
+   const [catalog,boundary,admin]=await Promise.all([
+    fetchMapAsset('ewic-locations.json'),
+    fetchMapAsset('bangladesh-boundary.geojson').catch(()=>null),
+    fetchMapAsset('plant-administrative-boundaries.geojson').catch(()=>null)
+   ]);
    if(!host.isConnected)return;
    const map=root.BEGDPlantMap;if(!map)throw Error('Map projection unavailable');
    const {rows,moments,untimedEvents,matchedEvents}=buildMoments(input,events,catalog.circuits);
    let selected=-1;
-   const country=map.geometryPath(boundary.geometry);
-   frame.innerHTML=`<svg class="plant-location-map ewic-location-map" viewBox="0 0 710 990" role="img" aria-label="Three schematic east–west interconnector circuits on the Bangladesh basemap"><path class="plant-map-country" d="${country}"/><g class="plant-map-boundaries" aria-hidden="true">${admin.features.map(f=>`<path class="plant-map-boundary plant-map-${escape(f.properties.level)}-boundary" fill="none" d="${map.geometryPath(f.geometry)}"/>`).join('')}</g><g data-ewic-branches></g><g>${catalog.circuits.flatMap(c=>[c.west,c.east]).map(site=>{const [x,y]=map.project([site.longitude,site.latitude]);return `<g><circle cx="${x}" cy="${y}" r="5" fill="var(--ink)" stroke="var(--bg)" stroke-width="2"/><text class="ewic-site-label" x="${x+10}" y="${y-10}">${escape(site.name)}</text></g>`}).join('')}</g></svg>`;
+   // Fit the Bangladesh extent in the same projected coordinates as the paths.
+   const [left,top]=map.project([87.65,26.95]);
+   const [right,bottom]=map.project([93.1,20.35]);
+   const viewBox=`${left} ${top} ${right-left} ${bottom-top}`;
+   const country=boundary?.geometry?map.geometryPath(boundary.geometry):'';
+   frame.innerHTML=`<svg class="plant-location-map ewic-location-map" viewBox="${viewBox}" role="img" aria-label="Three schematic east–west interconnector circuits on the Bangladesh basemap"><path class="plant-map-country" d="${country}"/><g class="plant-map-boundaries" aria-hidden="true">${(admin?.features||[]).map(f=>`<path class="plant-map-boundary plant-map-${escape(f.properties.level)}-boundary" fill="none" d="${map.geometryPath(f.geometry)}"/>`).join('')}</g><g data-ewic-branches></g><g>${catalog.circuits.flatMap(c=>[c.west,c.east]).map(site=>{const [x,y]=map.project([site.longitude,site.latitude]);return `<g><circle cx="${x}" cy="${y}" r="5" fill="var(--ink)" stroke="var(--bg)" stroke-width="2"/><text class="ewic-site-label" x="${x+10}" y="${y-10}">${escape(site.name)}</text></g>`}).join('')}</g></svg>`;
    frame.removeAttribute('role');
+   if(!boundary||!admin)frame.insertAdjacentHTML('beforeend','<p class="ewic-map-background-status" role="status">Some geographic background layers are unavailable.</p>');
    panel.querySelector('[data-ewic-sources]').innerHTML=catalog.circuits.map(c=>`<p class="note"><strong>${escape(c.name)}</strong><br>${[c.west,c.east].map(s=>`${escape(s.name)}: ${s.latitude.toFixed(6)}° N, ${s.longitude.toFixed(6)}° E · <a href="https://www.openstreetmap.org/${escape(s.osm_id)}" target="_blank" rel="noopener noreferrer">${escape(s.osm_id)}</a> · ${escape(s.source)} · ${escape(s.match_evidence)}`).join('<br>')}</p>`).join('');
    const previous=host.querySelector('[data-ewic-prev]'),next=host.querySelector('[data-ewic-next]'),select=host.querySelector('[data-ewic-moment]');
    const shortReason=reason=>reason.label?reason.label+' · '+reason.kind.toLowerCase():reason.kind;
