@@ -1,0 +1,327 @@
+Gas Transmission Company Ltd.
+(A Company of Petrobangla)
+GTCL Head Office Building
+Plot # F-18/A, Sher-E-Bangla Nagore Administrative Area
+Agargaon, Dhaka-1207.
+Ref. : 28.14.0000.134.01.13984.23
+Subject : DAILY GAS PRODUCTION AND SUPPLY STATISTICS (Provisional/Operational).
+( From 08:00 Hrs of 01-Nov-26 to08:00 Hrs of 02-Nov-26)
+Reporting Date: 2-Nov-2026
+1. Gas Production Scenario :
+No. of Capacity Production
+Gas Fields Remarks
+Wells MMSCF MMSCF
+A. BGFCL :
+Titas Gas Field 26 542.000 321.4070
+Hobiganj Gas Field 7 225.000 100.0090
+Bakhrabad Gas Field 6 43.000 24.9160
+Narsingdi Gas Field 2 30.000 22.0540
+Meghna Gas Field 1 11.000 4.7090
+Sub-total (A) : 42 851.000 473.0950
+B. SGFL :
+Kailashtilla (MSTE) Gas Field 3 55.000 42.1666
+Kailashtilla Gas Field # 1 2 13.000 2.6701
+Beanibazar Gas Field 1 15.000 18.3610
+Rashidpur Gas Field 5 60.000 70.1667
+Horipur Gas Field (Sylhet) 1 6.000 5.5367
+Sub-total (B) : 12 149.000 138.9011
+C. BAPEX :
+Salda Gas Field 1 3.000 2.0208
+Fenchuganj Gas Field 2 26.000 1.3608
+Shahbazpur Gas Field 3 50.000 37.6563
+Semutang Gas Field 2 3.000 1.8836
+Sundalpur Gas Field 1 5.000 1.2759
+Srikail Gas Field 3 40.000 14.0204
+Roopganj Gas Field 1 8.000 0.0000
+Begumgonj Gas Field 1 10.000 10.5221
+Sub-total (C) : 14 145.000 68.7399
+D. Santos : Sangu Gas Field 0 0.000 0.0000
+E. Chevron Bangladesh blocks-13 & 14 Ltd. :
+Jalalabad Gas Field 7 270.000 120.7760
+Moulovibazar Gas Field 6 42.000 15.9190 MMSCF supply through BD
+356.3080
+Bibyana Gas Field 26 1200.000 733.2980 Pipeline
+Sub-total (E) 39 1512.000 869.9930
+F. NIKO RESOURCES : Feni Gas Field 0 0.000 0.0000
+G. Tullow BD. Ltd. : Bangora Gas Field 5 103.000 28.5500
+H. RLNG Intake: a) MLNG 500.000 432.2300
+b) SLNG 500.000 550.3520
+2. Total Production (A ... H) 112 3760.000 2561.8610
+In-take & Delivery Condition of GTCL Operated Pipelines & AGMS :
+A. Gas In-take & Delivery Condition of N-S & R-A Pipelines and AGMS :
+a) Gas In-take To N-S & R-A Pipelines :
+Supply of the Day 0 8 : 0 0 H r o n 2 - N o v -2026 20:00 Hr on 1-Nov-2026
+Gas Fields
+in MMSCF Pressure PSIG Flow MMSCFD Pressure PSIG Flow MMSCFD
+i) Beanibazar Gas Field 0.000 0.000 0.000
+ii) Kailashtilla Gas Field 42.148 42.380 43.430
+iii) Jalalabad Gas Field 85.218 82.716 83.313
+iv) Fenchuganj Gas Field 1.349 1.705 1.337
+v) Moulovibazar Gas Field 0.000 14.600 16.630
+vi) Rashidpur Gas Field 68.746 69.140 68.760
+vii) Bibyana Gas Field 204.933 367.000 306.507
+viii) Hobiganj Gas Field 72.343 73.066 73.790
+ix) Titas Gas Field Loc.- C 33.860 34.199 34.537
+ix) Titas Gas Field Loc.- E 23.695 23.932 24.169
+ix) Titas Gas Field Loc.- i 25.424 25.678 25.932
+ix) Titas Gas Field Loc.- j 39.874 40.273 40.671
+Total In-take To N-S/R-A (i ... ix) : 828.129 774.688 719.076
+Capacity Supply in 08:00 Hr on 2-Nov-2026 20:00 Hr on 1-Nov-2026
+Station/System
+MMSCF MMSCF Pressure PSIG Flow MMSCFD Pressure PSIG Flow MMSCFD
+b) Compressor Station at Muchai :
+Suction/Discharge 1210.000 342.050 356.464 346.000
+MCS Consumption 1.812
+c) Gas Off-take From N-S Pipeline to JGTDSL :
+i) Fenchuganj 90 MW P.S (FPS) 18.241 18.423 18.606
+ii) SFCL 3.126
+iii) Kusiara 163 MW 27.598
+iv) Munshibazar DRS 3 2.956 3.030 3.060
+v) Raghunandanpur (VS-P) 40 90.395 91.299 92.202
+VI) Madhabpur TBS 8.262
+Sub-total (i - ii) : 150.577 112.752 113.868
+Capacity S u p p l y i n 08:00 Hr on 320- NAporvi-l2'10926 20:00 Hr on 1-Nov-2026
+Station/System
+MMSCF MMSCF Pressure PSIG Flow MMSCFD Pressure PSIG Flow MMSCFD
+d) Gas Off-take From N-S Pipeline to BGDCL :
+i) Midland PS 51 MW, Ashuganj 8.950 9.950 10.450
+ii) AFCCL 0.000 0.010 0.020
+Sub-total (i - ii) : 8.950 9.960 10.470
+Gas In-take At AGMS (a less b, c & d) : 666.790 661.936 605.208
+e. 1 ) To JGTDSL From KTL-ii & Beanibazar Gas Field :
+i) KTL-II Off-take (KTL MSTE) 0.018 1.018 1.518
+ii) KTL-II Off-take (Beanibazar GF) 18.361 18.341 18.861
+e. 2 ) To JGTDSL from Jalalabad gas 34.840
+field through spur line
+f) Ashuganj Compressor Station:
+Suction/Discharge 1500 666.790 674.000 671.000
+g) Gas Delivery from AGCS :
+i) A-B-1 (Old) Pipeline 450 0.000 471 0.000 457 0.000
+ii) A-B-2 (New) Pipeline 450 0.000 474 0.000 460 0.000
+iii) BB Pipeline 350 60.690 306 61.000 298 61.000
+iv) VS-3 Pipeline 150 175.700 463 170.000 429 177.000
+v) A-M Pipeline 450 430.400 467 443.000 453 433.000
+Total Delivery from AGMS (i…v) 666.790 674.000 671.000
+h) Gas Delivery Condition Through AGMS & AB Line :
+i) To BGDCL Through A-B1 Line 450 0.000 0.000 448 0.000
+- Through VS-3 Pipeline 150 175.700 170.000 177.000
+ii) To TGTDCL System :
+- Through A-B (1+2) 450 0.000 0.000 0.000
+- Through B-B Pipeline (Elenga) 350 91.460 96.460 101.460
+- Through A-M Line 450 430.400 443.000 433.000
+Total Delivery To TGTDCL 521.860 539.460 534.460
+iii) To PGCL and SGCL System 92.102 94.102 97.102
+Total Delivery Through AGMS & AB (1+2) Line (i ... iii) : 789.662 803.562 808.562
+B. Gas In-take at BKB Hub :
+a) In-take Condition :
+i) Through A-B, BKB-CTG & CFB Pipeline 656.537 657.537 661.537
+ii) Bangora Gas Field 27.560 27.560 27.560
+iii) Titas Gas Field Location G 24.193 24.193 24.193
+iv) Titas Gas Field Location A2 18.239 18.239 18.239
+v) Srikail Gas Field 13.926 13.926 13.926
+vi) Bakhrabad Gas Field 24.705 25.505 0.000
+vii) Salda Gas Field 2.016 445 2.716 0.000
+viii) Meghna Gas Field 4.708 5.308 0.000
+Total In-take (i … viii) : 771.884 774.984 745.455
+b) Off-take Condition :
+i) To KGDCL & BGDCL through BKB-Ctg. Line 0.000 1.000 448 5.000
+ii) To BGDCL through BKB-Demra Line 6.687 6.692 6.697
+iii) To TGTDCL through BKB-Demra line 150.000 445 151.000 448 155.000
+iv) To TGTDCL through BKB-Siddirganj line 615.197 616.292 506 578.758
+Total Off-take (i … iv) : 771.884 774.984 745.455
+C. Gas Supply through Bibiyana-Dhanua & Dhanua - Ashulia Pipeline (To TGTDCL) :
+i) Ashulia CGS 63.354 63.404 63.454
+ii) Aminbazar CGS 62.485 0.000 0.000
+iii) Dhanua GMS from BD pipeline 356.308 355.000 355.000
+Total Gas Consumption by TGTDCL through GTCL 1643.365 1645.365 1645.365
+D. Gas In-take & Off-take of BKB-Chattogram/CFB Pipeline (To BGDCL & KGTDCL) :
+a) In-take Condition :
+i) Through A-F Pipeline to BKB-Ctg/CFB Pipeline 772.762 772.762 448 772.762
+ii) Through AB1/AB2 line 0.000 1.000 5.000
+Total In-take (i ... i) : 772.762 773.762 777.762
+b) Off-take Condition :
+i) Through Fouzdarhat CGS 0.000 0.000 0.000
+ii) Others (BGDCL & KGDCL) 116.225 117.225 121.225
+iii) To TGTDCL 656.537 657.537 661.537
+Total Off-take (i ... ii) : 772.762 774.762 782.762
+E. Gas In-take & Off-take of Maheskhali-Anowara-Fouzderhat Pipeline :
+a) In-take Condition :
+i) Through M-A/M-A Parallel Pipeline from CTMS 982.582 988.000 990.000
+Total In-take (i ... i) : 982.582 988.000 988.000
+b) Off-take Condition :
+i) Through Anowara CGS (RLNG) to KGTDCL 209.820 191.520 219.360
+ii) Through Anowara- Fouzderhat Pipeline (RLNG) 772.762 772.762 772.762
+Total Off-take (i ... ii) : 982.582 982.582 982.582
+F. Off-take of BKB-Demra Pipeline (To TGTDCL & BGDCL) :
+b) Off-take Condition
+i) CGS Demra 55.989 0.057 0.048
+ii) Gouripur TBS to BGDCL (Provisional) 6.687 6.687 6.687
+iii) Others (Hori.100MW; etc.) 94.011 150.943 154.952
+Total (i ... iii) : 156.687 157.687 161.687
+Capacity S u p p l y i n 08:00 Hr on 320- NAporvi-l2'10926 20:00 Hr on 1-Nov-2026
+Station/System
+MMSCF MMSCF Pressure PSIG Flow MMSCFD Pressure PSIG Flow MMSCFD
+G. Gas In-take & Off-take of Western Zone Pipelines :
+a) In-take at Elenga : 92.102 94.456 92.092
+b) Off-take Condition :
+i) Sadanandanpur & Ullapara (Estimated) 11.077 11.188 11.300
+ii) Bogra TBS (Power+Others) 13.340 15.360 13.920
+iii) Baghabari CGS (Power) 0.000 5.952 4.896
+iv) Rajshahi CGS from B-R pipeline 1.612 0.800 0.820
+v) North-West Power Unit 1- 4 (1088 MW) 61.156 61.156 61.156
+vi) Bheramara CGS 0.000
+vii) Hatikumrul 4.917
+Total Off-take (i ... vi) : 92.102 94.456 92.092
+Total Gas In-take & Delivery of GTCL Operated Pipelines :
+Total Gas In-take 2070.188 2254.494 2166.373
+Total Gas Delivery 2070.188 2254.494 2166.373
+Gas Consumption Scenario :
+3. A) i) Titas Franchise Area (TFA) : Grid Power
+JERA Meghnaghat Power (718 MW) 51.000 95.760 417.000 95.000 402 103.000
+Siddirganj (120 x 2) MW P.S. 55.000 0.000 0.000 0.000 0 0.000
+Siddirganj 335 MW P.S. (EGCB) 54.000 50.384 435.000 40.000 430 51.000
+Horipur 100MW P.S. 25.000 0.000 0.000
+Tongi 80 MW P.S 36.000 0.000 0.000
+Horipur 360 MW P.P. 70.000 0.000 0.000 0.000 0 0.000
+Horipur 412 MW P.P. (EGCB) 63.500 58.186 440.000 52.000
+430 59.000
+Meghnaghat 450 MW P.P. 100.000 0.000 0.000 0.000 0 0.000
+Summit Meghnaghat 335 MW 75.000 51.792 420.000 50.000 405 52.000
+Summit Meghnaghat 584 MW 100.000 0.000 0.000 0.000 0 0.000
+Unic Meghnaghat 584 MW 100.000 0.000 0.000 0.000 0 0.000
+RPCL 210 MW P.P. 42.000 0.000 0.000 0.000 0 0.000
+Madabdi REB Summit (11+27) MW 8.000 4.642 0.000 0.050
+Ashulia REB Summit (11+34) MW 11.500 3.424 0.000 0.050
+Doreen Tangail 22 MW SIPP 5.000 0.000 0.000 0.000
+Rupgonj Summit Eastern 33 MW SIPP 8.000 0.000 0.000 0.000
+Gazipur Summit Northern 33 MW SIPP 8.000 0.000 0.000 0.000
+Norsingdi Dorin 22 MW SIPP 5.000 0.000 0.000 0.000
+Ghorashal (Unit-1-2) 110 MW 34.000 0.000
+Ghorashal (Unit-3) 416 MW 68.000 0.000
+Ghorashal (Unit-4) 409 MW 75.000 0.000
+0.000 0.000
+Ghorashal (Unit-5) 210 MW 51.500 0.000
+Ghorashal (Unit-6) 210 MW 51.500 0.000
+Ghorashal (Unit-7) 365 MW 65.000 0.000
+Ghorashal Regent Power 108 MW 25.000 0.000 0.000 0.000
+UPGD (81.62 MW) Grid 7.000 1.486 1.501 1.516
+Ghorashal Max 79 MW Rental 20.000 0.000 0.000 0.000
+Sub-total (A) : 1214.000 265.674 238.501 266.616
+B) i) Karnafuli Franchise Area (KFA) : Grid Power
+Rawzan P.S (210+210 MW) 100.500 0.000 0.000 372 0.000
+Shikalbaha P.S (225+150+60 MW) 88.000 28.232 7.200 373 38.263
+Barabkunda 23.22 MW SIPP (Regent) 5.500 0.000 0.000 0.000
+Sub-total (i) : 194.000 28.232 7.200 38.263
+ii) Karnafuli Franchise Area (KFA) : Non-Grid Power
+United Malancha Hold. 63 MW,CEPZ 15.000 7.920 7.999 8.078
+Sub-total (ii) : 15.000 7.920 7.999 8.078
+Total B(i+ii) 209.000 36.152 15.199 46.341
+C) Bakhrabad Franchise Area (BFA) : Grid Power
+Ashuganj APSCL (1-2) 178 MW 48.000 0.000 0.000 2.000
+APSCL (3-5) 450 MW 100.000 0.000 0.000
+APSCL 225 MW CCPP 40.000 0.000 0.000 0.000
+United 200MW Moduler Power Plant 40.000 23.203 0.000 25.203
+Ashuganj South 450 MW CCPP 65.000 49.342 0.000 51.342
+Ashugonj North 450 MW CCPP 65.000 113.507 0.000 23.968
+Ashuganj Precision Rental 55 MW 12.000 10.501 0.000
+Comilla REB (11+13.5) MW 6.000 3.590 3.626 3.662
+Jangalia PS 33 MW Summit Rental 8.000 0.000 0.000 0.000
+Feni Dorin 22 MW SIPP 5.000 0.000 0.000 0.000
+Feni Mohipal 11 MW SIPP 2.500 0.000 0.000 0.000
+Chandpur Power 150 MW CCPP 12.000 0.000 0.000 0.000
+Midland PS 51 MW 12.000 8.950 8.940 8.960
+Sub-total (C) : 415.500 209.093 12.566 115.135
+Capacity Supply in
+Station/System 08:00 Hr on 320- NAporvi-l2'10926 20:00 Hr on 1-Nov-2026
+MMSCF MMSCF
+Pressure PSIG Flow MMSCFD Pressure PSIG Flow MMSCFD
+D) Jalalabad Franchise Area (JFA) : Grid Power
+Shahjibazar P.S (PDB 70 MW) 18.000 9.802 9.900 9.998
+Shahjibazar P.S 50 MW Rental 12.000 0.000 0.000 0.000
+Shahjibazar P.S (CCPP 330 MW) 47.000 28.768 29.056 29.343
+Shahjibazar P.S 86 MW Rental 20.000 2.552 2.577 2.603
+Fenchuganj CC1 90 MW 17.000 9.191 9.283 9.375
+Fenchuganj CC2 90 MW 18.000 9.050 9.140 9.231
+Fenchuganj 51 MW BPL 13.000 0.000 0.000 0.000
+Khusiara 163 MW (Max) 28.000 27.598 27.874 28.150
+Fenchuganj 50 MW Rental (Prima) 10.000 0.000 0.000 0.000
+Summit Bibiyana-2 (341 MW) 62.000 41.581 0.000 42.412
+Bibiyana-3 CC (400 MW) 45.000 61.123 0.000
+Bibyana South (400 MW) 45.000 58.493 0.000 58.493
+Kumargaon 20 MW P.S 2.000 0.000
+0.000 0.000
+Kumargaon 50 MW P.S Rental (Prima) 12.000 0.000 0.000 0.000
+Kumargaon 10 MW P.S 3.000 0.000 0.000 0.000
+Kumargaon United power 25 MW 5.700 3.365 3.399 3.433
+Kumergaon 150 MW CCPP 36.000 25.010 25.261 25.511
+Hobiganj 11 MW Energypac SIPP 3.000 0.000 0.000 0.000
+Sub-total (D) : 396.700 276.532 116.489 218.548
+E) Paschimanchal Franchise Area (PFA) : Grid Power
+PDB Baghabari P.S (100+71 MW) 50.000 0.000 173 0.000 167 0.000
+Bogura GBB 20 MW PS Rental 3.800 0.000 0.000 155 0.100
+Bogura 20MW PS (Prima) Rental 6.500 0.000 0.000 0.000
+Ullahpara 11 MW Summit SIPP 2.600 0.000 0.050 0.055
+NWPGCL Unit-1 (225 MW) 35.000 0.000 0.000
+NWPGCL Unit-2 (225 MW) 35.000 0.000 0.000
+NWPGCL Unit-3 (225 MW) 35.000 0.000 0.000
+Semcorp NWPGCL Unit-4 (413.8 MW) 73.000 61.156 0.000 61.656
+Sub-total (E) : 240.900 61.156 0.050 61.811
+F) Sundarban Franchise Area (SFA):
+Bhola VERL 34.5 MW Rental 10.000 0.000 0.000 0.000
+Bhola 225 MW CCPP 35.000 31.450 33.760 34.900
+Rupsha 800MW CCPP,Khulna 26.000 0.000
+Bhola NBBL 220 MW 0.000
+Bheramara 410 MW CCPP NWPGCL 72.000 0.000 0.000 0.000
+Sub-total (F) 143.000 31.450
+Total Gas Consumption for Power (A..F) 2619.100 880.057
+G. Fertilizer : i) TFA :
+JFCL 45.000 2.782 270 3.000 260 3.000
+GPFPLC 45.000 69.122 241 69.000 232 69.000
+PUFF 14.000 0.000 0.000 0.000
+Sub-total (i) : 104.000 71.904 72.000 72.000
+ii) KFA :
+KAFCO 63.000 51.331 51.089 371 51.454
+CUFL 52.000 9.616 9.624 368 9.144
+Sub-total (ii) : 115.000 60.947 60.713 60.598
+iii) BFA : AFCCL 52.000 0.000 475 0.000 455 0.000
+iv) JFA : Shahjalal Fertilizer 45.000 3.126 3.157 3.157
+Total Fertilizer Consump. (i ... iv) : 264.000 135.977 135.870 135.755
+H. Others Consumptions :
+i) TFA 600.000 1110.580 1104.580 1126.672
+ii) KFA 161.992 146.320 146.330
+iii) BFA 82.337 83.160 83.984
+iv) JFA 38.000 113.913 115.052 116.191
+v) SFA 2.000 6.340 6.460 6.650
+vi) PFA (Estimated) 12.000 30.946 26.498 25.065
+Total Others Consumption (i ... v) : 652.000 1506.108 1482.070 1504.891
+Total Gas Consumption (A ... I) : 2522.142 1617.940 1640.646
+Daily Gas Consumption by the Marketting
+Companies :
+Company Name Consumption
+TGTDCL 1448.158
+KGDCL 259.091
+BGDCL 291.430
+JGTDSL 393.571
+PGCL 92.102
+SGCL 37.790
+Total Consumption : 2522.142 Difference between production and consumption= 39.719 MMSCF
+General Manager (Operation)
+Gas Transmission Company Ltd.
+(A Company of Petrobangla)
+GTCL Head Office Building
+Plot # F-18/A, Sher-E-Bangla Nagore Administrative Area
+Agargaon, Dhaka-1207.
+Subject : DAILY Condensate Pumping, Receiving and Delivery Statistic
+( From 08:00 Hrs of 01-Nov-26 to 08:00 Hrs of 02-Nov-26)
+No. of P umping Quantity
+Sl no. Description
+Wells Duration (in Litre)
+1. Condensate Pumped :
+a) Jalalabad Gas Field to RCFP/RGF by NS line 4 Hr. 245317.00
+b) Beanibazar Gas Field 2 0.00
+c) Kailashtilla Gas Field to RCFP/RGF by NS line 6 0.00
+d) Bibyana Gas Field to Ashugonj (RPGCL) 12 Hr. 0.00
+e) Muchai Compressor Station Hr. 0.00
+Total Quantity of Condensate Pumped (a-e) : 245317.00
+2. Condensate delivered to Storage Tank as measured by CFM. (Ashuganj) 245546.00
+General Manager (Operation)

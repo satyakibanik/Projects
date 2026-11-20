@@ -1,0 +1,774 @@
+{
+  "demand": {
+    "source": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed",
+    "availability": null,
+    "captures": [
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=1",
+        "retrieved_at": "2026-10-23T01:29:52.359523+00:00",
+        "sha256": "9600a1cc3ec9ef033a8f001f51cef626751a6f0ec64be4e4cf0d4dc8ba7e9a44"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=2",
+        "retrieved_at": "2026-10-23T01:29:54.259139+00:00",
+        "sha256": "2ddb73967c781562987b509fbad17a14f9a6658b714081bb34413a578a037dd2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=3",
+        "retrieved_at": "2026-10-23T01:29:54.269256+00:00",
+        "sha256": "c27823c74c048f5d70bdc70ea94bedc48781b6fa3a42f21cf5b75ef2fec3aee2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=4",
+        "retrieved_at": "2026-10-23T01:29:54.259395+00:00",
+        "sha256": "f3b7d6a15772ec96d9e19181a2b2b44e157b3a2ad1ebd984a09fa35733320714"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=5",
+        "retrieved_at": "2026-10-23T01:29:56.306527+00:00",
+        "sha256": "f12b454d9fccb3f1546fa14f95d307679317301dc88d5c106ecdb244fa0182c2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=6",
+        "retrieved_at": "2026-10-23T01:29:56.179836+00:00",
+        "sha256": "f877e0d30f0663ad5261ff6f62288741e24feab3e660399da92838e39ba09e10"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=7",
+        "retrieved_at": "2026-10-23T01:29:56.306288+00:00",
+        "sha256": "27c1192de211d96514d2aff584337b10065535b2c52e1bedb1550e911bb00544"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=8",
+        "retrieved_at": "2026-10-23T01:29:58.390289+00:00",
+        "sha256": "09c2b06342d679ade059a770da0f8a0bf9db5de252221bd74dc3f1036bf17084"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=9",
+        "retrieved_at": "2026-10-23T01:29:58.357445+00:00",
+        "sha256": "81cc6da1d7be818a6e24128eb8a06014eecc7968704df345621ab7b242b21805"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=10",
+        "retrieved_at": "2026-10-23T01:29:58.397788+00:00",
+        "sha256": "ed7c78c0391012c8fabbe4e19ff22b474bb6621ab7907cbfe59f18008f869214"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=11",
+        "retrieved_at": "2026-10-23T01:30:00.316993+00:00",
+        "sha256": "6501eb72a0cfb59d970af873a68f2edf62f0b106447d43029b4a1ef09262f4b2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=12",
+        "retrieved_at": "2026-10-23T01:30:00.274442+00:00",
+        "sha256": "9410702e70bc52b79ceb5769bf6a57406207b5214d2f31284d84803d00247fb2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=13",
+        "retrieved_at": "2026-10-23T01:30:00.301913+00:00",
+        "sha256": "6262d5b6629b2b1bd9ab82e98bb75edfcfe75422d458e262d6ca01642dcaa370"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=14",
+        "retrieved_at": "2026-10-23T01:30:02.241864+00:00",
+        "sha256": "433f58a24cc1f0cc1707b5e86314f1de4ed17b2ddf145e3e70df5353d2954637"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=15",
+        "retrieved_at": "2026-10-23T01:30:02.241618+00:00",
+        "sha256": "14ca6e3eec1c3bb558e9becd149143f3d08efda5b40c0b98f4b9ae574e65ffd3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=16",
+        "retrieved_at": "2026-10-23T01:30:02.268220+00:00",
+        "sha256": "b4b388c082ea6ef6183554a871b0cea71168763eeb1ba28d941483e9dd22f419"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=17",
+        "retrieved_at": "2026-10-23T01:30:04.208745+00:00",
+        "sha256": "674e09ee767ef9a797f5ceba96586c3101ec7834f20a57ebacf810b0701885f7"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=18",
+        "retrieved_at": "2026-10-23T01:30:04.183790+00:00",
+        "sha256": "ba4672617f3ec3d7e1f8ca693440d1043b20d6b2db97c0d16a6554b61fda67f6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=19",
+        "retrieved_at": "2026-10-23T01:30:04.208854+00:00",
+        "sha256": "93b31f0c736bf70c026e7b38a2c7e6d3c63c8c1eab9cbeb216d9dca612ffcac6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=20",
+        "retrieved_at": "2026-10-23T01:30:06.115860+00:00",
+        "sha256": "b7dff78088abe38368df0f0eb64df57c69f6f0f1844bdc02cef8e574c88e3326"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=21",
+        "retrieved_at": "2026-10-23T01:30:06.212110+00:00",
+        "sha256": "6ec0358bfb58806056d53cce9421ed77c62172774b4a69a7d505fc893156023c"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=22",
+        "retrieved_at": "2026-10-23T01:30:06.132640+00:00",
+        "sha256": "7b4759c8221430f8f1b2cbb7f43f942afb75c31c86f6359dc5c9eb9ace3ee606"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=23",
+        "retrieved_at": "2026-10-23T01:30:08.135537+00:00",
+        "sha256": "4b3d84c74e64158963db47efdceb57c9d118da5b4ff643407d8cc9e6b03394eb"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=24",
+        "retrieved_at": "2026-10-23T01:30:08.185458+00:00",
+        "sha256": "34e33b361aafe96ff984caac0a5bff0a70f151702dbd8a452e756feb338a17fb"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=25",
+        "retrieved_at": "2026-10-23T01:30:08.135711+00:00",
+        "sha256": "249a8a58aef73e8d76c84a3a796be66283b8ccdc8ca0f1c96672fcf013a0ae3a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=26",
+        "retrieved_at": "2026-10-23T01:30:10.164907+00:00",
+        "sha256": "e7a9a0bf7688d131f805c22dc746fcf8f7213072195ed523d7e191479a230783"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=27",
+        "retrieved_at": "2026-10-23T01:30:10.083306+00:00",
+        "sha256": "809cc24110ffbd1e9fb6143ca2c6f5e7f03e625e623c9c4a639e78063ed34dc5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=28",
+        "retrieved_at": "2026-10-23T01:30:10.098768+00:00",
+        "sha256": "4945f1b5e91f591bf33ec4d4bfef1d69fd2ce6e1ed8970c6640ab1f197a85999"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=29",
+        "retrieved_at": "2026-10-23T01:30:12.040012+00:00",
+        "sha256": "8f5bc4e8c53b45a11f1861fc764e92f16073766f03f37a7149bededae595cc52"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=30",
+        "retrieved_at": "2026-10-23T01:30:12.061557+00:00",
+        "sha256": "132c66d3673ebd313fdbfb563fd01880f6bb744687d2a7b77fb126c9dc0b10b5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=31",
+        "retrieved_at": "2026-10-23T01:30:12.173669+00:00",
+        "sha256": "a8bc98fa55bf673a37a34dfb99e098e2eb06fc0b336a04fd645c244d65949c1d"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=32",
+        "retrieved_at": "2026-10-23T01:30:14.133439+00:00",
+        "sha256": "14a263fc9b05a8ee60e2959061810333cf5590be1c79edcfe0af0e89d2662449"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=33",
+        "retrieved_at": "2026-10-23T01:30:14.133735+00:00",
+        "sha256": "87843d8782a94c9155304a921cf383db106df5f15466e6124ce76c8c17e0c86b"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=34",
+        "retrieved_at": "2026-10-23T01:30:14.114033+00:00",
+        "sha256": "21ada1340705b6847dea51d6b43b08772526e539e9775c70a3e65d5a8a20d1f4"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=35",
+        "retrieved_at": "2026-10-23T01:30:16.050502+00:00",
+        "sha256": "e183c317198e1c5ec87d8e893aab057e5742b5f14cf16f9465f139dbcbf22a4a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=36",
+        "retrieved_at": "2026-10-23T01:30:16.050875+00:00",
+        "sha256": "559d3b212bef64f05a0b2ce4f324e40bef8b2bb5b6605c9066ae04d9297d6e4f"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=37",
+        "retrieved_at": "2026-10-23T01:30:16.050615+00:00",
+        "sha256": "e82396312c1343ebc3560263ea246b50daadccff451262c3e0608ca397b4d9f1"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=38",
+        "retrieved_at": "2026-10-23T01:30:17.976662+00:00",
+        "sha256": "d0e9bbb4a3992a233aa162b5397e5942ee5f152215b2c673441c48ff4ed0dc58"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=39",
+        "retrieved_at": "2026-10-23T01:30:17.976245+00:00",
+        "sha256": "213140541c14748a00eedcc6bded3b0510acf88828b2ae0f26b38828ff0d27c3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=40",
+        "retrieved_at": "2026-10-23T01:30:18.011570+00:00",
+        "sha256": "a4b0f3ecb5a7d14248446b8a8692e3222a32a586e1116434153d999e7143f1e4"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=41",
+        "retrieved_at": "2026-10-23T01:30:19.979790+00:00",
+        "sha256": "06baf4a3d44dd81c97af9f3f41cd23dc0af92d5f0a17a2ebcd907d5927b7f16b"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=42",
+        "retrieved_at": "2026-10-23T01:30:19.979304+00:00",
+        "sha256": "cfbb13197e6d445813714ac74044dcb1bf0dc8d4b56b62b7219a0f8f3b6fe150"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=43",
+        "retrieved_at": "2026-10-23T01:30:19.979524+00:00",
+        "sha256": "b06f61c92d9cac90614ae7c1dad171f6e4c404405958ebf3d176f1b29745abea"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=44",
+        "retrieved_at": "2026-10-23T01:30:21.897655+00:00",
+        "sha256": "da96be42764067727a296d7b77a2fd4a48ec0ff44d43b038100735eba70018c0"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=45",
+        "retrieved_at": "2026-10-23T01:30:21.963268+00:00",
+        "sha256": "b602cd83acc0de9f8317a05a7c816ca8840949dac3cd6663a2eee181f62a5e8d"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=46",
+        "retrieved_at": "2026-10-23T01:30:21.897444+00:00",
+        "sha256": "ba49e466c819b69ca76b85ac3d4b73546bb57243c390110e7a6b572dfcf5650c"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=47",
+        "retrieved_at": "2026-10-23T01:30:23.925136+00:00",
+        "sha256": "b2abe2f4f437a5ddc65496880a85dab5d39253fbf15443b3895f235b10b00ff5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=48",
+        "retrieved_at": "2026-10-23T01:30:23.875733+00:00",
+        "sha256": "367b04bb2a4359bcaf1199a0fd1f6d1384ae2123e01a10b1258a380ed8a14426"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=49",
+        "retrieved_at": "2026-10-23T01:30:23.925283+00:00",
+        "sha256": "dac16e291c2151a3daed5dd49579f7d6b8b376277e1f9798b02bb364372d9cfe"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=50",
+        "retrieved_at": "2026-10-23T01:30:25.902916+00:00",
+        "sha256": "354edd999d2a18da391be700c22901d5ac046b13eb731a8b52cf9a59b91ea351"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=51",
+        "retrieved_at": "2026-10-23T01:30:25.828999+00:00",
+        "sha256": "b0ac7f6f5fcc76611758b93ab6e4156ec378820b0d0cc8bb92d6db5adf2dc370"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=52",
+        "retrieved_at": "2026-10-23T01:30:25.902551+00:00",
+        "sha256": "528d80f619415f6c43587fa12c982f7f3ed5651a91c6c3abaa06118d4db065dc"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=53",
+        "retrieved_at": "2026-10-23T01:30:27.841935+00:00",
+        "sha256": "cbe08cab3e7c15c7a3fdf9e8927da5cad0720978824c0c63ce2b7f1b2364306f"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=54",
+        "retrieved_at": "2026-10-23T01:30:27.781812+00:00",
+        "sha256": "f74ba414a006f8be6ec0f9507c13eea4be3783a104bcdeb72aafa5ccf9195dbf"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=55",
+        "retrieved_at": "2026-10-23T01:30:27.917253+00:00",
+        "sha256": "977b45d1861774fa48ad023118f9b22ffef86521e97227b0a1e46ff708125e39"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=56",
+        "retrieved_at": "2026-10-23T01:30:29.802048+00:00",
+        "sha256": "59ac78506709cf046affeff846493dc9354b2dd0224e79ad35840f217ae56c4f"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=57",
+        "retrieved_at": "2026-10-23T01:30:29.831318+00:00",
+        "sha256": "83f0dd79ef23af3f3b34e24ba9e8f8d5166cdec8d660becac1879d23811aae1d"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=58",
+        "retrieved_at": "2026-10-23T01:30:29.864876+00:00",
+        "sha256": "1bcfda1f83eb8df74aa83d5e139713e5eb4a7d67baa5fe225caa9a0e11ec9df9"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=59",
+        "retrieved_at": "2026-10-23T01:30:31.782553+00:00",
+        "sha256": "150e83bc5f9ffacd99189a1d9b87fd1d1152f35d35ec11580fa07fcb516621b3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=60",
+        "retrieved_at": "2026-10-23T01:30:31.782714+00:00",
+        "sha256": "11bfed83e0ef53e77d4b2bc93c2faabba8f5caf3d71501ddae65dda0c0118887"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=61",
+        "retrieved_at": "2026-10-23T01:30:31.782864+00:00",
+        "sha256": "70e1f94f427ecff377845f0ea05d86d61af490b7f257a71cf2dee2b99705af4a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=62",
+        "retrieved_at": "2026-10-23T01:30:33.709624+00:00",
+        "sha256": "396cc81bb0dd9c8538dceffb43105e300d8186974f73026c7cc9dee2ad108e8f"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=63",
+        "retrieved_at": "2026-10-23T01:30:33.717365+00:00",
+        "sha256": "7940ae6d10b7ca0f99898a55110c3af29d75f481c66a49fd01f83ecf3593863e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=64",
+        "retrieved_at": "2026-10-23T01:30:33.692298+00:00",
+        "sha256": "237b10a6177a229e7b92aeec19d0d890c6163f16aa4e267a03bf701e24cd1773"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=65",
+        "retrieved_at": "2026-10-23T01:30:35.649546+00:00",
+        "sha256": "3604333184ddc88ac552ae915b25ec8b913d9d7e9e7a03bca256e603a045f777"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=66",
+        "retrieved_at": "2026-10-23T01:30:35.771210+00:00",
+        "sha256": "0d91fc048639d9d60869c8fe0b4f65660675e3b801008966dca1ad5b3b832855"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=67",
+        "retrieved_at": "2026-10-23T01:30:35.614880+00:00",
+        "sha256": "8c857599a4ca72726fbe8dadee5b5f1b479aacb001763c3b4fde4e7e899501f7"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=68",
+        "retrieved_at": "2026-10-23T01:30:37.775246+00:00",
+        "sha256": "91dae5660457be886c907fb634d7e90803ef07bb85fca7c57b84d592c0dd0117"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=69",
+        "retrieved_at": "2026-10-23T01:30:37.713492+00:00",
+        "sha256": "a2ab5ab23f11462f283fcabbfa3ac37bdc2b0ee106f78c5ee00834a41d803ce6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=70",
+        "retrieved_at": "2026-10-23T01:30:37.666391+00:00",
+        "sha256": "37b23c3dbd19f5f3ec38ee240197a2d937874219a98ad62da616a8e95597ab0b"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=71",
+        "retrieved_at": "2026-10-23T01:30:39.727330+00:00",
+        "sha256": "921d36dcf894833b0321974781182d546dc12bd990652cca2ff1cef8c73342b5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=72",
+        "retrieved_at": "2026-10-23T01:30:39.726946+00:00",
+        "sha256": "abd7db2482503620f89ab1e2d9b3060d4c57327e9998b8556c972169aff18cbe"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=73",
+        "retrieved_at": "2026-10-23T01:30:39.820782+00:00",
+        "sha256": "a547f8849392a7b9a1fd8663312502e56d710f788454a8db3fff75989fc318c1"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=74",
+        "retrieved_at": "2026-10-23T01:30:41.732312+00:00",
+        "sha256": "6c4a3b0574c23e078cbf4bf91fb22373372f5bde5c61b53259199c2cd6b3e942"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=75",
+        "retrieved_at": "2026-10-23T01:30:41.732139+00:00",
+        "sha256": "73cd473ef0da10f786618e4df2111a35bd425f34f378ffb6fef12718a1cb9bde"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/web/generations/view_demand_supply_loadshed?page=76",
+        "retrieved_at": "2026-10-23T01:30:41.732495+00:00",
+        "sha256": "b1f1d88c4e351f609f090895bcc9953da97e52a488f59abbbddd0944a54e3f55"
+      }
+    ]
+  },
+  "generation": {
+    "source": "https://erp.powergrid.gov.bd/w/generations/view_generations",
+    "availability": "ERP historical issue/revision timestamps are unavailable; availability on D+1 is assumed for retrospective evaluation.",
+    "captures": [
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=1",
+        "retrieved_at": "2026-10-23T02:31:58.719195+00:00",
+        "sha256": "113d75d81f087a7fb998d386e01658cda378e9ed546b029db65413e35e6c4ce4"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=2",
+        "retrieved_at": "2026-10-23T02:32:00.480651+00:00",
+        "sha256": "35b85d158c357d907c5bf798412853ebc283bae19f41908258b904d284c0705e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=3",
+        "retrieved_at": "2026-10-23T02:32:00.480871+00:00",
+        "sha256": "d385547f1e0e8256fef52e0caff8a6b426bc48085ae6b608d227ce29f1983377"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=4",
+        "retrieved_at": "2026-10-23T02:32:00.480380+00:00",
+        "sha256": "7c4f971d883478a544f4d099f99a9ddb4091c820e7dca30cd92a526ec34cac7b"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=5",
+        "retrieved_at": "2026-10-23T02:32:02.113829+00:00",
+        "sha256": "74799a03604a2f120c667426a521eb9a57267a4f2fdaf6dd71dcf363dbbfa33e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=6",
+        "retrieved_at": "2026-10-23T02:32:02.093465+00:00",
+        "sha256": "cf5dfac71494bbf990905c8dc97ed88e026f444d2466932b81afa2a45ace1bbe"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=7",
+        "retrieved_at": "2026-10-23T02:32:02.113956+00:00",
+        "sha256": "6a89bf9ef677a1a874020472e4b4e324af5b420c10413bd25b81c6e78ade94e2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=8",
+        "retrieved_at": "2026-10-23T02:32:03.775854+00:00",
+        "sha256": "36e54d06318f1c95e592adb9a284acb1c48e3cc78870f01733946093af12d9a3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=9",
+        "retrieved_at": "2026-10-23T02:32:03.776050+00:00",
+        "sha256": "d57a80fea816a3f37198fd41f813db11eaf41f75363cf748254c9d5a4ec84975"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=10",
+        "retrieved_at": "2026-10-23T02:32:03.775586+00:00",
+        "sha256": "8e262ccb153eb43ce348bebc119ebe3213f6fe2e971f963239bcedeb2d0377d0"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=11",
+        "retrieved_at": "2026-10-23T02:32:05.371063+00:00",
+        "sha256": "cb333b5c9fef1ce80fce40d312fe8ec732f9c59c43ef1a37e827016627d56361"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=12",
+        "retrieved_at": "2026-10-23T02:32:05.429885+00:00",
+        "sha256": "4ce0a1cf3a9721c8ce7a9cc9381ddcaaf2ac7e419a9296b6db8b7dfd2840b6d6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=13",
+        "retrieved_at": "2026-10-23T02:32:05.430034+00:00",
+        "sha256": "b511815ffe3e7557d5487c1768453bf191e4e37b7108bc46174cbf7373944d34"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=14",
+        "retrieved_at": "2026-10-23T02:32:07.439197+00:00",
+        "sha256": "dc16a6bb9322cf078ba7ef4f52d8c196886d5aa19665a7dc30cd989967cef20a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=15",
+        "retrieved_at": "2026-10-23T02:32:07.439462+00:00",
+        "sha256": "0ac151675e9809db2fe9be8ca42e15a1aa8c7d3c737feef4fd8a497cc06dc3fb"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=16",
+        "retrieved_at": "2026-10-23T02:32:07.439392+00:00",
+        "sha256": "5f9c1398bd125852ba54349e19c2ad19862a0fbe94a48dd7ac3645746ff6638f"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=17",
+        "retrieved_at": "2026-10-23T02:32:09.106312+00:00",
+        "sha256": "f43648c86e75bc2f8a832888cd8429936ef9cdcf95776e50b0f036c4625a9530"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=18",
+        "retrieved_at": "2026-10-23T02:32:09.107476+00:00",
+        "sha256": "7304162c608e79502b7ad9422eec0de253f7b9c8404236cbc47d521d4dcc465a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=19",
+        "retrieved_at": "2026-10-23T02:32:09.107583+00:00",
+        "sha256": "06074da6e5c1492be5f09e3355a15b9f306b3aee53b4fdbc7604271c0aba5878"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=20",
+        "retrieved_at": "2026-10-23T02:32:11.023108+00:00",
+        "sha256": "c085ec3e20ba1ce18095d5252e7a72451fa9e2a75d0291ed772618f57be940a6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=21",
+        "retrieved_at": "2026-10-23T02:32:11.023184+00:00",
+        "sha256": "2889821d6da0c9d282dd631ece3609578ee958b8ee7f05c19ff4b7e12d702270"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=22",
+        "retrieved_at": "2026-10-23T02:32:11.022891+00:00",
+        "sha256": "d3cf32831a0e9ba8ce491413b2956d44d41e9a18eeac0e22001b6f6fecdedb6a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=23",
+        "retrieved_at": "2026-10-23T02:32:12.966876+00:00",
+        "sha256": "23b1bcc4425b9de09d806840e721be26220d5b347e3be863d49aa27d1a707029"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=24",
+        "retrieved_at": "2026-10-23T02:32:12.657599+00:00",
+        "sha256": "7611c2384f3a39f051631a11cad9c1658056b8c0f9cbe61251b3db12628e3a07"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=25",
+        "retrieved_at": "2026-10-23T02:32:12.670046+00:00",
+        "sha256": "81113a0c745b77c65836688087db1126a5e4c29c4685bd70c7fd791752d132bf"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=26",
+        "retrieved_at": "2026-10-23T02:32:14.589208+00:00",
+        "sha256": "f067e567c623287124ff248f09ec175369d9e13abc36b2641a00a9ae31d72341"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=27",
+        "retrieved_at": "2026-10-23T02:32:14.611933+00:00",
+        "sha256": "9e8d3ee10bd48bce6ecb2be854764cac934dc31b82eee902f751da376c52eb7c"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=28",
+        "retrieved_at": "2026-10-23T02:32:14.611320+00:00",
+        "sha256": "f1dd6d56bac81a725f6531ab29ba577566779582fc6041db4470ae5b0a6afbc9"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=29",
+        "retrieved_at": "2026-10-23T02:32:16.450755+00:00",
+        "sha256": "cacef3371f0d3e7bfbf019b9eebf00c5ec1c5092c7c8c90a27f8744c81c5cd95"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=30",
+        "retrieved_at": "2026-10-23T02:32:16.450994+00:00",
+        "sha256": "3d7bf69470a7bac31b37d6073960f2c3a1c2c1d1736dc0afdd1f6fbc6757b659"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=31",
+        "retrieved_at": "2026-10-23T02:32:16.451064+00:00",
+        "sha256": "9430c0e276f5107e48791613a33bcbbf91963d4734b1fcd86972c4723f88190e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=32",
+        "retrieved_at": "2026-10-23T02:32:18.118469+00:00",
+        "sha256": "a1250b01e6f5773dcb68784e59e2d581395ecba06d88fe9d278e5d05476b8347"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=33",
+        "retrieved_at": "2026-10-23T02:32:18.120044+00:00",
+        "sha256": "d19606545be72df3bc1955a825b5248eec13dd2b2f4e288759904d19d153edd5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=34",
+        "retrieved_at": "2026-10-23T02:32:18.118170+00:00",
+        "sha256": "c261852042cd81c2b2815efeca9fd4597c8db208e1240b873396a48b9340d530"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=35",
+        "retrieved_at": "2026-10-23T02:32:19.718097+00:00",
+        "sha256": "0e5d07533e7f756a60846a0be82dbbc462362b381533d2f18b04fa0ea335cb3e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=36",
+        "retrieved_at": "2026-10-23T02:32:19.760868+00:00",
+        "sha256": "d795addd9fdab92372e58b729297366844e0b2aa5d594849630abd77dd9743bb"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=37",
+        "retrieved_at": "2026-10-23T02:32:19.717815+00:00",
+        "sha256": "b706799a4f2997325e456a3e41a9b04f411fd04661eabf6fd64fb1fb9f70fce2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=38",
+        "retrieved_at": "2026-10-23T02:32:21.572939+00:00",
+        "sha256": "9ee2f59e1b96b8a999ed1be7bc9e032cbff6f088a493bcc29f7f8edea2096691"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=39",
+        "retrieved_at": "2026-10-23T02:32:21.572851+00:00",
+        "sha256": "cd41e22a410e07b014450bec4e84504798213cf22c087d4349cc87a844225f71"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=40",
+        "retrieved_at": "2026-10-23T02:32:21.572623+00:00",
+        "sha256": "5f055897f720f1a09e100426d8eaf0fe7e4d0614cb5969333e1777647d094bbe"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=41",
+        "retrieved_at": "2026-10-23T02:32:23.219525+00:00",
+        "sha256": "54d4698dba1752f1afd87fd003d5dddd42fdc08da49ed722a323ffbc9a2d0f59"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=42",
+        "retrieved_at": "2026-10-23T02:32:23.219605+00:00",
+        "sha256": "f67c7b6f7a2ccbd5814921ac73f3a880bca1ec1ff219a1f0bb460258a9a73e60"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=43",
+        "retrieved_at": "2026-10-23T02:32:23.219294+00:00",
+        "sha256": "f73ac31ed4c55c5b3fb034629101c7da56c426927a48ecc34db5e7f9ac2d7387"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=44",
+        "retrieved_at": "2026-10-23T02:32:24.861871+00:00",
+        "sha256": "b8996b32c90795034075d833c19a2bab671d03ff5ab943ffef6bfe8b7a399dd2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=45",
+        "retrieved_at": "2026-10-23T02:32:24.844146+00:00",
+        "sha256": "4efdcfca50083300d50e8daa6cf6ee937e5cbb2724e5733348a2351aacffc076"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=46",
+        "retrieved_at": "2026-10-23T02:32:24.922558+00:00",
+        "sha256": "abed85100d91ad4e4d15505a85f729332a0f593c55d0d562b781e27a846e4117"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=47",
+        "retrieved_at": "2026-10-23T02:32:26.685610+00:00",
+        "sha256": "1fd67fe4191c19825587d17ed737e79e88a61ac386b5c14006a397d5dea346ea"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=48",
+        "retrieved_at": "2026-10-23T02:32:26.686051+00:00",
+        "sha256": "657f56d47706cdd9f6ddab18a35d74851227c423361da8df96218cdd4f985ce6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=49",
+        "retrieved_at": "2026-10-23T02:32:26.685844+00:00",
+        "sha256": "02dc166e40b08d7ec1b564db8f0f8f34e26654e3ccf8cf001761fe264c112d3d"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=50",
+        "retrieved_at": "2026-10-23T02:32:28.330375+00:00",
+        "sha256": "1a4d8289ac5517931a7b221a2556c00f47c51c4e3d1171b6c661c16ced5053c1"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=51",
+        "retrieved_at": "2026-10-23T02:32:28.362484+00:00",
+        "sha256": "549743779a13f85ae272482d41751ab132ee2437fb16177b4d6e685e15878594"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=52",
+        "retrieved_at": "2026-10-23T02:32:28.350119+00:00",
+        "sha256": "106d320c9ceaecc8e5013253a3a1f955e186c0c5cfb0ff5a35cfe707b80d9fa6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=53",
+        "retrieved_at": "2026-10-23T02:32:30.030288+00:00",
+        "sha256": "e836bf3e2a796879f5e53362d53524eeac55979e6fd5d1a08e378a1c68c125c3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=54",
+        "retrieved_at": "2026-10-23T02:32:30.042373+00:00",
+        "sha256": "950507b06ec66ce42f41b62142bea7c4e46b19768c5b160b006597ad32cac9fd"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=55",
+        "retrieved_at": "2026-10-23T02:32:30.030051+00:00",
+        "sha256": "a1eb71060a0863ce70f2fdb1ff13b28664e6299d3e24a421387912e65ab9378e"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=56",
+        "retrieved_at": "2026-10-23T02:32:31.913878+00:00",
+        "sha256": "88e1a58c2f284f459bc43434f78b659d092e13c569d265132d5d440680138fc7"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=57",
+        "retrieved_at": "2026-10-23T02:32:31.913539+00:00",
+        "sha256": "463e4feab23431ee7ebab3d310b6047ba5e4ad213aea6a8e849fb715259a69f3"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=58",
+        "retrieved_at": "2026-10-23T02:32:31.913745+00:00",
+        "sha256": "bd4ce7b7e7fb058aa677991e8aa1080567da80501fe94db2f8a3731cc593b752"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=59",
+        "retrieved_at": "2026-10-23T02:32:33.622207+00:00",
+        "sha256": "3a29aec06d97acec0cf22532c4dfb1fad7f1a7967731e4d3334d570813fb4035"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=60",
+        "retrieved_at": "2026-10-23T02:32:33.621877+00:00",
+        "sha256": "a561d24498b0e0c090aac5f35502459b516b87dcaa036e2d056e64555569db24"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=61",
+        "retrieved_at": "2026-10-23T02:32:33.624709+00:00",
+        "sha256": "24394e194b3539df60412a466f830ad1ed000d0e33ea72bdec1a11045c0208e6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=62",
+        "retrieved_at": "2026-10-23T02:32:35.309538+00:00",
+        "sha256": "f811ade46a4695368747917b89de3bbb9b891a9bc1c2787b9abe92bc8dba948b"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=63",
+        "retrieved_at": "2026-10-23T02:32:35.309746+00:00",
+        "sha256": "42b794b60855035b6d28ba3c1a4ec9ce720074b65648fc9b793959486086c6b9"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=64",
+        "retrieved_at": "2026-10-23T02:32:35.322208+00:00",
+        "sha256": "4d78b50856d989b81af3925da617c5959380abd5a42be85d6ae9e565582631f6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=65",
+        "retrieved_at": "2026-10-23T02:32:37.020528+00:00",
+        "sha256": "8b5a4a49d6f9bd20b545e2b5d030b8acbb7156dda655e418281b23970ddec7d9"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=66",
+        "retrieved_at": "2026-10-23T02:32:37.020665+00:00",
+        "sha256": "f6e79d8272d7a5bff5c13f550d511e10c75e0024683380bf626dc80c03259ae6"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=67",
+        "retrieved_at": "2026-10-23T02:32:36.976689+00:00",
+        "sha256": "e9f765ec10e13c066c6eaa192d9115bdea44541e4a9d671c77ae44e5b0128fb2"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=68",
+        "retrieved_at": "2026-10-23T02:32:38.766480+00:00",
+        "sha256": "7c69e3a341786ab9e8af83636b10202dd001e26663d69e2b00732953323f672c"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=69",
+        "retrieved_at": "2026-10-23T02:32:38.766722+00:00",
+        "sha256": "990127b1651be0d32e23a9aa7ccce744d2c41747e243547bdb34934397212690"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=70",
+        "retrieved_at": "2026-10-23T02:32:38.769492+00:00",
+        "sha256": "2704ff188ef8b4db02d0d3d8ff32d2ecc20c80bb3a74f92bb1d8d00856245aa1"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=71",
+        "retrieved_at": "2026-10-23T02:32:40.530419+00:00",
+        "sha256": "4f8cbf462e5106d4af6f7cd5b8abbfdbae0b0dbc06339f87d4abd52c98fbb370"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=72",
+        "retrieved_at": "2026-10-23T02:32:40.530106+00:00",
+        "sha256": "d03f4354574793f640ffbf3fff65a950184d9e14324523a3ce3f6ea4881c2fd5"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=73",
+        "retrieved_at": "2026-10-23T02:32:40.530334+00:00",
+        "sha256": "8f59b200e25bbc215fa86a68f864fd19a8dfd57f81da52836f9b00842dff7a5a"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=74",
+        "retrieved_at": "2026-10-23T02:32:42.300295+00:00",
+        "sha256": "4a9384a8a804e1b66484e08b360f54965f7cae6ae2bdd9d5a3481a02ee127a37"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=75",
+        "retrieved_at": "2026-10-23T02:32:42.303572+00:00",
+        "sha256": "2db3c50465de96a790d5429e8d9a4b928d742909ef8f06399676dd004b70f972"
+      },
+      {
+        "url": "https://erp.powergrid.gov.bd/w/generations/view_generations?page=76",
+        "retrieved_at": "2026-10-23T02:32:42.300533+00:00",
+        "sha256": "f813be2e27f8209253ab72db944e09eb737f0d4b4d3df95ca2454e60dd6ee517"
+      }
+    ]
+  }
+}

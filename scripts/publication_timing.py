@@ -1,0 +1,273 @@
+"""Poll the public ERP endpoints and preserve first successful observations."""
+import argparse
+import copy
+from concurrent.futures import ThreadPoolExecutor
+import datetime as dt
+import io
+import json
+import math
+from pathlib import Path
+import re
+from urllib.error import HTTPError
+from urllib.request import urlopen
+from xml.etree import ElementTree
+from zipfile import BadZipFile, ZipFile
+from zoneinfo import ZoneInfo
+
+import server
+
+DHAKA = ZoneInfo("Asia/Dhaka")
+RETENTION_DAYS = 90
+MAX_WINDOW_MINUTES = 45
+MIN_ESTIMATE_DAYS = 5
+BUNDLE = "publication-timing.json"
+CACHE = server.ROOT / ".cache" / "publication-timing" / BUNDLE
+FEEDS = {
+    "demand": (server.CURRENT_DEMAND_URL, 6, (2, 3, 4)),
+    "generation": (server.CURRENT_GENERATION_URL, 13, (2,)),
+    "imports": (server.CURRENT_INDIA_IMPORT_URL, 8, (2, 4, 6)),
+    "operations": (server.REPORTS_URL, None, ()),
+}
+
+
+def now():
+    return dt.datetime.now(dt.timezone.utc)
+
+
+def dhaka_date(instant):
+    return instant.astimezone(DHAKA).date()
+
+
+def poll(source, clock=now):
+    url, minimum, value_columns = FEEDS[source]
+    started = clock()
+    body = server.fetch_bytes(url, limit=8 * 1024 * 1024)
+    received = clock()
+    if source == "operations":
+        rows, _ = server.parse_listing(body)
+        rows = {row["id"]: dict(row, date=row["published_date"]) for row in rows}
+    else:
+        records, headers = server.parse_current_readings(body, minimum_cells=minimum, include_headers=True)
+        expected_cells = 15 if any("nuclear" in cell.lower() for row in headers for cell in row) else 14
+        rows = {}
+        for day, time, row in records:
+            if source == "generation" and len(row) != expected_cells:
+                continue
+            if not re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", time):
+                continue
+            values = [server.parse_number(row[index]) for index in value_columns]
+            if any(value is not None and math.isfinite(value) for value in values):
+                rows[f"{day}T{time}"] = {"date": day, "reading_time": time}
+    if not rows:
+        raise ValueError("No usable readings")
+    return started, received, rows
+
+
+
+def workbook_timestamps(workbook):
+    """Read the original OOXML properties without inventing missing timestamps."""
+    try:
+        with ZipFile(io.BytesIO(workbook)) as archive, archive.open("docProps/core.xml") as entry:
+            raw = entry.read(65_537)
+        if len(raw) > 65_536:
+            return {}
+        properties = ElementTree.fromstring(raw)
+    except (KeyError, BadZipFile, ElementTree.ParseError, OSError, RuntimeError):
+        return {}
+
+    timestamps = {}
+    namespace = "{http://purl.org/dc/terms/}"
+    for name in ("created", "modified"):
+        value = properties.findtext(namespace + name, "").strip()
+        if "T" not in value:
+            continue
+        try:
+            timestamp = dt.datetime.fromisoformat(value)
+        except ValueError:
+            continue
+        timestamps[f"excel_{name}_at"] = timestamp.isoformat()
+    return timestamps
+
+
+def update_feed(feed, source, snapshot, clock=now):
+    started, received, rows = snapshot
+    dates = [row["date"] for row in rows.values()]
+    oldest = min(dates)
+    previous = feed.get("last_poll")
+    if previous and started <= dt.datetime.fromisoformat(previous["started_at"]):
+        raise ValueError("Poll did not advance the collector clock")
+    if previous and max(dates) < previous["latest_date"]:
+        raise ValueError("ERP returned an older snapshot")
+
+    today = dhaka_date(received)
+    earliest = (today - dt.timedelta(days=7 if source == "operations" else 1)).isoformat()
+    cutoff = (today - dt.timedelta(days=RETENTION_DAYS - 1)).isoformat()
+    seen = {key: date for key, date in feed.get("seen", {}).items() if date >= cutoff}
+    observations = [row for row in feed.get("observations", []) if row["date"] >= cutoff]
+    pending = {}
+    baseline = feed.get("baseline_through", max(dates))
+    for key, row in rows.items():
+        date = row["date"]
+        if key in seen or date < cutoff:
+            continue
+        if not previous or not earliest <= date <= today.isoformat():
+            seen[key] = date
+            continue
+        # Near the oldest visible date the feeds can truncate rows. Only a
+        # previous snapshot covering an earlier date can bound first exposure.
+        absent = previous["started_at"] if date > previous["oldest_date"] else None
+        first_seen = received
+        observation = {"date": date}
+        if source == "operations":
+            absent = feed.get("pending", {}).get(key, {"after": absent})["after"]
+            try:
+                workbook = server.fetch_bytes(row["download_url"], limit=server.MAX_REPORT_BYTES)
+                first_seen = clock()
+                report = server.parse_report(workbook, row["name"])
+            except Exception as error:
+                print(f"Operational workbook {key} unavailable: {type(error).__name__}: {error}")
+                pending[key] = {"after": absent}
+                continue
+            observation.update(report_id=key, operating_date=report["date"])
+            observation.update(workbook_timestamps(workbook))
+        else:
+            observation["reading_time"] = row["reading_time"]
+        observation.update(first_seen_at=first_seen.isoformat(), absent_after=absent)
+        observations.append(observation)
+        seen[key] = date
+    return {
+        "baseline_through": baseline,
+        "last_poll": {"started_at": started.isoformat(), "received_at": received.isoformat(),
+                      "oldest_date": oldest, "latest_date": max(dates)},
+        "seen": seen,
+        "pending": pending,
+        "observations": observations,
+    }
+
+
+def read_bundle(path, published_url):
+    if path is not None and path.is_file():
+        state = json.loads(path.read_text(encoding="utf-8"))
+    elif published_url:
+        try:
+            with urlopen(published_url, timeout=25) as response:
+                state = json.load(response)
+        except HTTPError as error:
+            if error.code != 404:
+                raise
+            return {}
+    else:
+        return {}
+    if state.get("version") != 1 or not isinstance(state.get("feeds"), dict):
+        raise ValueError("Unsupported publication timing history")
+    return state
+
+
+def read_state(path, published_url):
+    return read_bundle(path, published_url).get("feeds", {})
+
+
+def observation_key(row):
+    return row.get("report_id") or f'{row["date"]}T{row["reading_time"]}'
+
+
+def github_checkpoint(saved, imported):
+    if "github_feeds" in saved:
+        return saved["github_feeds"]
+    feeds = copy.deepcopy(saved.get("feeds", {}))
+    for source, feed in feeds.items():
+        local = {observation_key(row): row["first_seen_at"]
+                 for row in imported.get(source, {}).get("observations", [])}
+        retained = []
+        for row in feed.get("observations", []):
+            key = observation_key(row)
+            if local.get(key) != row["first_seen_at"]:
+                retained.append(row)
+        feed["observations"] = retained
+    return feeds
+
+
+def confirm_publication(saved, published, confirmed_at):
+    confirmations = copy.deepcopy(saved.get("live_confirmed", {}))
+    for source, feed in published.get("feeds", {}).items():
+        known = confirmations.setdefault(source, {})
+        for row in feed.get("observations", []):
+            known.setdefault(observation_key(row), confirmed_at)
+    return confirmations
+
+
+def merge_imported_observations(feeds, imported, today):
+    """Merge receipts without advancing the runner's own polling checkpoint."""
+    cutoff = (today - dt.timedelta(days=RETENTION_DAYS - 1)).isoformat()
+    for source, incoming in imported.items():
+        if source not in FEEDS:
+            continue
+        retained = [row for row in incoming["observations"] if cutoff <= row["date"] <= today.isoformat()]
+        if not retained:
+            continue
+        feed = feeds.setdefault(source, {})
+        if incoming.get("baseline_through"):
+            # Use the older baseline when a collector already covered the day.
+            feed["baseline_through"] = min(feed.get("baseline_through", incoming["baseline_through"]),
+                                           incoming["baseline_through"])
+        by_id = {}
+        for row in [*feed.get("observations", []), *retained]:
+            key = observation_key(row)
+            previous = by_id.get(key)
+            if previous is None or dt.datetime.fromisoformat(row["first_seen_at"]) < dt.datetime.fromisoformat(previous["first_seen_at"]):
+                by_id[key] = row
+        feed.setdefault("seen", {}).update({key: row["date"] for key, row in by_id.items()})
+        feed["observations"] = sorted(by_id.values(), key=lambda row: row["first_seen_at"])
+
+
+def collect(path, published_url=None, imported_path=None):
+    try:
+        published = read_bundle(None, published_url) if published_url else {}
+    except (OSError, ValueError) as error:
+        if not path.is_file():
+            raise
+        print(f"Unable to confirm published timing data: {type(error).__name__}: {error}")
+        published = {}
+    confirmed_at = now().isoformat()
+    saved = read_bundle(path, None) if path.is_file() else published
+    imported = read_state(imported_path, None) if imported_path else {}
+    feeds = github_checkpoint(saved, imported)
+    with ThreadPoolExecutor(max_workers=len(FEEDS)) as pool:
+        requests = {source: pool.submit(poll, source) for source in FEEDS}
+        for source, request in requests.items():
+            try:
+                feeds[source] = update_feed(feeds.get(source, {}), source, request.result())
+            except Exception as error:
+                print(f"Publication timing {source} poll failed: {type(error).__name__}: {error}")
+    combined = copy.deepcopy(feeds)
+    merge_imported_observations(combined, imported, dhaka_date(now()))
+    mac = {}
+    merge_imported_observations(mac, imported, dhaka_date(now()))
+    verified = confirm_publication(saved, published, confirmed_at) if published_url else saved.get("live_confirmed", {})
+    for source, records in verified.items():
+        active = {observation_key(row) for row in combined.get(source, {}).get("observations", [])}
+        verified[source] = {key: instant for key, instant in records.items() if key in active}
+    state = {
+        "version": 1,
+        "retention_days": RETENTION_DAYS,
+        "max_window_minutes": MAX_WINDOW_MINUTES,
+        "min_estimate_days": MIN_ESTIMATE_DAYS,
+        "feeds": combined,
+        "github_feeds": feeds,
+        "mac_feeds": mac,
+        "live_confirmed": verified,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(state, separators=(",", ":")), encoding="utf-8")
+    temporary.replace(path)
+    return state
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--state", type=Path, default=CACHE)
+    parser.add_argument("--published-url")
+    parser.add_argument("--import-observations", type=Path)
+    args = parser.parse_args()
+    collect(args.state, args.published_url, args.import_observations)

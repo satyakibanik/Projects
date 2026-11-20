@@ -2,10 +2,19 @@
 function comparisonStyle(key) {
   const presets={yesterday:{color:'#a77cc1',dash:'7 5'},tomorrow:{color:'#54b9a4',dash:'2 4'},highest:{color:'#d2834b',dash:'8 3 2 3'}};
   if(presets[key])return presets[key];
-  const date=key.replace(/^custom_/,''),hash=[...date].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0);
+  const date=key.replace(/^custom_/,''),hashDate=value=>[...value].reduce((n,c)=>(n*31+c.charCodeAt(0))>>>0,0),hash=hashDate(date);
   const palette=['#337cad','#ce6378','#41997e','#a88125','#9a77c6','#c8783b','#4d9ca9','#aa6d93','#678a36','#7b81c3','#b75a4f'];
   const dashes=['10 3','3 3','10 3 2 3','6 2 2 2','12 4 3 4','4 3 1 3','8 2 1 2 1 2','2 3 6 3','12 3 1 3','5 2 1 2 1 2','9 4 3 4','3 2 3 6'];
-  return {color:palette[hash%palette.length],dash:dashes[hash%dashes.length]};
+  // Allocate the active dates in a sorted order so hash collisions cannot give
+  // two loaded reports the same color, regardless of load/add order.
+  const used=new Set(),assigned=new Map();
+  for(const value of [...new Set([...customComparisons.keys(),date])].sort()){
+    const seed=hashDate(value);let color;
+    for(let probe=0;probe<palette.length;probe++){const candidate=palette[(seed+probe*5)%palette.length];if(!used.has(candidate)){color=candidate;break}}
+    if(!color){let hue=seed%360;do{color=`hsl(${hue} 55% 48%)`;hue=(hue+137)%360}while(used.has(color))}
+    assigned.set(value,color);used.add(color);
+  }
+  return {color:assigned.get(date),dash:dashes[hash%dashes.length]};
 }
 async function reportForOperatingDate(date) {
   if(!window.BEGDViewCodec.validDate(date))throw Error('Choose a valid operating date.');

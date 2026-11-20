@@ -1,0 +1,7 @@
+/* Let a horizontal gesture inspect data while vertical swipes and pinch zoom stay native. */
+.interactive-chart svg.chart,.trends-plot{touch-action:pan-y pinch-zoom}
+.chart-tooltip.is-touch-tooltip,.trends-tooltip.is-touch-tooltip{position:fixed;z-index:1000;box-sizing:border-box;width:min(360px,calc(100vw - 16px));min-width:0;max-width:calc(100vw - 16px);max-height:min(48dvh,360px);overflow:auto;overscroll-behavior:contain;pointer-events:auto;padding:12px 14px;border-radius:7px;border:1px solid var(--line);background:var(--bg);color:var(--ink);box-shadow:0 6px 24px #0004;font:12px/1.5 var(--body)}
+.chart-tooltip.is-touch-tooltip>div{gap:8px;align-items:start}.chart-tooltip.is-touch-tooltip .tooltip-series{min-width:0;white-space:normal}.chart-tooltip.is-touch-tooltip b{flex-shrink:0;text-align:right}.chart-tooltip.is-touch-tooltip>strong{font-size:12px;color:var(--ink);margin-bottom:8px}.chart-tooltip.is-touch-tooltip .series-swatch{flex:0 0 30px;width:30px}
+.is-touch-selected .chart-cursor,.is-touch-selected .trends-cursor{stroke:var(--ink);stroke-width:1.5;stroke-dasharray:3 3}
+.chart-touch-help{display:none}
+@media(pointer:coarse){.interactive-chart .chart text,.trends-plot text{font-size:14px}.chart-touch-help{display:block;color:var(--muted);font:11px/1.5 var(--body);margin:10px 0}.chart-mouse-help{display:none}.interactive-chart .chart,.trends-plot{max-height:none}.chart-tooltip.is-touch-tooltip>div{margin-top:6px}}

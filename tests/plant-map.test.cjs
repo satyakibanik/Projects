@@ -4,9 +4,9 @@ const fs=require('node:fs'),path=require('node:path');
 const map=require('../begd/plant-map.js');
 const catalog=JSON.parse(fs.readFileSync(path.join(__dirname,'../begd/plant-locations.json'),'utf8'));
 const boundary=JSON.parse(fs.readFileSync(path.join(__dirname,'../begd/bangladesh-boundary.geojson'),'utf8')).geometry;
-test('reviewed catalog covers 154 unique dashboard entries inside Bangladesh',()=>{
- assert.equal(catalog.plants.length,154);
- assert.equal(new Set(catalog.plants.map(p=>p.name)).size,154);
+test('reviewed catalog covers 155 unique dashboard entries inside Bangladesh',()=>{
+ assert.equal(catalog.plants.length,155);
+ assert.equal(new Set(catalog.plants.map(p=>p.name)).size,155);
  assert.ok(catalog.excluded.some(p=>p.name==='Water Level'));
  for(const p of catalog.plants)assert.ok(map.insideCountry(p.longitude,p.latitude,boundary),p.name);
  for(const [lon,lat] of [[0,0],[88.3639,22.5726],[91.2924,27.1952],[93,23.5]])assert.equal(map.insideCountry(lon,lat,boundary),false);
@@ -42,6 +42,9 @@ test('sidebar displays every plant-table field, including real zero and absent v
  const html=map.detailsMarkup([{plant,location:{latitude:23,longitude:90,source:'Reviewed'}}],[['name','Name'],['fuel','Fuel'],['region','Region'],['producer','Producer'],['installed','Installed cap.'],['present','Present cap.'],['peak','Peak gen. today']],(p,k)=>p[k]);
  for(const field of ['Plant &lt;A&gt;','Fuel','Gas','Region','Dhaka','Producer','IPP','Installed cap.','100 MW','Present cap.','0 MW','Peak gen. today','—'])assert.ok(html.includes(field),field);
  assert.doesNotMatch(html,/<A>/);
+ const dual=map.detailsMarkup([{plant:{...plant,fuel:'Gas/HSD'},location:{latitude:23,longitude:90}}],[['fuel','Fuel']],(p,k)=>p[k],{Gas:'gas-factory.png',HSD:'HSD.png'});
+ assert.match(dual,/<img src="plant-icons\/gas-factory.png" alt="">Gas/);
+ assert.match(dual,/<img src="plant-icons\/HSD.png" alt="">HSD/);
 });
 test('sidebar links only to validated matched OSM features',()=>{
  const render=osm_id=>map.detailsMarkup([{plant:{name:'Reviewed unit'},location:{latitude:23,longitude:90,source:'OSM',osm_id}}],[],()=>null);
@@ -58,4 +61,28 @@ test('administrative outlines cover all 64 districts and eight divisions',()=>{
  assert.equal(new Set(districts.map(f=>f.properties.name)).size,64);
  for(const d of divisions){assert.equal(d.properties.district_count,districts.filter(f=>f.properties.division===d.properties.name).length);assert.ok(d.properties.district_count>0)}
  for(const f of data.features){const path=map.geometryPath(f.geometry);assert.match(path,/^M/);assert.doesNotMatch(path,/NaN|Infinity/);assert.ok(path.endsWith('Z'))}
+});
+
+test('Rooppur is mapped when listed in the report and the map can supply its nuclear fuel type',()=>{
+ const plant={name:'Rooppur Nuclear Power Plant'};
+ const {markers,unmapped}=map.resolvePlants([plant],catalog,boundary);
+ assert.equal(markers.length,1);
+ assert.deepEqual(unmapped,[]);
+ const details=map.detailsMarkup(markers,[['fuel','Fuel']],()=> '—');
+ assert.match(details,/<dt>Fuel<\/dt><dd>Nuclear<\/dd>/);
+ assert.ok(details.includes('href="https://osm.org/go/zq4nSU4A?m="'));
+ assert.doesNotMatch(details,/IAEA-hosted|approximate/);
+ assert.deepEqual(map.resolvePlants([],catalog,boundary).markers,[]);
+});
+
+test('Mercator tiles align with plant coordinates in a letterboxed viewport',()=>{
+ const [x,y]=map.project([90,0]);
+ const view={x:x-30,y:y-15,w:60,h:30};
+ const width=300,height=300,tiles=map.tileViewport(view,width,height);
+ assert.ok(tiles.length>0&&tiles.length<16);
+ assert.ok(tiles.every(t=>t.left<width&&t.top<height&&t.left+t.size>0&&t.top+t.size>0));
+ const equator=tiles.find(t=>t.y===2**(t.z-1)&&t.x===3*2**(t.z-2));
+ assert.ok(equator);
+ assert.ok(Math.abs(equator.left-width/2)<1e-7);
+ assert.ok(Math.abs(equator.top-height/2)<1e-7);
 });

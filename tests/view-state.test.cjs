@@ -4,6 +4,15 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 const root=path.resolve(__dirname,'..');
 function codec(){const window={};vm.runInNewContext(fs.readFileSync(path.join(root,'begd/view-state.js'),'utf8'),{window,URL,Date});return window.BEGDViewCodec;}
 const plain=value=>JSON.parse(JSON.stringify(value));
+test('independent realtime forecasts are off by default and explicit selections survive URL roundtrip',()=>{
+ const api=codec(),gen='realtime:total_mw|independent_generation_mw',demand='realtime:total_mw|independent_demand_mw';
+ const base={...api.defaults,date:'2026-10-21',custom:[],presets:{},trendLayers:[]};
+ const off=api.encode('https://example.test/begd/#realtime',{...base,layers:[[gen,false],[demand,false]]});
+ assert.equal(new URL(off).searchParams.has('hide'),false);
+ const on=api.encode('https://example.test/begd/#realtime',{...base,layers:[[gen,true],[demand,true]]});
+ assert.match(new URL(on).searchParams.get('show'),/rt\.ig/);assert.match(new URL(on).searchParams.get('show'),/rt\.id/);
+ assert.deepEqual(plain(api.decode(on).state.layers),[[demand,true],[gen,true]]);
+});
 test('view URL roundtrip preserves settings, resolved dates, stable series IDs and legacy hashes',()=>{
  const api=codec(),state={...api.defaults,date:'2026-10-19',custom:['2026-08-01','2026-07-02'],presets:{yesterday:'2026-10-18',tomorrow:'unavailable',highest:'2026-05-20'},dispatch:'bar',shed:'line',fuel:'ring',regional:'line',curve:'line',table:'mw',days:'365',generationUnit:'MW',importsUnit:'MW',temperatureUnit:'F',detail:'weekly',layers:[['overview:dispatch|generation_mw',false],['imports:Adani|mw',true]],trendLayers:[['generation-demand|temperature_c',true],['fuel-mix|coal',false]]};
  for(const hash of ['overview','trends','en-curve','regions','realtime']){
@@ -13,7 +22,7 @@ test('view URL roundtrip preserves settings, resolved dates, stable series IDs a
   assert.equal(api.encode(url,restored.state),url);
   for(const key of ['date','custom','presets','dispatch','shed','fuel','regional','curve','table','days','generationUnit','importsUnit','temperatureUnit','detail'])assert.deepEqual(restored.state[key],plain(state[key]));
   assert.deepEqual(restored.state.layers,plain(api.visibilityOverrides(state.layers)));
-  assert.deepEqual(restored.state.trendLayers,plain(api.visibilityOverrides(state.trendLayers,true)));
+  assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
  }
 });
 test('empty/legacy links retain sensible defaults; compare accepts repeated and comma-separated dates',()=>{
@@ -74,8 +83,8 @@ test('each chart retains independent stable visibility choices when another char
 test('compact URLs omit default options and default visibility while preserving enabled opt-in layers',()=>{
  const api=codec(),state={...api.defaults,date:'2026-10-19',layers:[['overview:dispatch|generation_mw',true],['overview:dispatch|east_grid_mw',true],['overview:dispatch|west_grid_mw',false]],trendLayers:[['generation-demand|temperature_c',true],['generation-demand|generation_mwh',true],['temperature-subplot|temperature_c',true],['fuel-mix|coal',true]]};
  const url=api.encode('https://example.test/begd/#trends',state),p=new URL(url).searchParams;
- assert.equal(p.get('v'),'2');assert.equal(p.has('dispatch'),false);assert.equal(p.has('days'),false);assert.equal(p.has('layers'),false);assert.equal(p.has('trendLayers'),false);assert.equal(p.has('hide'),false);assert.equal(p.get('show'),'od.e,tg.t');
- const decoded=plain(api.decode(url));assert.deepEqual(decoded.warnings,[]);assert.deepEqual(decoded.state.layers,[['overview:dispatch|east_grid_mw',true]]);assert.deepEqual(decoded.state.trendLayers,[['generation-demand|temperature_c',true]]);
+ assert.equal(p.get('v'),'2');assert.equal(p.has('dispatch'),false);assert.equal(p.has('days'),false);assert.equal(p.has('layers'),false);assert.equal(p.has('trendLayers'),false);assert.equal(p.get('hide'),'od.w');assert.equal(p.get('show'),'tg.t');
+ const decoded=plain(api.decode(url));assert.deepEqual(decoded.warnings,[]);assert.deepEqual(decoded.state.layers,[['overview:dispatch|west_grid_mw',false]]);assert.deepEqual(decoded.state.trendLayers,[['generation-demand|temperature_c',true]]);
 });
 test('the supplied long v1 view becomes over 80 percent shorter with equivalent settings',t=>{
  const api=codec(),state={...api.defaults,date:'2026-10-19',custom:['2026-08-15','2026-04-26'],presets:{yesterday:'2026-10-18',highest:'2026-05-20'},days:'365',detail:'daily',layers:['demand_mw','demand_mw_custom_2026-04-26','demand_mw_custom_2026-08-15','demand_mw_highest','demand_mw_yesterday','forecasted_demand_mw'].map(series=>['overview:dispatch|'+series,false]),trendLayers:['dependence-renewables|import-share','dependence-renewables|renewable-share','fuel-mix|coal','fuel-mix|gas','fuel-mix|hfo','fuel-mix|hsd','fuel-mix|hydro','fuel-mix|imports','fuel-mix|solar','fuel-mix|wind','generation-demand|demand_mwh','generation-demand|generation_mwh','generation-demand|temperature_c','imports|adani-power-jharkhanda-ltd','imports|bheramara-hvdc-','imports|hvdc-nepal-','imports|import-tripura-','imports|imports_mwh','load-shedding|shed_peak_mw','temperature-subplot|temperature_c','unserved-share|unserved-share'].map(id=>[id,true])};
@@ -130,4 +139,76 @@ test('header arrows use available operating dates and skip archive gaps',()=>{
  assert.equal(run('reportDayNavigationTarget(-1)'),'2026-10-17');assert.equal(run('reportDayNavigationTarget(1)'),null);
  run("data.date='2026-10-17'");assert.equal(run('reportDayNavigationTarget(-1)'),'2026-10-15');assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-19');
  delete context.window.BEGD_STATIC_DATA;assert.equal(run('reportDayNavigationTarget(1)'),'2026-10-18');
+});
+test('Latest report returns from a pinned older date to the newest publication and updates the view',async()=>{
+ const {context,run,nodes}=headerApp(),calls=[];
+ const reports=[{id:'5175',published_date:'2026-10-25'},{id:'5177',published_date:'2026-10-27'}];
+ context.fetch=async url=>{calls.push(url);return new Response(JSON.stringify(url==='/api/reports'?{reports}:{report_id:'5177',date:'2026-10-26',published_date:'2026-10-27'}));};
+ assert.equal(await run('selectLatestReport()'),true);
+ assert.equal(run('data.date'),'2026-10-26');assert.equal(nodes.get('#report-date').value,'2026-10-26');
+ assert.deepEqual(calls,['/api/reports','/api/report?id=5177','/api/report?date=2026-10-26']);
+ assert.equal(nodes.get('#latest-report').disabled,false);
+ assert.match(nodes.get('#date-status').textContent,/operating 2026-10-26 · published 2026-10-27/);
+});
+test('Latest report failure preserves the selected report and releases controls',async()=>{
+ const {context,run,nodes}=headerApp();context.fetch=async()=>new Response('{}',{status:503});
+ assert.equal(await run('selectLatestReport()'),false);assert.equal(run('data.date'),'2026-10-19');
+ assert.equal(nodes.get('#latest-report').disabled,false);assert.match(nodes.get('#date-status').textContent,/Still showing operating date 2026-10-19/);
+});
+function sharingApp(hash){
+ const {context,run,nodes}=headerApp(),location=new URL('https://example.test/begd/?v=2&date=2026-10-24'+hash),events={};
+ context.location=location;context.history={replaceState(state,_,url){location.href=url;},pushState(state,_,url){location.href=url;}};
+ context.window.BEGDTrends={getViewState:()=>({}),setViewState(){}};
+ context.window.addEventListener=(name,fn)=>{events[name]=fn;};
+ context.window.BEGDViewCodec=codec();
+ run("data={report_id:'5177',date:'2026-10-26',published_date:'2026-10-27'};render=()=>{};renderCustomComparisons=()=>{};");
+ vm.runInContext(fs.readFileSync(path.join(root,'begd/share-view.js'),'utf8'),context);
+ return {context,run,nodes,location,events};
+}
+test('legacy realtime link drops the hidden archive date and does not load the older report',async()=>{
+ const {context,run,location}=sharingApp('#realtime');let calls=0;context.fetch=async()=>{calls++;throw Error('Unexpected archive request');};
+ await context.window.BEGDView.start();assert.equal(calls,0);assert.equal(run('data.date'),'2026-10-26');
+ assert.equal(location.searchParams.has('date'),false);assert.equal(location.hash,'#realtime');
+ assert.equal(context.window.BEGDView.capture().date,undefined);
+ location.hash='#overview';context.window.BEGDView.commit({replace:true});
+ assert.equal(location.searchParams.get('date'),'2026-10-26');
+});
+test('explicit overview archive links still restore their exact operating date',async()=>{
+ const {context,run,location}=sharingApp('#overview');
+ context.fetch=async()=>new Response(JSON.stringify({report_id:'5175',date:'2026-10-24',published_date:'2026-10-25'}));
+ await context.window.BEGDView.start();assert.equal(run('data.date'),'2026-10-24');assert.equal(location.searchParams.get('date'),'2026-10-24');
+});
+test('the main trend period controls cost averaging and rate-chart layers in shared URLs',()=>{
+ const api=codec(),state={...api.defaults,days:'7',trendLayers:[['bpdb-unit-cost|gas',false],['bpdb-cost|coal',true]]};
+ const url=api.encode('https://example.test/begd/#trends?costAverageDays=90',state),restored=plain(api.decode(url));
+ assert.equal(restored.state.days,'7');assert.deepEqual(plain(api.visibilityOverrides(restored.state.trendLayers,true)),plain(api.visibilityOverrides(state.trendLayers,true)));
+ assert.equal(restored.state.costAverageDays,undefined);assert.equal(new URL(url).searchParams.has('costAverageDays'),false);
+});
+
+test('colliding date hashes get distinct comparison colors consistently across add order',()=>{
+ const {run}=comparisonApp();
+ run("customComparisons.set('2026-10-03',{});customComparisons.set('2026-10-27',{})");
+ const first=plain(run("['2026-10-03','2026-10-27'].map(comparisonStyle)"));
+ assert.notEqual(first[0].color,first[1].color);
+ run("customComparisons.clear();customComparisons.set('2026-10-27',{});customComparisons.set('2026-10-03',{})");
+ assert.deepEqual(plain(run("['2026-10-03','2026-10-27'].map(comparisonStyle)")),first);
+ run("for(let i=1;i<=20;i++)customComparisons.set('2026-09-'+String(i).padStart(2,'0'),{})");
+ const colors=plain(run("[...customComparisons.keys()].map(date=>comparisonStyle(date).color)"));
+ assert.equal(new Set(colors).size,colors.length);
+});
+
+test('custom Trends dates round-trip and invalid ranges fall back to 30 days',()=>{
+ const api=codec();
+ const base='https://example.test/?v=2#trends';
+ const dates={days:'custom',trendStart:'2025-11-19',trendEnd:'2026-11-18'};
+ const url=api.encode(base,dates);
+ assert.equal(api.decode(url).state.days,'custom');
+ assert.equal(api.decode(url).state.trendStart,dates.trendStart);
+ assert.equal(api.decode(url).state.trendEnd,dates.trendEnd);
+ assert.equal(api.validTrendRange('2026-11-18','2026-11-18'),true);
+ assert.equal(api.validTrendRange('2025-11-18','2026-11-18'),false);
+ const invalid=api.decode('https://example.test/?days=custom&trendStart=2026-11-18&trendEnd=2025-11-19#trends');
+ assert.equal(invalid.state.days,'30');
+ assert.equal(invalid.warnings.length,1);
+ assert.equal(new URL(api.encode(url,{days:'365'})).searchParams.has('trendStart'),false);
 });

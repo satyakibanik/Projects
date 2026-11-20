@@ -8,6 +8,34 @@ import re
 import unicodedata
 
 import openpyxl
+from water_level import extract_water_level
+from operational_events import extract_event_log
+from energy_curve import extract_energy_curve
+from p1_sections import regional_snapshot, east_west_totals, key as region_key
+
+
+DEFAULT_FUELS = ("Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind")
+
+
+def fuel_columns(sheet):
+    """Resolve both published P1 layouts by labels, including new fuel types."""
+    aliases = {fuel.lower(): fuel for fuel in (*DEFAULT_FUELS, "Nuclear")}
+    aliases["import"] = "Imports"
+    columns = {}
+    for cell in sheet[16]:
+        label = str(cell.value or "").strip().lower()
+        if label in aliases:
+            fuel = aliases[label]
+            if fuel in columns:
+                raise ValueError(f"Duplicate P1 fuel header: {fuel}")
+            columns[fuel] = cell.column
+    if columns:
+        missing = set(DEFAULT_FUELS) - columns.keys()
+        if missing:
+            raise ValueError(f"Missing P1 fuel headers: {', '.join(sorted(missing))}")
+        return columns
+    # Older supported workbooks and minimal fixtures have no fuel header row.
+    return dict(zip(DEFAULT_FUELS, range(5, 13)))
 
 
 def parse_report(report_bytes, source_file):
@@ -50,8 +78,11 @@ def parse_report(report_bytes, source_file):
         base = re.sub(r"\s*\((?:gas|hsd|hfo|diesel|coal)\)\s*$", "", str(name or ""), flags=re.I).strip()
         return mapping.get(plant_key(base))
 
-    fuels = ["Gas", "Coal", "HFO", "HSD", "Hydro", "Solar", "Imports", "Wind"]
+    columns = fuel_columns(summary_sheet) if not legacy_layout else dict.fromkeys(DEFAULT_FUELS)
+    fuels = list(columns)
+    region_snapshot = regional_snapshot(summary_sheet) if not legacy_layout else dict(readings={}, time=None, header_row=None)
     regions = []
+    quality_notes = []
     if not legacy_layout:
         for row in range(17, 26):
             i = row - 17
@@ -63,10 +94,25 @@ def parse_report(report_bytes, source_file):
                 name=str(name).replace(" Zone", ""),
                 energy_mwh=energy * 1000,
                 fuels={fuel: (number(summary_sheet.cell(row, col).value) or 0) * 1000
-                       for col, fuel in enumerate(fuels, 5)},
-                shed_mw=number(summary_sheet.cell(60 + i, 7).value),
-                demand_mw=number(summary_sheet.cell(60 + i, 9).value),
+                       for fuel, col in columns.items()},
+                **region_snapshot['readings'].get(region_key(name), dict(shed_mw=None, demand_mw=None)),
             ))
+        # Some new workbooks publish zero regional totals while retaining all
+        # fuel cells. Derive totals only when every fuel column independently
+        # reconciles to its national subtotal; never mask a real discrepancy.
+        if regions and all(region['energy_mwh'] == 0 for region in regions):
+            complete = all(number(summary_sheet.cell(row, col).value) is not None
+                           for row in range(17, 26) for col in columns.values())
+            reconciled = all(number(summary_sheet.cell(26, col).value) is not None and
+                             abs(sum(region['fuels'][fuel] for region in regions) -
+                                 number(summary_sheet.cell(26, col).value) * 1000) < 0.1
+                             for fuel, col in columns.items())
+            if complete and reconciled and sum(sum(region['fuels'].values()) for region in regions) > 0:
+                for region in regions:
+                    region['reported_energy_mwh'] = region['energy_mwh']
+                    region['energy_mwh'] = sum(region['fuels'].values())
+                    region['energy_source'] = 'Calculated from reported regional fuel values'
+                quality_notes.append('Regional totals calculated from reported fuel values because the workbook regional total cells are zero; fuel columns reconcile to national subtotals.')
     elif "P3" in workbook.sheetnames:
         # Legacy P3 has regional demand snapshots but no regional energy data.
         p3 = workbook["P3"]
@@ -145,8 +191,16 @@ def parse_report(report_bytes, source_file):
             for point in dispatch_hourly
             if point["time"] in curve_by_time and number(point["generation_mw"]) is not None
         ]
-        assert generation_deltas and max(generation_deltas) < 0.01, \
-            "L-Curve total generation does not reconcile with P4 generation"
+        if not generation_deltas or max(generation_deltas) >= 0.01:
+            # P4 remains the source for national hourly actuals. A disagreement
+            # in an ancillary curve must not hide the entire operating day.
+            detail = (f"maximum difference {max(generation_deltas):.2f} MW"
+                      if generation_deltas else "no matching hourly readings")
+            quality_notes.append(
+                f"L-Curve omitted: totals do not reconcile with P4 generation ({detail}). "
+                "Hourly actuals use the published P4 readings."
+            )
+            grid_curve = []
 
     p2_by_name = {plant_key(plant["name"]): plant for plant in plants}
     forecast_sheet = workbook["Forecast"]
@@ -163,7 +217,7 @@ def parse_report(report_bytes, source_file):
     plant_units = []
     for col in range(2, generation_log.max_column + 1) if generation_log is not None else []:
         name = str(generation_log.cell(11, col).value or "").strip()
-        if not name or name.lower().endswith("total"):
+        if not name or name.lower().endswith("total") or name.lower() == "water level":
             continue
         if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
             continue
@@ -303,22 +357,7 @@ def parse_report(report_bytes, source_file):
             planned_shutdowns.append(dict(name=str(planned_name).strip(), capacity_mw=float(planned_capacity)))
         if forced_name and isinstance(forced_capacity, (int, float)):
             forced_shutdowns.append(dict(name=str(forced_name).strip(), capacity_mw=float(forced_capacity)))
-    events = []
-    event_row = None
-    for row in range(85, summary_sheet.max_row + 1):
-        outage = summary_sheet.cell(row, 2).value
-        restoration = summary_sheet.cell(row, 3).value
-        description = summary_sheet.cell(row, 4).value
-        if description:
-            if outage or restoration or event_row is None:
-                event_row = dict(outage_time=str(outage or "—")[:5],
-                                 restoration_time=str(restoration or "—")[:5],
-                                 description=str(description).strip())
-                events.append(event_row)
-            else:
-                event_row["description"] += " " + str(description).strip()
-        elif outage or restoration:
-            event_row = None
+    event_log = extract_event_log(summary_sheet)
 
     # EWIC hourly active-power flows. Positive values are west-to-east and
     # negative values are east-to-west, as noted in the workbook itself.
@@ -346,32 +385,8 @@ def parse_report(report_bytes, source_file):
         forecast_date = datetime.datetime.strptime(str(raw_forecast_date), "%d-%m-%Y").date().isoformat()
     forecast_plants = []
     system_forecast = {}
-    scenario_row = next(
-        (row for row in range(1, forecast_sheet.max_row + 1)
-         if isinstance(forecast_sheet.cell(row, 5).value, str)
-         and forecast_sheet.cell(row, 5).value.strip().startswith("Forecast Scenario")),
-        None,
-    )
-    forecast_demand_hourly = []
-    if scenario_row is not None:
-        header_row = next(
-            (row for row in range(scenario_row + 1, min(scenario_row + 4, forecast_sheet.max_row + 1))
-             if forecast_sheet.cell(row, 5).value == "Hour"
-             and forecast_sheet.cell(row, 10).value == "Demand"),
-            None,
-        )
-        if header_row is not None:
-            for row in range(header_row + 1, forecast_sheet.max_row + 1):
-                raw_time = forecast_sheet.cell(row, 5).value
-                if raw_time is None:
-                    break
-                time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-                forecast_demand_hourly.append(dict(
-                    time=time,
-                    generation_mw=number(forecast_sheet.cell(row, 6).value),
-                    shed_mw=number(forecast_sheet.cell(row, 8).value),
-                    demand_mw=number(forecast_sheet.cell(row, 10).value),
-                ))
+    from pgcb_forecast import scenario_from_sheet
+    scenario_date, forecast_demand_hourly = scenario_from_sheet(forecast_sheet)
     for row in range(11, forecast_sheet.max_row + 1):
         name = forecast_sheet.cell(row, 2).value
         if forecast_sheet.cell(row, 1).value == "System Total" or name == "System Total":
@@ -395,79 +410,42 @@ def parse_report(report_bytes, source_file):
                 remarks=str(forecast_sheet.cell(row, 14).value or "—").strip(),
             ))
 
-    # Half-hourly generation by source and shortage from the En-Curve sheet.
-    en_curve = None
-    if "En-Curve" in workbook.sheetnames:
-        en_curve_sheet = workbook["En-Curve"]
-        raw_curve_date = en_curve_sheet.cell(2, 2).value
-        if isinstance(raw_curve_date, (datetime.datetime, datetime.date)):
-            curve_date = (raw_curve_date.date() if isinstance(raw_curve_date, datetime.datetime)
-                          else raw_curve_date).isoformat()
-        else:
-            curve_date = datetime.datetime.strptime(str(raw_curve_date), "%d-%m-%Y").date().isoformat()
-        curve_sources = []
-        for col in range(2, 18):
-            label = str(en_curve_sheet.cell(3, col).value or "").strip()
-            if not label:
-                continue
-            key = re.sub(r"[^a-z0-9]+", "_", label.lower()).strip("_") + "_mw"
-            curve_sources.append(dict(key=key, name=label))
-        en_curve_hourly = []
-        for row in range(4, en_curve_sheet.max_row + 1):
-            raw_time = en_curve_sheet.cell(row, 1).value
-            if raw_time is None:
-                continue
-            time_text = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-            reading = {source["key"]: number(en_curve_sheet.cell(row, col).value)
-                       for source, col in zip(curve_sources, range(2, 18))}
-            generated = sum(value or 0 for key, value in reading.items() if key != "shortage_mw")
-            en_curve_hourly.append(dict(time=time_text, **reading, total_generation_mw=generated))
-        en_curve = dict(
-            date=curve_date,
-            sources=curve_sources,
-            hourly=en_curve_hourly,
-            totals=dict(
-                energy_generated_mwh=number(en_curve_sheet.cell(7, 21).value) * 1000
-                if number(en_curve_sheet.cell(7, 21).value) is not None else None,
-                energy_not_served_mwh=number(en_curve_sheet.cell(8, 21).value) * 1000
-                if number(en_curve_sheet.cell(8, 21).value) is not None else None,
-                total_requirement_mwh=number(en_curve_sheet.cell(9, 21).value) * 1000
-                if number(en_curve_sheet.cell(9, 21).value) is not None else None,
-            ),
-        )
+    # Labels and source headers move when the workbook adds generation types.
+    en_curve = extract_energy_curve(workbook["En-Curve"]) if "En-Curve" in workbook.sheetnames else None
 
     data = dict(
         date=date,
         source_file=source_file,
+        quality_notes=quality_notes,
         timezone="Asia/Dhaka",
+        p1_sections_version=2,
+        regional_snapshot={key:value for key,value in region_snapshot.items() if key != "readings"},
         summary=dict(
             peak_demand_mw=(number(summary_sheet["D10"].value) if legacy_layout else summary_sheet["E11"].value),
             peak_generation_mw=(number(summary_sheet["D9"].value) if legacy_layout else summary_sheet["E13"].value),
-            peak_time=(str(summary_sheet["F9"].value)[:5] if legacy_layout else "19:30"),
+            peak_time=(str(summary_sheet["F9"].value)[:5] if legacy_layout else None),
             energy_mwh=(number(summary_sheet["D12"].value) * 1000 if legacy_layout else summary_sheet["K8"].value * 1000),
             unserved_mwh=(None if legacy_layout else summary_sheet["K9"].value * 1000),
             temperature_c=(None if legacy_layout else summary_sheet["K11"].value),
-            import_mwh=(None if legacy_layout else summary_sheet["K26"].value * 1000),
+            import_mwh=(None if legacy_layout else summary_sheet.cell(26, columns["Imports"]).value * 1000),
         ),
         fuels=({fuel: None for fuel in fuels} if legacy_layout else
                {fuel: (number(summary_sheet.cell(26, col).value) or 0) * 1000
-                for col, fuel in enumerate(fuels, 5)}),
+                for fuel, col in columns.items()}),
         hourly=dispatch_hourly,
         grid_generation=grid_curve,
         en_curve=en_curve,
         regions=regions,
         plants=plants,
         plant_units=plant_units,
+        water_level=extract_water_level(workbook),
         imports=imports,
         substations=substations,
         voltages=voltages,
         operations=dict(planned_shutdowns=planned_shutdowns, forced_shutdowns=forced_shutdowns,
-                        events=events, ewic=ewic,
-                        east_west=dict(energy_east_to_west_kwh=number(summary_sheet["E53"].value),
-                                       energy_west_to_east_kwh=number(summary_sheet["E54"].value),
-                                       peak_west_to_east_mw=number(summary_sheet["E55"].value),
-                                       max_west_to_east_mw=number(summary_sheet["E56"].value))),
-        forecast=dict(date=forecast_date, plants=forecast_plants, totals=system_forecast,
+                        **event_log, ewic=ewic,
+                        east_west=east_west_totals(summary_sheet)),
+        forecast=dict(date=forecast_date, scenario_date=scenario_date, plants=forecast_plants, totals=system_forecast,
                       demand_hourly=forecast_demand_hourly),
     )
 

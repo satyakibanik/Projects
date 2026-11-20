@@ -1,0 +1,218 @@
+(function(root){
+ 'use strict';
+ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const numberFormats=new Map(),dateFormat=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Asia/Dhaka'});
+ const fmt=(v,d=1)=>{if(!Number.isFinite(v))return '—';if(!numberFormats.has(d))numberFormats.set(d,new Intl.NumberFormat('en-GB',{minimumFractionDigits:d,maximumFractionDigits:d}));return numberFormats.get(d).format(v);};
+ const label=d=>dateFormat.format(new Date(d+'T08:00:00+06:00'));
+ const series=[['domestic','Domestic gas','#007f5f'],['lng','Regasified LNG','#c66a00'],['total','Total including LNG','#1e5aa8']];
+ const powerSeries=[['power_demand','Reported gas demand','#7a3e9d'],['power_supply','Gas supplied','#007f5f']];
+ const destinationSeries=[['power_supply','Power plants','#007f5f'],['fertilizer_supply','Fertilizer factories','#1e5aa8'],['others','Other consumers','#c66a00']];
+ const windows=['7','30','60','90','365','all'];
+ let bundle,pending,chartSequence=0;
+ const charts=new Map();
+ let hiddenLayers=new Set();
+ const span=(start,end)=>Math.round((Date.parse(end)-Date.parse(start))/86400000)+1;
+ function selectRows(rows,end,range){
+  const start=range==='all'?-Infinity:Date.parse(end+'T00:00:00Z')-(Number(range)-1)*86400000;
+  return rows.filter(r=>r.date<=end&&Date.parse(r.date+'T00:00:00Z')>=start);
+ }
+ function difference(primary,check){return primary&&check?primary.total-check.total:null;}
+ function collectionMessage(status,latestDate){
+  const failed=(Array.isArray(status)?status:[]).filter(source=>source.status!=='ok');
+  if(!failed.length)return '';
+  const names={petrobangla:'Petrobangla',gtcl:'GTCL',coal:'BCMCL'};
+  const sources=failed.map(source=>names[source.source]||'an official source');
+  const sourceText=sources.length===1?sources[0]:sources.length===2?`${sources[0]} and ${sources[1]}`:`${sources.slice(0,-1).join(', ')}, and ${sources.at(-1)}`;
+  const errors=failed.flatMap(source=>source.errors||[]).join(' ');
+  const timedOut=/timed?\s*out|timeout|curl exit 28/i.test(errors);
+  const reason=timedOut?`Connection to ${sourceText} timed out`:`Collection did not complete for ${sourceText}`;
+  return `<p class="fuel-collection-warning" role="status" style="margin:-12px 0 0;padding:11px 16px;background:color-mix(in srgb,var(--red) 10%,var(--surface));border-left:3px solid var(--red);color:var(--ink);font-size:12px;line-height:1.7">${reason}. Showing saved official gas data through ${label(latestDate)}.</p>`;
+ }
+ function pointTitle(row){return row.label||row.year||label(row.date);}
+ function tooltipHTML(row,fields,unit='MMCFD',precision=1){
+  return `<strong>${esc(pointTitle(row))}</strong>${fields.map(([key,name,color])=>`<div><span><i style="background:${esc(row.color||color)}"></i>${esc(name)}</span><b>${fmt(row[key],precision)} ${esc(unit)}</b></div>`).join('')}`;
+ }
+ function nearestRow(rows,time){
+  let low=0,high=rows.length-1;
+  while(low<high){const mid=(low+high)>>1;if(Date.parse(rows[mid].date)<time)low=mid+1;else high=mid;}
+  return low&&time-Date.parse(rows[low-1].date)<Date.parse(rows[low].date)-time?low-1:low;
+ }
+ function plot(rows,fields,{bars=false,annual=false,categorical=false,unit='MMCFD',chartKey='',hidden=hiddenLayers}={}){
+  if(!rows.length)return '<p class="fuel-empty">No verified reports in this window. Choose another end date or a longer range.</p>';
+  const W=950,H=290,L=130,R=28,T=24,B=48,precision=annual?3:1;
+  const id='fuel-chart-'+chartSequence++,key=chartKey||id,title=fields.map(f=>f[1]).join(', ');
+  const layers=categorical?rows.map((r,index)=>({id:key+':'+r.layerKey,name:r.label,color:r.color||fields[0][2],pattern:index%3})):fields.map(([field,name,color],index)=>({id:key+':'+field,name,color,pattern:index%3}));
+  const hiddenSet=new Set(hidden);
+  if(categorical)rows=rows.filter(r=>!hiddenSet.has(key+':'+r.layerKey));
+  else fields=fields.filter(([field])=>!hiddenSet.has(key+':'+field));
+  const active=rows.length>0&&fields.length>0;
+  const dense=!bars&&!annual&&!categorical&&rows.length>90;
+  charts.set(id,{rows,fields,unit,precision,layers,key,dense,index:0});
+  let svg=`<defs>${layers.map((layer,index)=>{const patternId=`${id}-pattern-${index}`,stripe=layer.pattern===0?'':`<path d="M-2 2 2-2M0 8 8 0M6 10 10 6" stroke="#fff" stroke-opacity=".72" stroke-width="2"/>`,cross=layer.pattern===2?`<path d="M-2 6 2 10M0 0 8 8M6-2 10 2" stroke="#fff" stroke-opacity=".72" stroke-width="2"/>`:'';return `<pattern id="${patternId}" width="8" height="8" patternUnits="userSpaceOnUse"><rect width="8" height="8" fill="${esc(layer.color)}"/>${stripe}${cross}</pattern>`}).join('')}</defs>`;
+  if(active){
+   const max=Math.max(1,...rows.flatMap(r=>fields.map(([field])=>Number.isFinite(r[field])?r[field]:0)))*1.12;
+   const first=Date.parse(rows[0].date),last=Date.parse(rows.at(-1).date),multiYear=last-first>365*86400000;
+   const x=(r,i)=>annual||categorical||bars?L+(i+.5)*(W-L-R)/rows.length:L+(last===first?.5:(Date.parse(r.date)-first)/(last-first))*(W-L-R);
+   const y=value=>H-B-value/max*(H-T-B);
+   for(let i=0;i<=4;i++){const value=max*i/4,yy=y(value);svg+=`<line class="fuel-grid" x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}"/><text x="${L-10}" y="${yy+4}" text-anchor="end">${annual&&value>=1000000?fmt(value/1000000,1)+'m':annual&&value>=1000?fmt(value/1000,0)+'k':fmt(value,0)}</text>`;}
+   fields.forEach(([field,name,color],j)=>{
+    const layerIndex=layers.findIndex(layer=>layer.id===key+':'+field),patternId=`${id}-pattern-${layerIndex}`,layerKey=key+':'+field,dash=layerIndex%3===1?'7 3':layerIndex%3===2?'2 2':'';
+    if(dense){
+     const path=values=>{let d='',prev=null;values.forEach((value,i)=>{if(!Number.isFinite(value)){prev=null;return;}const r=rows[i],connected=prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000;d+=(connected?'L':'M')+x(r,i).toFixed(2)+','+y(value).toFixed(2)+' ';prev=r;});return d;};
+     svg+=`<path class="fuel-daily-line" data-fuel-layer-shape="${esc(layerKey)}" d="${path(rows.map(r=>r[field]))}" fill="none" stroke="${color}" stroke-width="2.5"${dash?` stroke-dasharray="${dash}"`:''}/>`;
+     const reported=rows.map((r,i)=>Number.isFinite(r[field])?i:null).filter(i=>i!==null);
+     if(reported.length===1){const i=reported[0];svg+=`<circle data-fuel-layer-shape="${esc(layerKey)}" cx="${x(rows[i],i)}" cy="${y(rows[i][field])}" r="3.5" fill="${color}"/>`;}
+     return;
+    }
+    let prev=null;
+    rows.forEach((r,i)=>{if(!Number.isFinite(r[field])){prev=null;return;}const xx=x(r,i),yy=y(r[field]);
+     if(bars){const w=Math.min(180,(W-L-R)/rows.length*.68/fields.length),shapeLayer=categorical?key+':'+r.layerKey:layerKey,barLayerIndex=categorical?layers.findIndex(layer=>layer.id===shapeLayer):layerIndex,fill=`url(#${id}-pattern-${Math.max(0,barLayerIndex)})`;svg+=`<rect data-fuel-layer-shape="${esc(shapeLayer)}" x="${xx+(j-fields.length/2)*w}" y="${yy}" width="${w-2}" height="${H-B-yy}" fill="${fill}" stroke="${esc(r.color||color)}" stroke-width=".6"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field],precision)} ${esc(unit)}</title></rect>`;}
+     else{if(prev&&Date.parse(r.date)-Date.parse(prev.date)===86400000)svg+=`<line data-fuel-layer-shape="${esc(layerKey)}" x1="${x(prev,i-1)}" y1="${y(prev[field])}" x2="${xx}" y2="${yy}" stroke="${color}" stroke-width="3"${dash?` stroke-dasharray="${dash}"`:''}/>`;svg+=`<circle data-fuel-layer-shape="${esc(layerKey)}" cx="${xx}" cy="${yy}" r="4.2" fill="${color}" stroke="#fff" stroke-width="1.2"><title>${esc(pointTitle(r))} · ${esc(name)}: ${fmt(r[field])} ${esc(unit)}</title></circle>`;prev=r;}
+    });
+   });
+   const stride=Math.max(1,Math.ceil(rows.length/(annual?2:4)));
+   rows.forEach((r,i)=>{if((i%stride===0&&(i===0||rows.length-1-i>stride*.65))||i===rows.length-1)svg+=`<text x="${x(r,i)}" y="${H-17}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${esc(annual?r.year:categorical?r.year:multiYear?r.date.slice(0,7):r.date.slice(5))}</text>`;});
+   if(dense)svg+=`<rect class="fuel-chart-hit" data-fuel-surface x="${L}" y="${T}" width="${W-L-R}" height="${H-B-T}" fill="transparent" tabindex="0" role="img" aria-label="Daily gas history. Use Left and Right arrow keys to inspect each reporting day; Home and End jump to the first and last."/>`;
+   else rows.forEach((r,i)=>{
+    const xx=x(r,i),left=i?(x(rows[i-1],i-1)+xx)/2:L,right=i<rows.length-1?(xx+x(rows[i+1],i+1))/2:W-R;
+    const description=pointTitle(r)+': '+fields.map(([field,name])=>name+' '+fmt(r[field],precision)+' '+unit).join('; ');
+    svg+=`<rect class="fuel-chart-hit" data-fuel-point="${i}" data-fuel-x="${xx}" x="${left}" y="${T}" width="${right-left}" height="${H-B-T}" fill="transparent" tabindex="${i===0?'0':'-1'}" role="img" aria-label="${esc(description)}"/>`;
+   });
+  }else svg='<text class="fuel-no-layers" x="475" y="120" text-anchor="middle">No layers selected</text><text class="fuel-no-layers" x="475" y="180" text-anchor="middle">Select a layer below</text>';
+  const actions=['gas-source','coal-production'].includes(key)?'':`<div class="fuel-layer-actions">${key==='gas-distribution'?'':'<span>Chart layers</span>'}<button type="button" data-fuel-layers="all" data-fuel-chart-id="${id}">All</button><button type="button" data-fuel-layers="none" data-fuel-chart-id="${id}">None</button></div>`;
+  return `<div class="fuel-chart" data-fuel-chart="${id}"><svg viewBox="0 0 ${W} ${H}" role="group" aria-label="${esc(title)} in ${esc(unit)}"><text x="${L}" y="14">${esc(unit.toUpperCase())}</text>${svg}<line class="fuel-cursor" x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="fuel-tooltip" role="tooltip" hidden></div></div><div class="fuel-layer-controls" data-fuel-controls="${esc(key)}" role="group" aria-label="${esc(title)} layers">${actions}<div class="fuel-legend">${layers.map(layer=>`<label data-fuel-layer-label="${esc(layer.id)}"><input type="checkbox" data-fuel-layer="${esc(layer.id)}" ${hiddenSet.has(layer.id)?'':'checked'}><i data-pattern="${layer.pattern}" style="--fuel-layer-color:${esc(layer.color)}"></i><span>${esc(layer.name)}</span></label>`).join('')}</div></div><p class="fuel-chart-help">Hover, tap or focus the chart to inspect exact daily values.</p>`;
+ }
+ function bindTooltips(){
+  document.querySelectorAll('[data-fuel-chart]').forEach(chart=>{
+   const model=charts.get(chart.dataset.fuelChart),tip=chart.querySelector('.fuel-tooltip'),cursor=chart.querySelector('.fuel-cursor');
+   const hide=()=>{tip.hidden=true;cursor.setAttribute('hidden','');};
+   const show=event=>{
+    const hit=event.target.closest?.('[data-fuel-point], [data-fuel-surface]');if(!hit)return;
+    if(model.dense&&Number.isFinite(event.clientX)){const box=chart.querySelector('svg').getBoundingClientRect(),fraction=Math.max(0,Math.min(1,((event.clientX-box.left)/box.width*950-130)/792));model.index=nearestRow(model.rows,Date.parse(model.rows[0].date)+fraction*(Date.parse(model.rows.at(-1).date)-Date.parse(model.rows[0].date)));}
+    const row=model.rows[model.dense?model.index:Number(hit.dataset.fuelPoint)];if(!row)return;
+    tip.innerHTML=tooltipHTML(row,model.fields,model.unit,model.precision);tip.hidden=false;
+    const first=Date.parse(model.rows[0].date),last=Date.parse(model.rows.at(-1).date);
+    const x=model.dense?130+(last===first?.5:(Date.parse(row.date)-first)/(last-first))*792:Number(hit.dataset.fuelX);
+    if(model.dense)hit.setAttribute('aria-label',pointTitle(row)+': '+model.fields.map(([field,name])=>name+' '+fmt(row[field],model.precision)+' '+model.unit).join('; '));cursor.setAttribute('x1',x);cursor.setAttribute('x2',x);cursor.removeAttribute('hidden');
+    const box=chart.getBoundingClientRect(),anchor=Number.isFinite(event.clientX)?event.clientX-box.left:x/950*box.width;
+    tip.style.left=(box.width<600?6:Math.max(6,Math.min(anchor+12,box.width-312)))+'px';
+   };
+   chart.addEventListener('pointermove',show);chart.addEventListener('pointerdown',show);chart.addEventListener('focusin',show);
+   chart.addEventListener('pointerleave',event=>{if(event.pointerType!=='touch')hide();});chart.addEventListener('focusout',hide);
+   chart.addEventListener('keydown',event=>{
+    if(event.key==='Escape'){hide();return;}
+    if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+    const hit=event.target.closest?.('[data-fuel-point], [data-fuel-surface]');if(!hit)return;
+    event.preventDefault();const current=model.dense?model.index:Number(hit.dataset.fuelPoint),next=event.key==='Home'?0:event.key==='End'?model.rows.length-1:Math.max(0,Math.min(model.rows.length-1,current+(event.key==='ArrowRight'?1:-1)));
+    if(model.dense){model.index=next;show({target:hit});return;}
+    chart.querySelectorAll('[data-fuel-point]').forEach(point=>point.setAttribute('tabindex',Number(point.dataset.fuelPoint)===next?'0':'-1'));
+    chart.querySelector(`[data-fuel-point="${next}"]`)?.focus({preventScroll:true});
+   });
+  });
+ }
+ function bindLayerHighlights(){
+  document.querySelectorAll('[data-fuel-controls]').forEach(controls=>{
+   const chart=controls.previousElementSibling?.matches('[data-fuel-chart]')?controls.previousElementSibling:null;
+   if(!chart)return;
+   const clear=()=>chart.querySelectorAll('[data-fuel-layer-shape]').forEach(shape=>shape.classList.remove('is-highlighted','is-dimmed'));
+   controls.querySelectorAll('[data-fuel-layer-label]').forEach(label=>{
+    const highlight=()=>{const id=label.dataset.fuelLayerLabel;chart.querySelectorAll('[data-fuel-layer-shape]').forEach(shape=>{const active=shape.dataset.fuelLayerShape===id;shape.classList.toggle('is-highlighted',active);shape.classList.toggle('is-dimmed',!active);});};
+    label.addEventListener('pointerenter',highlight);label.addEventListener('pointerleave',clear);
+    label.addEventListener('focusin',highlight);label.addEventListener('focusout',event=>{if(!label.contains(event.relatedTarget))clear();});
+   });
+  });
+ }
+ function historyNote(all,rows,end,range,fields){
+  const available=all.filter(r=>fields.every(([key])=>Number.isFinite(r[key]))),first=available[0]?.date,last=available.at(-1)?.date;
+  if(!first)return '<p class="fuel-note">No source history is available for these measures.</p>';
+  const expected=range==='all'?span(first,end):Number(range);
+  const means=fields.map(([key,name])=>`${esc(name)}: ${fmt(rows.length?rows.reduce((sum,r)=>sum+r[key],0)/rows.length:NaN)} MMCFD`).join(' · ');
+  return `<div class="fuel-history-note"><p><strong>Available history: ${label(first)}–${label(last)}</strong> · ${available.length} published daily reports spanning ${span(first,last)} calendar days. Earlier dates are unavailable in this saved dataset.</p><p>This window: ${rows.length} of ${expected} calendar days reported${rows.length?` · ${label(rows[0].date)}–${label(rows.at(-1).date)}`:''} · ${Math.max(0,expected-rows.length)} missing days. Missing values are not estimated; lines connect consecutive reporting days only.</p><p>Daily averages for reported days in this window · ${means}. All values are 24-hour average gas rates; each period ends at 08:00 Bangladesh time.</p></div>`;
+ }
+ function table(rows){return `<div class="fuel-table"><table><caption>Published daily values · MMCFD · dates mark the end of the 24-hour period</caption><thead><tr><th scope="col">Period ending</th><th scope="col">Domestic</th><th scope="col">LNG</th><th scope="col">Total supply</th><th scope="col">Power demand</th><th scope="col">Power supply</th><th scope="col">Report</th></tr></thead><tbody>${rows.slice().reverse().map(r=>`<tr><th scope="row">${label(r.date)}</th>${['domestic','lng','total','power_demand','power_supply'].map(k=>`<td>${fmt(r[k])}</td>`).join('')}<td><a target="_blank" rel="noopener noreferrer" href="${esc(r.url)}">PDF ↗</a></td></tr>`).join('')}</tbody></table></div>`;}
+ function sourceCheck(row){
+  const check=bundle.checks.find(r=>r.date===row.date),delta=difference(row,check);
+  return `<details class="fuel-panel"><summary>Gas sources, cross-checks & reporting periods</summary><h3>Petrobangla × GTCL</h3>${check?.extraction_method==='ocr'?'<p>GTCL national totals were read from a scanned report using OCR and checked against its nine production components. No power-sector value was extracted from that scan.</p>':''}${row.date_basis?`<p>The report heading has an incomplete date. Its embedded workbook title (${esc(row.date_evidence.pdf_title)}) supplies the month/year, corroborated by the PDF creation date. The <a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">original report ↗</a> retains that evidence.</p>`:''}${check?`<p>Period ending ${label(row.date)}: Petrobangla <strong>${fmt(row.total)}</strong> · GTCL <strong>${fmt(check.total,4)}</strong> · difference <strong>${fmt(delta,4)} MMCFD</strong>. ${Math.abs(delta)<=.05001?'National total agrees at Petrobangla’s published precision.':'National totals differ beyond rounding.'} <a href="${esc(check.url)}" target="_blank" rel="noopener noreferrer">GTCL report ↗</a></p>${Number.isFinite(check.power_supply)?`<p>Power-sector gas supply: Petrobangla <strong>${fmt(row.power_supply)}</strong> · GTCL <strong>${fmt(check.power_supply,3)} MMCFD</strong>. These published allocations differ; they are not substituted between sources.</p>`:'<p>No readable power-sector total was extracted from this GTCL report. Its national gas total can still be compared.</p>'}`:'<p>No GTCL check stored for this date. The Petrobangla value remains unverified by a second publisher.</p>'}<div class="fuel-table"><table><caption>All saved GTCL reports · MMCFD</caption><thead><tr><th>Period end</th><th>Petrobangla total</th><th>GTCL total</th><th>Difference</th></tr></thead><tbody>${bundle.checks.slice().reverse().flatMap(c=>{const g=bundle.gas.find(r=>r.date===c.date);return [`<tr><th><a href="${esc(c.url)}" target="_blank" rel="noopener noreferrer">${label(c.date)} ↗</a></th><td>${fmt(g?.total)}</td><td>${fmt(c.total,4)}</td><td>${fmt(difference(g,c),4)}</td></tr>`]}).join('')}</tbody></table></div><p><a href="${esc(bundle.sources.petrobangla)}" target="_blank" rel="noopener noreferrer">Petrobangla</a> is primary for national production, LNG and sector allocation. Its <a href="https://petrobangla.org.bd/" target="_blank" rel="noopener noreferrer">homepage headline</a> is a latest-period check, not a historical breakdown. <a href="${esc(bundle.sources.gtcl)}" target="_blank" rel="noopener noreferrer">GTCL</a> is provisional/operational and uses greater precision. Agreement on national totals does not mean fields, capacity, well counts or allocations match. Transmission throughput is not national production.</p><p><a href="${esc(bundle.sources.emrd)}" target="_blank" rel="noopener noreferrer">EMRD</a> provides a rounded summary; without a clearly matched reporting period it is not spliced into this series.</p><p>Reports cover 08:00 to 08:00 Bangladesh time and are indexed by period end, not upload date. Petrobangla uses MMCFD (million cubic feet per day); GTCL’s MMSCF over the same 24-hour period is numerically comparable as a daily average, subject to the publishers’ measurement conventions. Gas supply includes LNG send-out, not LNG cargo volume. Values are not converted to MW or MWh.</p><p>New reports are collected during each site build. Failed downloads or unrecognized layouts preserve saved data. The 365-day and long-term controls do not imply complete history.</p></details>`;
+ }
+ function gasView(end,range,destinationRange,powerRange){
+  const row=bundle.gas.find(r=>r.date===end),rows=selectRows(bundle.gas,end,range),destinationRows=selectRows(bundle.gas,end,destinationRange),powerRows=selectRows(bundle.gas,end,powerRange);
+  const age=Math.max(0,Math.floor((Date.now()-Date.parse(end+'T08:00:00+06:00'))/86400000));
+  const production=[['state','State companies','State','#007f5f'],['ioc','International operators','IOCs','#1e5aa8'],['lng','Regasified LNG','LNG','#c66a00']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
+  const allocation=[['power_supply','Power plants','Power','#007f5f'],['fertilizer_supply','Fertilizer factories','Fertilizer','#1e5aa8'],['others','Other consumers','Others','#c66a00']].map(([key,name,short,color])=>({date:end,label:name,year:short,value:row[key],color,layerKey:key}));
+  return `<div class="fuel-toolbar"><div><span class="fuel-eyebrow">01 / DAILY GAS SNAPSHOT</span><h2>${end===bundle.gas.at(-1).date?'Latest available day':'Selected reporting day'}</h2></div><label>Gas period ending<select id="fuel-date" aria-label="Gas period ending">${bundle.gas.slice().reverse().map(r=>`<option value="${r.date}" ${r.date===end?'selected':''}>${label(r.date)}</option>`).join('')}</select></label></div>
+   <p class="fuel-coverage" role="status"><strong>${label(end)} · ${age} day${age===1?'':'s'} since period end</strong> · Saved official data, not live gas telemetry.</p>
+   <div><span class="fuel-eyebrow">SUPPLY SNAPSHOT · MMCFD</span><p class="fuel-note">These figures describe reported gas supply: total supply includes domestic production and regasified LNG; the power figure is the amount allocated to power plants.</p></div><div class="fuel-kpis">${[['Total gas supply',row.total,'Domestic gas + regasified LNG'],['Domestic gas',row.domestic,'State companies + international operators'],['Regasified LNG',row.lng,fmt(100*row.lng/row.total)+'% of total gas supply'],['Gas supplied to power plants',row.power_supply,fmt(100*row.power_supply/row.power_demand)+'% of reported gas demand']].map(([title,value,note])=>`<div class="fuel-kpi"><div>${title}</div><strong>${fmt(value)} <small>MMCFD</small></strong><p>${note}</p></div>`).join('')}</div>
+   <div class="fuel-columns"><section class="fuel-panel"><div class="fuel-panel-title"><h2>Gas supply by source</h2><a href="${esc(row.url)}" target="_blank" rel="noopener noreferrer">Daily report ↗</a></div>${plot(production,[['value','Gas supplied','#21856c']],{bars:true,categorical:true,chartKey:'gas-source'})}<p class="fuel-note">State companies: ${fmt(row.state)} · international operators: ${fmt(row.ioc)} · regasified LNG: ${fmt(row.lng)} MMCFD. Domestic production sums the published state and IOC subtotals; rounding can leave a 0.1 MMCFD difference.</p></section><section class="fuel-panel"><h2>Where the gas went</h2>${plot(allocation,[['value','Gas distributed','#21856c']],{bars:true,categorical:true,chartKey:'gas-distribution'})}<p class="fuel-note">Power plants: ${fmt(row.power_supply)} · fertilizer: ${fmt(row.fertilizer_supply)} · others: ${fmt(row.others)} MMCFD. Distribution total: ${fmt(row.distribution_total)} MMCFD. Published distribution and production totals can differ; this is not a calculated system loss.</p></section></div>
+   <section class="fuel-panel"><span class="fuel-eyebrow">02 / GAS HISTORY</span><h2>Gas supply by source over time</h2><div class="fuel-windows" role="group" aria-label="Gas supply history time window">${windows.map(v=>`<button type="button" data-fuel-window="${v}" aria-pressed="${range===v}">${v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">Daily source totals in MMCFD.</p>${plot(rows,series,{chartKey:'gas-supply'})}${historyNote(bundle.gas,rows,end,range,series)}</section>
+   <section class="fuel-panel"><span class="fuel-eyebrow">03 / GAS DESTINATIONS</span><h2>Gas supply by destination over time</h2><div class="fuel-windows" role="group" aria-label="Gas destination history time window">${windows.map(v=>`<button type="button" data-destination-window="${v}" aria-pressed="${destinationRange===v}">${v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">Reported distribution by end use in MMCFD. This chart has its own time window; power plants, fertilizer factories and other consumers are shown as separate destinations.</p>${plot(destinationRows,destinationSeries,{chartKey:'gas-destination-history'})}${historyNote(bundle.gas,destinationRows,end,destinationRange,destinationSeries)}</section>
+   <section class="fuel-panel"><span class="fuel-eyebrow">04 / POWER-SECTOR GAS HISTORY</span><h2>Gas supply & demand in the power sector</h2><div class="fuel-windows" role="group" aria-label="Power-sector gas history time window">${windows.map(v=>`<button type="button" data-power-window="${v}" aria-pressed="${powerRange===v}">${v==='all'?'Long term':v+'d'}</button>`).join('')}</div><p class="fuel-note">Daily gas supply and demand reported for the power sector in MMCFD. This chart has its own time window.</p>${plot(powerRows,powerSeries,{chartKey:'gas-power'})}${historyNote(bundle.gas,powerRows,end,powerRange,powerSeries)}<p class="fuel-note">${fmt(row.power_demand-row.power_supply)} MMCFD below reported power-sector gas demand on ${label(end)}. This gas gap is not an estimate of electricity load shedding.</p></section>
+   <details class="fuel-panel" id="fuel-daily-table"><summary>Daily gas data · ${rows.length} report${rows.length===1?'':'s'}</summary><div data-fuel-daily-body></div><button type="button" id="fuel-csv">Download this window as CSV</button></details>${sourceCheck(row)}`;
+ }
+ function coalView(){
+  const rows=bundle.coal,latest=rows.at(-1);
+  if(!latest)return '<p class="fuel-empty">No verified annual coal production records are available.</p>';
+  const total=rows.reduce((sum,r)=>sum+r.tonnes,0),peak=rows.reduce((best,r)=>r.tonnes>best.tonnes?r:best);
+  return `<section class="fuel-panel"><div class="fuel-panel-title"><div><span class="fuel-eyebrow">DOMESTIC COAL · ANNUAL</span><h2>Annual Barapukuria coal production</h2></div><a href="${esc(bundle.sources.coal)}" target="_blank" rel="noopener noreferrer">BCMCL source ↗</a></div><p>FY ${latest.year}: <strong>${fmt(latest.tonnes,3)} metric tonnes</strong>. Fiscal years run July–June.</p>${plot(rows,[['tonnes','Coal mined','#8c789c']],{bars:true,annual:true,unit:'metric tonnes',chartKey:'coal-production'})}<div class="fuel-history-note"><p><strong>Available history: FY ${esc(rows[0].year)} through FY ${esc(latest.year)}</strong> · ${rows.length} annual production records. This source publishes fiscal-year mine production; daily and monthly coal series are not available here.</p><p>Total across these fiscal years: ${fmt(total,3)} metric tonnes · highest annual production: ${fmt(peak.tonnes,3)} metric tonnes in FY ${esc(peak.year)}. Construction-period production is excluded.</p><p>Annual mine output, not coal stocks, imports or power-plant consumption. The annual chart is independent of gas dates and time windows.</p></div></section><details class="fuel-panel" id="fuel-coal-table"><summary>Annual Barapukuria coal production data · ${rows.length} fiscal years</summary><div class="fuel-table"><table><caption>Annual mine production · metric tonnes · July–June fiscal years</caption><thead><tr><th scope="col">Fiscal year</th><th scope="col">Metric tonnes</th></tr></thead><tbody>${rows.slice().reverse().map(r=>`<tr><th scope="row">${esc(r.year)}</th><td>${fmt(r.tonnes,3)}</td></tr>`).join('')}</tbody></table></div></details>`;
+ }
+ async function mount(){
+  if(location.hash!=='#fuel')return;
+  document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#fuel'));
+  document.querySelector('#title').textContent='Fuel';
+  document.querySelector('#subtitle').textContent='Natural gas supply & domestic coal production';
+  ['report-date-controls','date-status','day-sources','error'].forEach(id=>document.getElementById(id).hidden=true);
+  document.querySelector('.header-meta .status').textContent='FUEL · OFFICIAL REPORTS';
+  if(!bundle){
+   document.querySelector('#content').innerHTML='<p role="status">Loading verified fuel reports…</p>';
+   try{pending ||= fetch('fuel-data.json',{cache:'no-store'}).then(r=>{if(!r.ok)throw Error();return r.json()});bundle=await pending;if(!bundle.gas?.length||!Array.isArray(bundle.coal))throw Error();}
+   catch{pending=null;bundle=null;if(location.hash==='#fuel')document.querySelector('#content').innerHTML='<p role="alert">Fuel reports could not be loaded. <button id="fuel-retry" type="button">Retry</button></p>';document.querySelector('#fuel-retry')?.addEventListener('click',mount);return;}
+  }
+  if(location.hash!=='#fuel')return;
+  draw();
+ }
+ function draw(focusTab=false){
+  charts.clear();chartSequence=0;
+  hiddenLayers=new Set((new URLSearchParams(location.search).get('fuelHide')||'').split(',').filter(key=>/^(gas-source|gas-distribution|gas-supply|gas-destination-history|gas-power|coal-production):[a-z_]+$/.test(key)));
+  const params=new URLSearchParams(location.search),range=windows.includes(params.get('fuelWindow'))?params.get('fuelWindow'):'30',destinationRange=windows.includes(params.get('fuelDestinationWindow'))?params.get('fuelDestinationWindow'):'30',powerRange=windows.includes(params.get('fuelPowerWindow'))?params.get('fuelPowerWindow'):'30',tab=params.get('fuelType')==='coal'?'coal':'gas';
+  const end=bundle.gas.some(r=>r.date===params.get('fuelDate'))?params.get('fuelDate'):bundle.gas.at(-1).date;
+  const previous=new Date(Date.parse(end+'T00:00:00Z')-86400000).toISOString().slice(0,10);
+  document.querySelector('#subtitle').textContent=tab==='gas'?`Gas period: ${label(previous)} 08:00 → ${label(end)} 08:00 · Bangladesh time (UTC+06:00)`:'Coal · annual Barapukuria mine production · July–June fiscal years';
+  root.BEGDDataStatus?.set('fuel',[{label:'Fuel collection attempted',value:bundle.last_attempt_at}]);
+  document.querySelector('#source').textContent=tab==='gas'?'Gas: Petrobangla daily production and distribution reports; GTCL provisional operational cross-checks. Gas dates are independent of electricity workbook dates.':'Coal: BCMCL annual Barapukuria mine production. Daily coal data is not provided by this source.';
+  document.querySelector('#content').innerHTML=`<div class="fuel-dashboard"><div class="fuel-tabs" role="tablist" aria-label="Fuel type">${['gas','coal'].map(type=>`<button type="button" id="fuel-tab-${type}" role="tab" data-fuel-type="${type}" aria-selected="${tab===type}" aria-controls="fuel-panel-${type}" tabindex="${tab===type?'0':'-1'}">${type==='gas'?'Gas':'Coal'}</button>`).join('')}</div><div class="fuel-tab-panel" role="tabpanel" id="fuel-panel-${tab}" aria-labelledby="fuel-tab-${tab}">${tab==='gas'?gasView(end,range,destinationRange,powerRange):coalView()}</div><div role="tabpanel" id="fuel-panel-${tab==='gas'?'coal':'gas'}" aria-labelledby="fuel-tab-${tab==='gas'?'coal':'gas'}" hidden></div></div>`;
+  document.querySelectorAll('[data-fuel-type]').forEach(button=>{
+   button.addEventListener('click',()=>update('fuelType',button.dataset.fuelType,true));
+   button.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const type=event.key==='Home'?'gas':event.key==='End'?'coal':tab==='gas'?'coal':'gas';update('fuelType',type,true);});
+  });
+  document.querySelectorAll('[data-fuel-window]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.fuelWindow;update('fuelWindow',value);document.querySelector(`[data-fuel-window="${value}"]`)?.focus({preventScroll:true});}));
+  document.querySelectorAll('[data-destination-window]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.destinationWindow;update('fuelDestinationWindow',value);document.querySelector(`[data-destination-window="${value}"]`)?.focus({preventScroll:true});}));
+  document.querySelectorAll('[data-power-window]').forEach(button=>button.addEventListener('click',()=>{const value=button.dataset.powerWindow;update('fuelPowerWindow',value);document.querySelector(`[data-power-window="${value}"]`)?.focus({preventScroll:true});}));
+  document.querySelector('#fuel-date')?.addEventListener('change',event=>update('fuelDate',event.target.value));
+  document.querySelector('#fuel-daily-table')?.addEventListener('toggle',event=>{
+   const details=event.currentTarget,body=details.querySelector('[data-fuel-daily-body]');
+   if(details.open&&!body.dataset.loaded){body.innerHTML=table(selectRows(bundle.gas,end,range));body.dataset.loaded='true';}
+  });
+  document.querySelector('#fuel-csv')?.addEventListener('click',()=>{
+   const rows=selectRows(bundle.gas,end,range),keys=['date','domestic','lng','total','power_demand','power_supply','fertilizer_demand','fertilizer_supply','others','distribution_total','url'];
+   const csv=keys.join(',')+'\n'+rows.map(r=>keys.map(k=>r[k]).join(',')).join('\n');
+   const a=document.createElement('a'),url=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.href=url;a.download=`begd-fuel-${end}-${range}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  });
+  document.querySelectorAll('[data-fuel-layer]').forEach(input=>input.addEventListener('change',()=>{
+   const key=input.dataset.fuelLayer;input.checked?hiddenLayers.delete(key):hiddenLayers.add(key);saveLayers();document.querySelector(`[data-fuel-layer="${key}"]`)?.focus({preventScroll:true});
+  }));
+  document.querySelectorAll('[data-fuel-layers]').forEach(button=>button.addEventListener('click',()=>{
+   const model=charts.get(button.dataset.fuelChartId),action=button.dataset.fuelLayers;
+   model.layers.forEach(layer=>action==='all'?hiddenLayers.delete(layer.id):hiddenLayers.add(layer.id));saveLayers();
+   document.querySelector(`[data-fuel-controls="${model.key}"] [data-fuel-layers="${action}"]`)?.focus({preventScroll:true});
+  }));
+  bindTooltips();bindLayerHighlights();
+  if(focusTab)document.querySelector('#fuel-tab-'+tab)?.focus({preventScroll:true});
+ }
+ function saveLayers(){const u=new URL(location.href);if(hiddenLayers.size)u.searchParams.set('fuelHide',[...hiddenLayers].sort().join(','));else u.searchParams.delete('fuelHide');history.replaceState(history.state,'',u);draw();}
+ function update(key,value,focusTab=false){const u=new URL(location.href);u.searchParams.set(key,value);history.replaceState(null,'',u);draw(focusTab);}
+ root.BEGDFuel={mount,selectRows,difference};
+ if(typeof module!=='undefined')module.exports={selectRows,difference,plot,tooltipHTML,historyNote,nearestRow,collectionMessage};
+ if(typeof document!=='undefined'){
+  window.addEventListener('popstate',()=>{if(location.hash==='#fuel')mount();});
+  if(location.hash==='#fuel')mount();
+ }
+})(typeof window==='undefined'?globalThis:window);

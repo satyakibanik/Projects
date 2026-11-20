@@ -1,0 +1,125 @@
+N o: 41.01.09/2604.Dec.2014 Petrobangla Date : 12-13October, 2020 From 8.00 to 8.00
+Production & Marketing Divisi 1 o :4 n 0 PM Gas in MMCFD
+3, Kawran Bazar, Dhaka-1215 Units: Condensate/ NGL/ MS/ HSD in BBLD
+LPG in Kg
+Daily Gas & Condensate Production and Distribution Report
+I. Production
+Gas No.of Produc Production Pro.as a % of Pro.as a % of III. RPGCL Production
+Company Fields ing Wells Capacity Gas Condensate T.Cap(Gas) T. Prod(Gas)
+Titas 26 542 409.6 328.0 10.9 12.9 Feed Received Production
+Habiganj 8 225 185.9 17.0 4.9 1.2 NGL Cond. LPG MS HSD
+1. BGFCL Bakhrabad 7 43 39.5 41.5 1.1 0.8 0.0 0.0 0 0.0 0.0
+Narsingdi 2 30 26.7 38.8 0.7 0.8
+Meghna 1 11 8.2 18.0 0.2 0.3
+Sub-Total 44 851 670.0 443.3 17.8 21.2
+Sylhet 1 6 3.8 20.8 0.1 0.1 N-S & RA pipeline
+Kailashtila #1 (Silicagel) 1 13 5.6 29.8 0.1 0.2 Delivered from N-S pipeline
+2. SGFL Kailashtila #2 (MSTE) 3 55 37.7 462.8 1.0 1.2
+Rashidpur 5 60 47.2 41.5 1.3 1.5 AB1 0.0
+Beanibazar 1 15 8.0 121.6 0.2 0.3 AB2 0.0
+Sub-Total 11 149 102.3 676.6 2.7 3.2 BB 339.1
+Salda 2 3 3.6 0.4 0.1 0.1 VS3 135.1
+Fenchuganj 2 26 4.3 1.5 0.1 0.1 AM 528.7
+Shahbazpur 4 50 31.6 4.0 0.8 1.0 BD 437.0
+Semutung 2 3 0.6 0.0 0.0 0.0 Total 1439.8
+3. BAPEX Sundalpur 1 5 7.2 0.3 0.2 0.2
+Srikail 3 40 21.4 66.0 0.6 0.7
+Begumganj 1 10 5.6 1.1 0.1 0.2
+Rupganj 0 8 0.0 0.0 0.0 0.0
+Sub-Total 15 145 74.4 73.3 2.0 2.4
+Sub-Total (1+2+3) 70 1145 846.6 1193.2 22.5 26.8
+4. IOCs
+Jalalabad 7 270 209.7 990.3 5.6 6.6 Remarks:
+CHEVRON Maulavibazar 5 42 22.1 2.8 0.6 0.7
+Bibiyana 26 1200 1288.7 7479.5 34.3 40.7
+TULLOW Bangora 5 103 94.5 275.0 2.5 3.0
+Sub-Total 43 1615 1615.0 8747.6 43.0 51.0
+5. RPGCL (R-LNG) 1000 702.0 18.7 22.2
+Sub-Total 0 1000 702.0 0.0 18.7 22.2
+Grand Total (1+2+3+4+5): 113 3760 3163.6 9940.7 84.1 100.0
+II. Distribution
+Power Fertilizer
+Company Power Plants Demand Supply Company Max.Demand Supply Others-Supl. Total Remarks
+Ghorashal (1315 MW) 148.0 109.6JFCL 45.0 43.4 1351.8
+Max (G)-78 MW Rent 20.0 0.0UFFL 45.0 0.0
+Aggreeko (GSL)-145 MW Rent 38.0 0.0PUFFL 14.0 0.0 * Max (G)-78 MW Rent Shutdown.
+Siddhirganj (210 MW) 30.0 0.0 * Aggreeko (GSL)-145 MW Rent Shutdown
+Siddhirganj (2x120 MW) 52.0 38.0 * Siddhirganj (210 MW) Shutdown
+HPS (100 MW) 16.0 0.0 * HPS (100 MW) Shutdown
+HPS(EGCB) 412 MW 68.0 0.0 * HPS(EGCB) 412 MW Shutdown.
+Meghnaghat IPP 450 MW 75.0 64.8 * Tongi (80 MW) Shutdown
+Summit Meghn. 335 MW 55.0 55.3 * EGCB Shiddhirgonj 335 MW Shutdown.
+Tongi (80 MW) 26.0 0.0 * UFFL Shutdown
+TGTDCL RPCL (210 MW) 40.0 27.1 * PUFFL Shutdown
+Madhabdi (27+10 MW) REB 9.0 6.9
+Ashulia (24+10 MW) REB 10.0 8.7
+Doreen Tangail 22 MW SIPP 5.0 3.6
+Doreen Narsingdi 22 MW SIPP 5.0 4.3
+Maona 33 MW SIPP 8.0 8.3
+Rupganj 33 MW SIPP 8.0 6.2
+EGCB Shiddhirgonj 335 MW 55.0 0.0
+HPL ( 360 MW ) 55.0 56.9
+Regent 108 MW 27.0 10.7
+Sub-Total 750.0 400.4 104.0 43.4 1351.8 1795.7Total (includingnon-grid power1) 8=70.1
+Ashuganj 648 MW* AFCL 52.0 46.8 87.7
+Ashuganj 55 MW rental 192.0 29.9 11.9
+Ashuganj 53 MW rental * Ashuganj -80 MW Rent Shutdown
+Ashuganj -80 MW Rent 20.0 0.0 * Ashuganj 200 MW Modular Shutdown.
+Ashuganj 225MW 40.0 36.8 * B-baria 70 MW rental Shutdown
+Ashuganj 200 MW Modular 40.0 1.9
+APS 450 MW CCPP S 62.0 52.8
+APS 450 MW CCPP N 62.0 44.9
+BGDCL B-baria 70 MW rental 24.0 0.0
+Feni-22 MW SIPP 5.0 4.1
+Mohipal-11 MW SIPP 3.0 1.5
+Jangalia-33 MW SIPP 8.0 6.9
+Chandpur 150 MW CCPP 27.0 5.1
+Comilla REB 24 MW 6.0 4.1
+Midland Power 51 MW 12.0 10.2
+Sub-Total 501.0 198.1 52.0 46.8 99.6 344.6
+Raozan (2x210) MW 95.0 32.5CUFL 52.0 6.9 152.0 * Sikalbaha ( 40 ) MW shutdown
+Sikalbaha (40 MW) 12.0 0.0KAFCO 63.0 47.0 0.0 * Rauzan unit-1 shutdown
+KGDCL Sikalbaha (225+150+65) MW 73.0 69.4 * CUFL Shutdown.
+Barabkunda 22 MW SIPP 5.0 4.3
+Sub-Total 185.0 106.1 115.0 54.0 152.0 312.0Total (including non-grid power3)2=0.2
+Shahjibazar 2x30 MW 18.0 18.8SFCL 45.0 41.0 89.7
+S.Bazar 3 yrs rental 50 MW 12.0 0.0
+S.Bazar 15 yrs rent 86 MW 20.0 19.3 * S.Bazar 3 yrs rental 50 MW Shutdown
+S.Bazar 330 MW 47.0 26.6 * Kumargaon 20 MW Shutdown.
+Fenchuganj CC1 90 MW 17.0 18.2 * K.gaon 3 yrs rent 50 MW Shutdown
+Fenchuganj CC2 105 MW 18.0 9.5 * Bibiyana-S,400 MW,PDB Shutdown.
+Kumargaon 20 MW 2.0 0.0
+K.gaon 3 yrs rent 50 MW 12.0 0.0
+K.gaon 15 yrs rent 10 MW 3.0 2.4
+JGTDSL K gaon 142 MW CCPP 36.0 24.6
+Habiganj 11 MW SIPP 3.0 1.9
+F.ganj 15 yrs rent 51 MW 13.0 10.1
+F.ganj 3 yrs rent 50 MW 10.0 9.8
+Shahjahanullah pgcl Rent 5.0 4.6
+Bibiyana-2 341 MW 50 48.8
+Bibiyana-3 400 MW 40 59.8
+Bibiyana-S,400 MW,PDB 43 0.1
+Khushiyara 163 MW 28 29.0
+Sub-Total 377.0 283.4 45.0 41.0 89.7 414.1
+Baghabari (100+71 MW) 50.0 0.0 23.9
+Bogra 15 yrs rent (20 MW) 5.0 4.8 * Baghabari (100+71 MW) Shutdown.
+Ullapara 11 MW SIPP 3.0 2.3 * NWPGCL Unit -1 Shutdown.
+Bogra 3 yrs rent (20 MW) 5.0 2.2
+PGCL NWPGCL Unit -1 38.0 0.0
+NWPGCL Unit -2 38.0 31.4
+NWPGCL Unit -3 38.0 32.8
+NWPGCL Unit -4 70.0 56.5
+Sub-Total 247.0 130.0 0.0 23.9 153.9
+Bhola 3 yrs rent 34.5 MW 10.0 9.1 2.0
+SGCL B B h h o er l a a m 2 a 2 r 5 a M 36 W 0MW 3 6 5 5 . . 0 0 44 0 . . 4 0 * Bhola 225 MW Shutdown.
+Aggreko 95MW 26.0 20.7
+Sub-Total 136.0 74.1 0.0 2.0 76.1
+Total : 2196.0 1192.1 316.0 185.2 1719.0 3096.3 3178.9
+(Considering diversity factor 0.85) 1867 269
+Non-grid power
+TGTDCL 74.4
+KGDCL 8.1
+Total Non-Grid Power 82.5 82.5
+Grand Total 2196.0 1274.7 316.0 185.2 1719.0 3178.9
+% of Total Distribution 40% 6% 54% 100%
+(Signed by GM Production Marketing)

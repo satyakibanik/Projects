@@ -5,31 +5,58 @@
   const format = value => value == null ? '—' : Number(value).toLocaleString('en-US', {maximumFractionDigits:2});
   const finite = value => typeof value === 'number' && Number.isFinite(value);
   const dateLabel = date => new Date(date+'T12:00:00Z').toLocaleDateString('en-GB', {day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
-  let chartSerial=0;
-  const hoverCharts=new Map();
+  const sections={
+    generation:'Generation & demand',
+    load:'Load & shedding',
+    fuel:'Fuel mix & cost',
+    imports:'Imports',
+    assets:'Plants & substations',
+    operations:'Operations',
+    development:'Grid development',
+  };
+  let activeSection=root.location?.search&&new URLSearchParams(root.location.search).get('trends')==='operations'?'operations':'generation';
+  let chartSerial=0,costTrendline=false;
+  const hoverCharts=new Map(),boundTooltipNodes=new WeakSet(),boundControls=new WeakSet();
   const hiddenLayers=new Map(),knownLayers=new Map();
   // IDs form part of the shared-link contract. Keep these mappings stable.
   const chartIds={'Generation and demand':'generation-demand','Reported load shedding':'load-shedding','Fuel mix':'fuel-mix','Imports':'imports','Import dependence and renewable share':'dependence-renewables','Unserved energy share':'unserved-share','Daily mean and 30-day rolling generation':'historical-generation'};
   const seriesIds={'Generation':'generation_mwh','Demand requirement':'demand_mwh','Maximum temperature':'temperature_c','Reported load shedding':'shed_peak_mw','Total imports':'imports_mwh','Import share':'import-share','Renewable share':'renewable-share','Unserved energy share':'unserved-share','Daily mean':'daily-mean','30-day rolling mean':'rolling-mean'};
-  const stableId=name=>seriesIds[name]||String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-');
+  const stableId=name=>({'Tripura - Cumilla':'import-tripura-','Bheramara HVDC':'bheramara-hvdc-','Nepal HVDC':'hvdc-nepal-','Adani Power':'adani-power-jharkhanda-ltd'})[name]||seriesIds[name]||String(name).toLowerCase().replace(/[^a-z0-9]+/g,'-');
   function getViewState(){
     const layers=[];
     for(const [chart,names] of knownLayers)for(const name of names)layers.push([chart+'|'+name,!hiddenLayers.get(chart)?.has(name)]);
     // Include settings for charts not mounted in this session yet.
     for(const [chart,hidden] of hiddenLayers)for(const name of hidden)if(!layers.some(([id])=>id===chart+'|'+name))layers.push([chart+'|'+name,false]);
-    return {days:String(period),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
+    return {costTrend:costTrendline?'linear':'off',days:String(period),...(period==='custom'?{trendStart:customRange.start,trendEnd:customRange.end}:{}),generationUnit:chartUnits.generation,importsUnit:chartUnits.imports,temperatureUnit:temperatureUnit==='°F'?'F':'C',detail:temperatureDetail||'auto',trendLayers:layers.sort(([a],[b])=>a.localeCompare(b))};
   }
   function setViewState(state){
-    period=state.days==='10y'?'10y':Number(state.days);chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
+    costTrendline=state.costTrend==='linear';
+    if(state.days==='custom'&&root.BEGDViewCodec?.validTrendRange(state.trendStart,state.trendEnd)){
+      customRange={start:state.trendStart,end:state.trendEnd};
+      period='custom';
+    }else period=state.days==='10y'?'10y':Number(state.days==='custom'?30:state.days);
+    chartUnits.generation=state.generationUnit;chartUnits.imports=state.importsUnit;
     temperatureUnit=state.temperatureUnit==='F'?'°F':'°C';temperatureDetail=state.detail==='auto'?null:state.detail;
     hiddenLayers.clear();knownLayers.clear();
     for(const [id,visible] of state.trendLayers||[]){const split=id.indexOf('|');if(split<0)continue;const chart=id.slice(0,split),name=id.slice(split+1);if(!hiddenLayers.has(chart))hiddenLayers.set(chart,new Set());if(!knownLayers.has(chart))knownLayers.set(chart,new Set());knownLayers.get(chart).add(name);if(!visible)hiddenLayers.get(chart).add(name);}
+    if(hiddenLayers.has('bpdb-cost'))for(const series of root.BEGDCosts?.series()||[])if(series.defaultVisible===false&&!knownLayers.get('bpdb-cost')?.has(stableId(series.name)))hiddenLayers.get('bpdb-cost').add(stableId(series.name));
     // Temperature is opt-in even when a link mentions only other layers.
     if(hiddenLayers.has('generation-demand')&&!knownLayers.get('generation-demand')?.has('temperature_c'))hiddenLayers.get('generation-demand').add('temperature_c');
   }
   const chartUnits={generation:'GWh',imports:'GWh'};
   let temperatureUnit='°C',temperatureDetail=null;
   let period = 30, bundle = null, history = null, pending = null, failure = null;
+  let supplementalStarted=false, historyPending=false, customRange=null, rangeMessage='';
+  function archiveBounds() {
+    if(!bundle?.end_date||!bundle.days.length)return null;
+    return {start:bundle.days.reduce((first,row)=>row.date<first?row.date:first,bundle.end_date),end:bundle.end_date};
+  }
+  function selectedWindow() {
+    return period==='custom'?{
+      count:(Date.parse(customRange.end)-Date.parse(customRange.start))/86400000+1,
+      end:customRange.end,
+    }:{count:period,end:bundle?.end_date};
+  }
   function windowDays(data, count) {
     if (!data.end_date) return [];
     const byDate = new Map(data.days.map(day => [day.date, day]));
@@ -75,44 +102,68 @@
     const firsts=rows.map((row,i)=>row.date.endsWith('-01')?i:null).filter(i=>i!==null);
     return firsts.map((index,i)=>({index,label:new Date(rows[index].date+'T12:00:00Z').toLocaleDateString('en-GB',{month:'short',year:'2-digit',timeZone:'UTC'}),sparse:i%3===0||i===firsts.length-1}));
   }
+  function rangeBandSegments(rows,low,high){
+    const segments=[];let segment=[];
+    const finish=()=>{if(segment.length)segments.push(segment);segment=[]};
+    rows.forEach((row,index)=>{
+      const minimum=low(row),maximum=high(row);
+      if(!finite(minimum)||!finite(maximum)||minimum>maximum){finish();return}
+      segment.push({index,minimum,maximum});
+    });
+    finish();return segments;
+  }
+  function linearTrend(rows,series){
+    const points=rows.map((row,index)=>({index,x:Date.parse(row.date+'T00:00:00Z')/86400000,y:series.value(row)})).filter(point=>finite(point.x)&&finite(point.y));
+    if(points.length<2)return null;
+    const x0=points[0].x,meanX=points.reduce((n,p)=>n+p.x-x0,0)/points.length,meanY=points.reduce((n,p)=>n+p.y,0)/points.length;
+    const variance=points.reduce((n,p)=>n+(p.x-x0-meanX)**2,0);if(!variance)return null;
+    const slope=points.reduce((n,p)=>n+(p.x-x0-meanX)*(p.y-meanY),0)/variance;
+    const start=points[0].index,end=points.at(-1).index;
+    return {name:series.name+' · linear trend',color:series.color,slope,count:points.length,start,end,value:row=>{const x=Date.parse(row.date+'T00:00:00Z')/86400000;return x<points[0].x||x>points.at(-1).x?null:meanY+slope*(x-x0-meanX)},formatValue:series.formatValue};
+  }
   function plot(rows, allSeries, title, unit, stacked=false, options={}) {
     const key=options.key||chartIds[title]||stableId(title);
     knownLayers.set(key,new Set([...(knownLayers.get(key)||[]),...allSeries.map(s=>stableId(s.name))]));
     if(!hiddenLayers.has(key))hiddenLayers.set(key,new Set(allSeries.filter(s=>s.defaultVisible===false).map(s=>stableId(s.name))));
     const hidden=hiddenLayers.get(key);
     const series=allSeries.filter(s=>!hidden.has(stableId(s.name))&&!s.legendOnly);
+    const fitted=options.fitTrend&&series.length===1?linearTrend(rows,series[0]):null;
     const secondary=series.filter(s=>s.axis==='right'),primary=series.filter(s=>s.axis!=='right');
-    const W=840,H=options.compact?180:300,L=80,R=secondary.length?80:18,T=25,B=40;
+    const narrow=root.innerWidth<600;
+    const W=narrow?420:840,H=options.compact?180:narrow?280:300,L=narrow?96:80,R=secondary.length?80:18,T=25,B=40;
     const values=rows.flatMap(row=>primary.map(s=>s.value(row))).filter(finite);
     const secondaryValues=rows.flatMap(row=>secondary.map(s=>s.value(row))).filter(finite);
     const empty=!values.length&&!secondaryValues.length;
+    if(fitted)values.push(fitted.value(rows[fitted.start]),fitted.value(rows[fitted.end]));
+    if(values.length&&finite(options.reference?.value))values.push(options.reference.value);
     const extentMin=values.length?Math.min(...values):0,extentMax=values.length?Math.max(...values):1;
     const extentPadding=Math.max((extentMax-extentMin)*0.08,Math.abs(extentMax)*0.01,0.01);
-    const min=options.fitExtent&&values.length?extentMin-extentPadding:options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0;
-    const max=options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08;
+    const min=options.domain?.[0] ?? (fitted?Math.min(0,...values):options.fitExtent&&values.length?Math.max(options.nonNegative?0:-Infinity,extentMin-extentPadding):options.temperatureScale&&values.length?Math.floor(Math.min(...values)-2):options.zoom?Math.max(0,Math.floor(Math.min(...(values.length?values:[0]))/1000)*1000):0);
+    const max=options.domain?.[1] ?? (options.fitExtent&&values.length?extentMax+extentPadding:options.temperatureScale?Math.max(min+1,Math.ceil(Math.max(...(values.length?values:[0]))+2)):stacked?100:Math.max(min+1,...values)*1.08);
     const x=i=>L+i/Math.max(1,rows.length-1)*(W-L-R), y=v=>H-B-(v-min)/(max-min)*(H-T-B);
     const secondaryMin=secondaryValues.length?Math.floor(Math.min(...secondaryValues)-2):0;
     const secondaryMax=secondaryValues.length?Math.ceil(Math.max(...secondaryValues)+2):1;
     const secondaryY=v=>H-B-(v-secondaryMin)/(secondaryMax-secondaryMin)*(H-T-B);
     const seriesY=(value,s)=>s.axis==='right'?secondaryY(value):y(value);
-    let body='';
+    let body=`<text class="trends-axis-unit" x="${L-9}" y="${T-8}" text-anchor="start">${escape(unit)}</text>`;
     if(secondary.length){
-      body+=`<g class="trends-secondary-axis" aria-label="Maximum temperature, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
+      body+=`<g class="trends-secondary-axis" style="color:${escape(secondary[0].color)}" aria-label="${escape(secondary[0].name)}, right axis (${escape(secondary[0].unit)})"><line x1="${W-R}" x2="${W-R}" y1="${T}" y2="${H-B}" stroke="currentColor"/><text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${T-10}">${escape(secondary[0].unit)}</text>`;
       if(secondaryValues.length)for(let i=0;i<=4;i++){
         const value=secondaryMin+(secondaryMax-secondaryMin)*i/4;
-        body+=`<text x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
+        body+=`<text style="fill:${escape(secondary[0].color)}" x="${W-R+10}" y="${secondaryY(value)+4}">${format(Math.round(value*10)/10)}</text>`;
       }
       body+='</g>';
     }
     const tickCount=options.compact?2:4;
     for(let i=0;i<=tickCount;i++) {
       const value=min+(max-min)*i/tickCount;
-      body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10)}</text>`;
+      const tick=options.tickDecimals!=null?value.toLocaleString('en-US',{minimumFractionDigits:options.tickDecimals,maximumFractionDigits:options.tickDecimals}):unit==='MW'?format(Math.round(value)):format(Math.round(value*10)/10);
+      body+=`<line class="axis" x1="${L}" x2="${W-R}" y1="${y(value)}" y2="${y(value)}"/><text x="${L-9}" y="${y(value)+4}" text-anchor="end">${tick}</text>`;
     }
-    const ticks=options.annual
+    const ticks=options.ticks|| (options.annual
       ?rows.map((r,i)=>r.date.endsWith('-01-01')?{index:i,label:r.date.slice(0,4),sparse:Number(r.date.slice(0,4))%2===0}:null).filter(Boolean)
       :rows.length===365?monthTicks(rows)
-      :[...new Set([0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true}));
+      :[...new Set(narrow?[0,rows.length-1]:[0,Math.round((rows.length-1)/3),Math.round(2*(rows.length-1)/3),rows.length-1])].map(index=>({index,label:dateLabel(rows[index].date),sparse:true})));
     for(const {index:i,label,sparse} of options.hideDateLabels?[]:ticks)
       body+=`<text class="trends-date-tick${sparse?' tick-sparse':''}" x="${x(i)}" y="${H-12}" text-anchor="${i===0?'start':i===rows.length-1?'end':'middle'}">${escape(label)}</text>`;
     if(empty)body+=`<text x="${(L+W-R)/2}" y="${H/2}" text-anchor="middle">${series.length?'No reported values in this window':'Select a legend layer to display'}</text>`;
@@ -130,16 +181,34 @@
         });
       });
     } else {
+      if(options.band){
+        const band=options.band;
+        rangeBandSegments(rows,band.low,band.high).forEach(segment=>{
+          const upper=segment.map(point=>`${x(point.index)},${y(point.maximum)}`);
+          const lower=segment.slice().reverse().map(point=>`${x(point.index)},${y(point.minimum)}`);
+          body+=`<path class="trends-range-band" d="M${upper.join(' L')} L${lower.join(' L')} Z" fill="${band.color}" fill-opacity="0.16" stroke="none" aria-label="Reported daily minimum–maximum voltage band"/>`;
+        });
+      }
+      if(!empty&&finite(options.reference?.value))body+=`<line class="trends-reference" x1="${L}" x2="${W-R}" y1="${y(options.reference.value)}" y2="${y(options.reference.value)}" stroke="currentColor" stroke-opacity="0.55" stroke-dasharray="4 4"/><text x="${W-R-4}" y="${y(options.reference.value)-6}" text-anchor="end">${escape(options.reference.label)}</text>`;
       series.forEach(s=>{
         let path='',connected=false;
         rows.forEach((row,i)=>{const v=s.value(row);if(!finite(v)){connected=false;return}path+=`${connected?'L':'M'}${x(i)},${seriesY(v,s)} `;connected=true});
-        body+=`<path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
-        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.date} · ${escape(s.name)}: ${format(v)} ${s.unit||unit}"/>`});
+        body+=`<g data-trend-series="${escape(s.name)}"><path d="${path}" fill="none" stroke="${s.color}" stroke-width="${s.width||2.2}" ${s.dash?'stroke-dasharray="6 4"':''}/>`;
+        if(s.markers!==false)rows.forEach((row,i)=>{const v=s.value(row);if(finite(v))body+=`<circle cx="${x(i)}" cy="${seriesY(v,s)}" r="${rows.length>90?2:3}" fill="${s.color}" aria-label="${row.fiscal_year?'FY '+row.fiscal_year:row.date} · ${escape(s.name)}: ${escape(s.formatValue?s.formatValue(v,row):format(v)+' '+(s.unit||unit))}"/>`});
+        body+='</g>';
       });
     }
+    if(fitted){
+      const start=rows[fitted.start],end=rows[fitted.end];
+      body+=`<path data-cost-trendline-path d="M${x(fitted.start)},${y(fitted.value(start))} L${x(fitted.end)},${y(fitted.value(end))}" fill="none" stroke="${fitted.color}" stroke-width="3" stroke-dasharray="9 6" aria-label="${escape(fitted.name)} · least squares over ${fitted.count} reported days"/>`;
+    }
+    const legendLabel=s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${root.BEGDCosts?.legendIcon?.(s.name)||''}${escape(s.name)}</label>`;
+    const group=options.groupLayers?allSeries.filter(s=>s.name!=='Reported total'):[];
+    const active=group.filter(s=>!hidden.has(stableId(s.name))).length;
+    const legend=options.hideLegend?'':options.groupLayers?allSeries.filter(s=>s.name==='Reported total').map(legendLabel).join('')+`<fieldset class="bpdb-fuel-group"><legend><label><input type="checkbox" data-trend-group="${escape(key)}" data-partial="${active>0&&active<group.length}" ${group.length&&active===group.length?'checked':''}>Individual fuel types</label></legend><div>${group.map(legendLabel).join('')}</div></fieldset>`:allSeries.map(legendLabel).join('');
     const id='trend-chart-'+(++chartSerial);
-    hoverCharts.set(id,{rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries,syncGroup:options.syncGroup});
-    return `<div class="trends-chart" data-trend-chart="${id}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for daily values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><div class="trends-legend"${options.hideLegend?' hidden':''}>${(options.hideLegend?[]:allSeries).map(s=>`<label><input type="checkbox" data-trend-layer="${escape(s.name)}" data-trend-chart-key="${escape(key)}" ${hidden.has(stableId(s.name))?'':'checked'}><i style="background:${s.color}"></i>${escape(s.name)}</label>`).join('')}</div></div>`;
+    hoverCharts.set(id,{key,rows,series,allSeries,unit,stacked,W,H,L,R,T,B,tooltipSeries:options.tooltipSeries||(fitted?[...series,fitted]:null),syncGroup:options.syncGroup});
+    return `<div class="trends-chart" data-trend-chart="${id}" data-trend-key="${escape(key)}"><svg tabindex="0" aria-describedby="${id}-tip" data-trend-svg="${id}" class="chart trends-plot" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escape(title)} (${unit}). Missing dates are gaps. Hover or focus the chart for reported values.">${body}<line class="trends-cursor" data-trend-cursor x1="0" x2="0" y1="${T}" y2="${H-B}" hidden/></svg><div class="trends-tooltip" id="${id}-tip" role="tooltip" hidden></div><p class="chart-touch-help">Tap the chart, then drag sideways to explore values. Tap outside to close.</p><div class="trends-legend"${options.hideLegend?' hidden':''}>${options.selectAll?`<label><input type="checkbox" data-trend-all="${escape(key)}" ${allSeries.every(s=>!hidden.has(stableId(s.name)))?'checked':''}>Select / unselect all</label>`:''}${legend}</div>${fitted?`<p class="bpdb-fit-note">Dashed: ${escape(fitted.name)} · least-squares fit over ${fitted.count} reported days; not a forecast.</p>`:''}</div>`;
   }
   const panel = (title,note,body,controls='') => `<section class="panel full"><div class="panel-head"><div><h2>${title}</h2><p>${note}</p></div>${controls}</div>${body}</section>`;
   function weeklyComparisonRows(rows) {
@@ -162,60 +231,138 @@
   }
 
   function controls() {
-    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'10y':days+'d'}</button>`).join('')}</div><span>${period==='10y'?'Full BengalGrid history · 2015–2026':'Ending on the latest available operating day'}</span></div>`;
+    const bounds=archiveBounds();
+    const form=bounds?`<details class="trends-custom-range"${period==='custom'||rangeMessage?' open':''}>
+      <summary>${period==='custom'?'Custom range selected':'Custom range'}</summary>
+      <form data-trend-custom-range aria-label="Custom Trends date range">
+        <label>Start date <input name="trendStart" type="date" min="${escape(bounds.start)}" max="${escape(bounds.end)}" value="${escape(customRange?.start||bounds.start)}" required></label>
+        <label>End date <input name="trendEnd" type="date" min="${escape(bounds.start)}" max="${escape(bounds.end)}" value="${escape(customRange?.end||bounds.end)}" required></label>
+        <button type="submit">Apply range</button>
+        <p class="trends-custom-message" role="status">${escape(rangeMessage)}</p>
+      </form>
+    </details>`:'';
+    return `<div class="trends-toolbar"><div role="group" aria-label="Long-term trend window">${[7,30,60,90,365,'10y'].map(days=>`<button type="button" data-trend-days="${days}" aria-pressed="${days===period}">${days==='10y'?'Really long-term!':days+'d'}</button>`).join('')}${form}</div><span>${period==='10y'?'Full historical coverage by section':period==='custom'?'Selected operating dates · inclusive':'Ending on the latest available operating day'}</span></div>`;
   }
+  function sectionViews(panels){
+    const current = Object.hasOwn(panels,activeSection)?activeSection:Object.keys(panels)[0];
+    const buttons=Object.keys(panels).map(id=>[id,sections[id]||'Historical generation & system loss']).map(([id,label])=>
+      `<button type="button" id="trend-section-${id}" data-trend-section="${id}" aria-controls="trend-view-${id}" aria-pressed="${current===id}">${escape(label)}</button>`).join('');
+    const views=Object.entries(panels).map(([id,body])=>
+      `<section class="trends-section" id="trend-view-${id}" aria-labelledby="trend-section-${id}"${current===id?'':' hidden'}>${body}</section>`).join('');
+    return `<div class="trends-section-picker" role="group" aria-label="Trends sections">${buttons}</div>${views}`;
+  }
+  function waterLevelRows(end,count) {
+    return windowDays({end_date:end,days:bundle?.days||[]},count);
+  }
+  function monthlyOperations(history) {
+    const yearControl=history?'':'<div class="availability-controls"><label>Year <select data-availability-year></select></label></div>';
+    const archiveURL='https://erp.powergrid.gov.bd/w/report/eyJpdiI6Ik53OTZRKzRRTVoxUUY4a3RMb250Y0E9PSIsInZhbHVlIjoiQmxnNjFqUUROVnk2RFh1OHJ0NGVkQT09IiwibWFjIjoiZDBlYmM3ZTUzMzBkNDM4NTNkZDQxYjc0YTc2NDQ3YTYzYmY1MjRjNDRjNTQ2MmQwOGM5MzY4MGRjNTIwYTFlYiIsInRhZyI6IiJ9/show_report';
+    const sources='<p><a href="'+archiveURL+'">Power Grid Bangladesh monthly operational report archive</a> · <a href="circle-availability.json">Parsed values and workbook references</a></p>';
+    const availabilityTable=history?'':'<details class="availability-sources"><summary>Reported values and source cells</summary><div class="table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Reporting circle</th><th scope="col">Substation</th><th scope="col">Transmission line</th><th scope="col">Workbook</th></tr></thead><tbody></tbody></table></div></details>';
+    const reliabilityTable=history?'':'<details class="reliability-sources availability-sources"><summary>Outage categories and source cells</summary><div class="table-wrap"><table><thead><tr><th scope="col">Month</th><th scope="col">Unit</th><th scope="col">Tripping</th><th scope="col">Emergency</th><th scope="col">Scheduled</th><th scope="col">Published total</th><th scope="col">Total minus categories</th><th scope="col">Workbook and cells</th></tr></thead><tbody></tbody></table></div></details>';
+    return `<div class="monthly-operations" data-monthly-operations>
+      <section class="panel full">
+        <div class="panel-head"><div><h2>Reporting cycle availability</h2><p data-keep-visible>Monthly substation and transmission line availability by reporting circle, from forms QF-LDC-29 and QF-LDC-30 of Power Grid Bangladesh’s operational workbooks.</p></div>${yearControl}</div>
+        <p role="status" aria-live="polite" class="availability-status note">Loading availability…</p>
+        <div class="availability-charts" data-availability-plots></div>
+        <details class="more-information"><summary>More information</summary><div>
+          <p>BEGD reads the availability rows in section B of each downloaded workbook. Excel fractions and values already expressed as percentages are displayed as percentages on the same zoomed axis. Each circle has its own line. Historical Dhaka and the later Dhaka (North) and Dhaka (South) circles keep distinct series.</p>
+          <p>The archive provided 161 workbooks from January 2013 to August 2026. February 2013 and December 2015 have no retrievable workbook, and July 2015 has no dated listing. Missing circle values leave gaps, including where a workbook reports only part of the circle table.</p>
+          ${sources}${availabilityTable}
+        </div></details>
+      </section>
+      <section class="panel full">
+        <div class="panel-head"><div><h2>National outage reliability</h2><p data-keep-visible>Monthly totals across all reporting areas for tripping and outages (events) and outage-related unserved energy (MWh), from forms QF-LDC-27 and QF-LDC-28 of the same workbooks.</p></div></div>
+        <p role="status" aria-live="polite" class="reliability-status note">Loading outage reliability…</p>
+        <div class="reliability-charts availability-charts"></div>
+        <details class="more-information"><summary>More information</summary><div>
+          <p>BEGD reads the published national Total rows for tripping, emergency outages and scheduled outages. The current-month figure takes precedence. Where the direct report is unavailable, the next workbook’s previous-month total can supply a value. An asterisk in the yearly charts and the tooltip identify these observations.</p>
+          <p>Missing category values stay blank. Where category values and the published total differ, the chart retains the published total. The energy measure covers the outages summarized in form 28. Months with neither a direct nor a previous-month value appear as gaps.</p>
+          ${sources}${reliabilityTable}
+        </div></details>
+      </section>
+    </div>`;
+  }
+
   function content() {
-    if(period==='10y')return controls()+`<p class="trends-coverage">BengalGrid historical view · full available record, ${history?dateLabel(history.start_date)+' – '+dateLabel(history.end_date):'2015–2026'} · generation only</p>`+(pending&&!history?'<p role="status">Loading historical generation…</p>':historyPanels());
+    if(period==='10y')return controls()+sectionViews({
+      historical:(historyPending?'<p role="status">Loading historical generation…</p>':historyPanels())+(root.BEGDSystemLoss?.panels(plot)||''),
+      operations:monthlyOperations(true)+'<div id="operational-event-explorer"></div>',
+      development:root.BEGDGridDevelopment?.render(plot)||'',
+    });
     if(!bundle)return controls()+`<section class="panel full"><p role="status">${failure?'Historical data could not be loaded.': 'Loading daily trends…'}</p>${failure?'<button type="button" data-trends-retry>Retry</button>':''}</section>`;
     const allRows=rollingMean(windowDays(bundle,365).map(row=>({...row,average_mw:finite(row.generation_mwh)?row.generation_mwh/24:null})), 'average_mw');
     const selected=new Map(allRows.map(row=>[row.date,row]));
-    const rows=windowDays(bundle,period).map(row=>selected.get(row.date)||row);
+    const {count,end}=selectedWindow();
+    const rows=windowDays({...bundle,end_date:end},count).map(row=>selected.get(row.date)||row);
     if(!rows.length)return controls()+'<p class="empty">No historical reports are available in this build.</p>';
     const gen=total(rows,'generation_mwh'), demand=total(rows,'demand_mwh'), imported=total(rows,'imports_mwh');
     const shed=rows.map(r=>r.shed_peak_mw).filter(finite), unserved=total(rows,'unserved_mwh');
-    const coverage=n=>`${n} / ${period} days reported`;
+    const coverage=n=>`${n} / ${count} days reported`;
     const actual=rows.filter(row=>row.report_id!=null).length;
     const fuelSeries=Object.entries(FUELS).map(([name,color])=>({name,color,value:r=>finite(r.fuels?.[name])?r.fuels[name]/1000:null}));
     const completeMix=rows.filter(r=>fuelSeries.every(s=>finite(s.value(r)))&&fuelSeries.reduce((n,s)=>n+s.value(r),0)>0).length;
-    const routeNames=[...new Set(rows.flatMap(row=>Object.keys(row.routes||{})))].sort();
-    const routeColors=['#4e79a7','#b07aa1','#d88931','#59a14f','#76b7b2','#e15759'];
-    const routeSeries=routeNames.map((name,i)=>({name,color:routeColors[i%routeColors.length],value:r=>energyValue(r.routes?.[name],chartUnits.imports)}));
-    let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${period} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
+    const routeGroups=new Map();
+    for(const raw of [...new Set(rows.flatMap(row=>Object.keys(row.routes||{})))].sort()){
+      const name=typeof importRouteName==='function'?importRouteName(raw):raw;
+      routeGroups.set(name,[...(routeGroups.get(name)||[]),raw]);
+    }
+    const routeColors=['#347baf','#c48722','#b95442','#36a77b'];
+    const routeSeries=[...routeGroups].map(([name,aliases],i)=>({name,color:routeColors[i%routeColors.length],
+      value:r=>energyValue(aliases.map(alias=>r.routes?.[alias]).find(finite),chartUnits.imports)}));
+    let html=controls()+`<p class="trends-coverage">${dateLabel(rows[0].date)} – ${dateLabel(rows.at(-1).date)} · <strong>${actual} / ${count} daily reports</strong> · Updated ${escape(bundle.generated_at?.replace('T',' ').slice(0,16)||'unknown')} UTC</p>`;
     html+='<div class="metrics">'+card('Total generation',gen.value==null?null:gen.value/1000,'GWh',coverage(gen.count)+' · includes imports',rows)+card('Total demand requirement',demand.value==null?null:demand.value/1000,'GWh',coverage(demand.count)+' · energy requirement',rows)+card('Maximum reported load shedding',shed.length?Math.max(...shed):null,'MW',coverage(shed.length)+' · maximum P4 reading',rows)+card('Total imports',imported.value==null?null:imported.value/1000,'GWh',coverage(imported.count),rows)+'</div>';
     html+=`<p class="note trends-method">Totals cover reported days only; incomplete windows are partial totals. Missing values stay blank and lines break at gaps. Demand requirement uses the matching-date En-Curve total, or P1 generation plus reported energy not served when that total is unavailable. This energy requirement is not a separately metered demand total. Reported load shedding is taken directly from P4; it is not inferred from demand minus generation. Energy not served: ${format(unserved.value==null?null:unserved.value/1000)} GWh (${coverage(unserved.count)}), a separate published P1 energy measure.</p>`;
     const generationUnit=chartUnits.generation, importUnit=chartUnits.imports;
     const showTemperature=hiddenLayers.has('generation-demand')&&!hiddenLayers.get('generation-demand').has('temperature_c');
     const powerNote='Daily average power = published daily energy ÷ 24 hours · MW';
-    const detail=temperatureDetail||(period>=60?'weekly':'daily');
+    const detail=temperatureDetail||(count>=60?'weekly':'daily');
     const averaged=showTemperature&&detail==='weekly',comparisonRows=averaged?weeklyComparisonRows(rows):rows;
     const comparisonSeries=[energy('generation_mwh','Generation','#4e79a7',false,generationUnit),energy('demand_mwh','Demand requirement','#d88931',true,generationUnit),{...temperatureSeries(),legendOnly:true}].map(series=>showTemperature?{...series,unit:series.unit||generationUnit,markers:true,width:series.axis==='right'?2.8:1.9}:series);
     const comparisonTooltipSeries=showTemperature?comparisonSeries.filter(series=>!hiddenLayers.get('generation-demand')?.has(stableId(series.name))):null;
     const comparisonNote=(averaged?'7-day averages · ':'')+(generationUnit==='MW'?powerNote:'Daily energy · GWh')+' · generation includes imports · value axis fitted to visible data';
-    const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
-    html+=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${showTemperature?detailControls(detail):''}${unitControls('generation')}</div>`);
-    if(showTemperature)html+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${period} days reported. °F = °C × 9/5 + 32.</p>`;
-    html+=panel('Reported load shedding','Daily maximum of available P4 load-shedding readings · MW',plot(rows,[{name:'Reported load shedding',color:'#e15759',value:r=>r.shed_peak_mw}],'Reported load shedding','MW'));
-    html+=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
-    html+=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'} · route names follow the workbooks`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
-    html+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
-    html+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
-    return html;
+    const temperaturePlot=showTemperature?`<section class="temperature-subplot" aria-label="Maximum temperature subplot"><div class="temperature-subplot-heading"><h3>Maximum temperature · ${escape(temperatureUnit)}</h3>${detailControls(detail)}${temperatureControls()}</div>${plot(comparisonRows,[{...temperatureSeries(),axis:'left',defaultVisible:true,markers:true,width:2.5}],'Maximum temperature subplot',temperatureUnit,false,{key:'temperature-subplot',compact:true,temperatureScale:true,hideLegend:true,tooltipSeries:comparisonTooltipSeries,syncGroup:'generation-temperature'})}</section>`:'';
+    let generation=panel('Generation & demand',comparisonNote,'<div class="trends-generation-figure">'+plot(comparisonRows,comparisonSeries,'Generation and demand',generationUnit,false,{fitExtent:true,hideDateLabels:showTemperature,tooltipSeries:comparisonTooltipSeries,syncGroup:showTemperature?'generation-temperature':null})+temperaturePlot+'</div>',`<div class="trends-chart-controls">${unitControls('generation')}</div>`);
+    if(showTemperature)generation+=`<p class="note trends-temperature-note">${averaged?'Lines show averages within consecutive 7-day windows; the final window may be shorter. Energy is average daily energy, and temperature is the average of daily maxima. Windows with missing readings remain gaps. ': 'Daily readings. '}Maximum temperature: P1!K11 · separate subplot with an aligned date axis · ${rows.filter(row=>finite(row.temperature_c)).length} / ${count} days reported. °F = °C × 9/5 + 32.</p>`;
+    const demandPanels=root.BEGDDemandTrends?.demandPanels(rows,plot);
+    generation+=demandPanels?.hourly||'';
+    let load=demandPanels?.duration||'';
+    const regionNames=[...new Set(['Dhaka','Chattogram','Cumilla','Mymensingh','Sylhet','Khulna','Barishal','Rajshahi','Rangpur',...bundle.days.flatMap(row=>Object.keys(row.regional_shed_mw||{}))])].sort();
+    const regionColors=['#4e79a7','#f28e2b','#59a14f','#b07aa1','#76b7b2','#edc948','#af7aa1','#9c755f','#d37295'];
+    const shedSeries=[{name:'Reported load shedding',color:'#e15759',width:3,value:r=>r.shed_peak_mw},...regionNames.map((name,i)=>({name,color:regionColors[i%regionColors.length],dash:true,value:r=>r.regional_shed_mw?.[name]}))];
+    load+=panel('Reported load shedding','National: P4 daily maximum · Regions: P1 evening snapshots · MW',plot(rows,shedSeries,'Reported load shedding','MW',false,{selectAll:true})+'<p class="note">Regional evening snapshots and the national daily maximum cover different times. Missing regional readings remain gaps.</p>');
+    load+=root.BEGDDemandTrends?.sheddingPanel(rows,regionNames)||'';
+    load+=panel('Unserved energy as a share of requirement','Reported P1 energy not served ÷ total daily energy requirement · % · distinct from maximum MW load shedding',plot(rows,[{name:'Unserved energy share',color:'#e15759',value:r=>ratio(r.unserved_mwh,r.demand_mwh)}],'Unserved energy share','%'));
+    let fuel=panel('Fuel mix',`Daily energy shares · hidden layers retain their original share of total generation · ${completeMix} / ${period} days with all fuel values reported`,plot(rows,fuelSeries,'Fuel mix','%',true));
+    fuel+=root.BEGDCosts?.trendPanel(rows,plot,{trendline:costTrendline,averageDays:count})||'';
+    let imports=panel('Imports over time',`${importUnit==='MW'?powerNote:'Daily energy · GWh'}`,plot(rows,[energy('imports_mwh','Total imports','#8a9e3a',true,importUnit),...routeSeries],'Imports',importUnit),unitControls('imports'));
+    imports+=panel('Import dependence & renewable share','Share of daily total generation · renewable = hydro + solar + wind · imports already included in total generation',plot(rows,[{name:'Import share',color:'#b07aa1',value:r=>ratio(r.imports_mwh,r.generation_mwh)},{name:'Renewable share',color:'#59a14f',value:r=>['Hydro','Solar','Wind'].every(k=>finite(r.fuels?.[k]))?ratio(r.fuels.Hydro+r.fuels.Solar+r.fuels.Wind,r.generation_mwh):null}],'Import dependence and renewable share','%'));
+    return html+sectionViews({generation,load,fuel,imports,
+      assets:'<div id="entity-histories"></div>',
+      operations:(period===365?monthlyOperations(false):'')+'<div id="operational-event-explorer"></div>',
+    });
   }
   function tooltipRows(record,index) {
     const row=record.rows[index];
-    const tooltipSeries=record.tooltipSeries||record.series;
+    const tooltipSeries=[...(record.tooltipSeries||record.series)];
+    if(record.key==='bpdb-unit-cost')tooltipSeries.sort((a,b)=>{
+      const av=a.value(row),bv=b.value(row);
+      if(!finite(av))return finite(bv)?1:a.name.localeCompare(b.name);
+      if(!finite(bv))return -1;
+      return bv-av||a.name.localeCompare(b.name);
+    });
     const values=tooltipSeries.map(s=>s.value(row));
     const fullValues=(record.allSeries||record.series).map(s=>s.value(row));
     const complete=fullValues.every(finite)&&fullValues.reduce((a,b)=>a+b,0)>0;
     const sum=complete?fullValues.reduce((a,b)=>a+b,0):null;
-    let html=`<strong>${row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
+    let html=`<strong>${row.label?escape(row.label):row.fiscal_year?'FY '+escape(row.fiscal_year):row.period_start?`${escape(dateLabel(row.period_start))} – ${escape(dateLabel(row.period_end))}`:escape(dateLabel(row.date))}</strong>`;
     if(row.window_days)html+=`<small>${row.window_days}-day average · temperature averages daily maxima</small>`;
     if(!tooltipSeries.length)html+='<small>No layers selected</small>';
     tooltipSeries.forEach((s,i)=>{
       const value=values[i];
       const text=record.stacked
         ?complete?`${format(value/sum*100)}% · ${format(value)} GWh`:'Not reported (incomplete mix)'
-        :finite(value)?`${format(value)} ${s.unit||record.unit}`:'Not reported';
+        :finite(value)?s.formatValue?s.formatValue(value,row):`${format(value)} ${s.unit||record.unit}`:'Not reported';
       html+=`<div><i style="background:${s.color}"></i><span>${escape(s.name)}</span><b>${escape(text)}</b></div>`;
     });
     if(row.observations!=null)html+=`<small>${format(row.observations)} retained source observation${row.observations===1?'':'s'}${row.excluded?' · '+row.excluded+' excluded for display':''}</small>`;
@@ -232,9 +379,10 @@
   function setupTooltips(host) {
     host.querySelectorAll('[data-trend-chart]').forEach(wrap=>{
       const record=hoverCharts.get(wrap.dataset.trendChart), svg=wrap.querySelector('svg');
+      if(boundTooltipNodes.has(svg))return;boundTooltipNodes.add(svg);
       const tip=wrap.querySelector('[role=tooltip]'),cursor=svg.querySelector('[data-trend-cursor]');
       const linked=()=>record.syncGroup?[...host.querySelectorAll('[data-trend-chart]')].filter(other=>hoverCharts.get(other.dataset.trendChart)?.syncGroup===record.syncGroup):[wrap];
-      let selected=record.rows.length-1;
+      let selected=record.rows.length-1,touch=null;
       const show=(index,event)=>{
         selected=Math.max(0,Math.min(record.rows.length-1,index));
         tip.innerHTML=tooltipRows(record,selected);tip.hidden=false;
@@ -248,10 +396,18 @@
           other.querySelector('[role=tooltip]').hidden=true;
         }
         const bounds=svg.getBoundingClientRect();
-        positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);
+        if(touch?.pinned)root.BEGDChartTouch.position(tip,touch.event,svg);
+        else{tip.classList.remove('is-touch-tooltip');positionTooltip(tip,event?.clientX??bounds.left+bounds.width*x/record.W,event?.clientY??bounds.top+32);}
       };
-      const hide=()=>{for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
+      const hide=()=>{if(touch?.pinned)return;for(const other of linked()){other.querySelector('[role=tooltip]').hidden=true;other.querySelector('[data-trend-cursor]').setAttribute('hidden','')}};
+      touch=root.BEGDChartTouch?.bind(svg,{tip,hide,select:event=>{
+        const transform=svg.getScreenCTM();if(!transform||!record.rows.length)return;
+        const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
+        const local=point.matrixTransform(transform.inverse());
+        show(Math.round((local.x-record.L)/(record.W-record.L-record.R)*(record.rows.length-1)),event);
+      }});
       svg.addEventListener('pointermove',event=>{
+        if(event.pointerType==='touch'||event.pointerType==='pen')return;
         const transform=svg.getScreenCTM();if(!transform)return;
         const point=svg.createSVGPoint();point.x=event.clientX;point.y=event.clientY;
         const local=point.matrixTransform(transform.inverse());
@@ -269,6 +425,7 @@
       });
     });
     host.querySelectorAll('[data-trend-tip]').forEach(cell=>{
+      if(boundTooltipNodes.has(cell))return;boundTooltipNodes.add(cell);
       cell.removeAttribute('title');
       const show=event=>{
         hideFloatingTooltip();floatingTooltip=document.createElement('div');
@@ -283,51 +440,177 @@
       cell.addEventListener('keydown',event=>{if(event.key==='Escape')hide()});
     });
   }
-  function draw() {
-    if(root.location.hash!=='#trends')return;
-    hideFloatingTooltip();
-    hoverCharts.clear();
-    const host=document.querySelector('#content');host.innerHTML=content();
-    setupTooltips(host);
-    host.querySelectorAll('[data-trend-layer]').forEach(control=>control.addEventListener('change',()=>{
+  function unbound(host,selector){
+    return [...host.querySelectorAll(selector)].filter(node=>{if(boundControls.has(node))return false;boundControls.add(node);return true});
+  }
+  function bindControls(host){
+    unbound(host,'[data-trend-all]').forEach(control=>{
+      const inputs=[...control.closest('.trends-chart').querySelectorAll('[data-trend-layer]')];
+      const count=inputs.filter(input=>input.checked).length;control.indeterminate=count>0&&count<inputs.length;
+      control.addEventListener('change',()=>{
+        const hidden=hiddenLayers.get(control.dataset.trendAll)||new Set();
+        inputs.forEach(input=>{const id=stableId(input.dataset.trendLayer);control.checked?hidden.delete(id):hidden.add(id)});
+        hiddenLayers.set(control.dataset.trendAll,hidden);refreshLayerChart(control);
+      });
+    });
+    unbound(host,'[data-trend-group]').forEach(control=>{
+      control.indeterminate=control.dataset.partial==='true';
+      control.addEventListener('change',()=>{
+        const key=control.dataset.trendGroup,hidden=hiddenLayers.get(key)||new Set();
+        control.closest('fieldset').querySelectorAll('[data-trend-layer]').forEach(input=>{const name=stableId(input.dataset.trendLayer);control.checked?hidden.delete(name):hidden.add(name)});
+        hiddenLayers.set(key,hidden);refreshLayerChart(control);
+      });
+    });
+    unbound(host,'[data-cost-trendline]').forEach(control=>control.addEventListener('change',()=>{costTrendline=control.checked;refreshLayerChart(control)}));
+    unbound(host,'[data-trend-layer]').forEach(control=>{
+      const label=control.closest?.('label'),wrap=control.closest?.('.trends-chart');
+      const highlight=active=>wrap?.querySelectorAll('[data-trend-series]').forEach(group=>{
+        const selected=active&&control.checked&&group.dataset.trendSeries===control.dataset.trendLayer;
+        group.classList.toggle('is-highlighted',selected);
+        group.classList.toggle('is-dimmed',active&&control.checked&&!selected);
+      });
+      label?.addEventListener('pointerenter',()=>highlight(true));label?.addEventListener('pointerleave',()=>highlight(false));
+      label?.addEventListener('focusin',()=>highlight(true));label?.addEventListener('focusout',()=>highlight(false));
+      control.addEventListener('change',()=>{
       const key=control.dataset.trendChartKey, name=stableId(control.dataset.trendLayer);
       const hidden=hiddenLayers.get(key)||new Set();
       control.checked?hidden.delete(name):hidden.add(name);hiddenLayers.set(key,hidden);
-      draw();
-      [...host.querySelectorAll('[data-trend-layer]')].find(input=>input.dataset.trendChartKey===key&&stableId(input.dataset.trendLayer)===name)?.focus({preventScroll:true});
-    }));
-    host.querySelectorAll('[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
+      refreshLayerChart(control);
+      highlight(Boolean(label&&(label.matches(':hover')||label.contains(document.activeElement))));
+    });
+    });
+    unbound(host,'[data-temperature-detail]').forEach(control=>control.addEventListener('click',()=>{
       temperatureDetail=control.dataset.temperatureDetail;draw();
       [...host.querySelectorAll('[data-temperature-detail]')].find(button=>button.dataset.temperatureDetail===temperatureDetail)?.focus({preventScroll:true});
     }));
-    host.querySelectorAll('[data-temperature-unit]').forEach(control=>control.addEventListener('click',()=>{
+    unbound(host,'[data-temperature-unit]').forEach(control=>control.addEventListener('click',()=>{
       temperatureUnit=control.dataset.temperatureUnit;draw();
       [...host.querySelectorAll('[data-temperature-unit]')].find(button=>button.dataset.temperatureUnit===temperatureUnit)?.focus({preventScroll:true});
     }));
-    host.querySelectorAll('[data-trend-unit]').forEach(control=>control.addEventListener('click',()=>{
+    unbound(host,'[data-trend-unit]').forEach(control=>control.addEventListener('click',()=>{
       const chart=control.dataset.unitChart,unit=control.dataset.trendUnit;
       chartUnits[chart]=unit;draw();
       [...host.querySelectorAll('[data-trend-unit]')].find(button=>button.dataset.unitChart===chart&&button.dataset.trendUnit===unit)?.focus({preventScroll:true});
     }));
-    document.querySelector('#subtitle').textContent=period==='10y'?'BengalGrid generation history · daily means, rolling trend and monthly seasonality':'Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
-    document.querySelector('#source').textContent=period==='10y'?'Source: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0 · full historical coverage shown above.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
-    host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw()}));
+  }
+  function refreshLayerChart(control){
+    const wrap=control.closest?.('.trends-chart')||control.closest?.('.panel')?.querySelector('.trends-chart');
+    if(!wrap){draw();return}
+    hideFloatingTooltip();
+    const host=document.querySelector('#content'),key=wrap.dataset.trendKey;
+    const template=document.createElement('template');template.innerHTML=content();
+    const next=[...template.content.querySelectorAll('[data-trend-chart]')].find(chart=>chart.dataset.trendKey===key);
+    // Only replace plot geometry and its tooltip. The panel and its legend stay mounted.
+    wrap.querySelector('svg').replaceWith(next.querySelector('svg'));
+    wrap.querySelector('[role=tooltip]').replaceWith(next.querySelector('[role=tooltip]'));
+    wrap.dataset.trendChart=next.dataset.trendChart;
+    const note=wrap.querySelector('.bpdb-fit-note')||[...wrap.closest('.panel').querySelectorAll('[data-trend-note]')].find(note=>note.dataset.trendNote===key),nextNote=next.querySelector('.bpdb-fit-note');
+    if(note)note.remove();if(nextNote)wrap.append(nextNote);
+    wrap.querySelectorAll('[data-trend-layer]').forEach(input=>{input.checked=!hiddenLayers.get(key)?.has(stableId(input.dataset.trendLayer))});
+    wrap.querySelectorAll('[data-trend-all]').forEach(input=>{
+      const members=[...wrap.querySelectorAll('[data-trend-layer]')],count=members.filter(member=>member.checked).length;
+      input.checked=count===members.length;input.indeterminate=count>0&&count<members.length;
+    });
+    wrap.querySelectorAll('[data-trend-group]').forEach(input=>{
+      const members=[...wrap.querySelectorAll('.bpdb-fuel-group [data-trend-layer]')],count=members.filter(member=>member.checked).length;
+      input.checked=count===members.length;input.indeterminate=count>0&&count<members.length;
+    });
+    if(key==='generation-demand'){
+      const panel=wrap.closest('.panel'),nextPanel=next.closest('.panel');
+      panel.querySelector('[data-panel-caption],.panel-head p').textContent=nextPanel.querySelector('.panel-head p').textContent;
+      panel.querySelector('.trends-chart-controls').replaceWith(nextPanel.querySelector('.trends-chart-controls'));
+      const temperature=panel.querySelector('.temperature-subplot'),nextTemperature=nextPanel.querySelector('.temperature-subplot');
+      if(temperature)temperature.remove();if(nextTemperature)panel.querySelector('.trends-generation-figure').append(nextTemperature);
+      if(panel.nextElementSibling?.matches('.trends-temperature-note'))panel.nextElementSibling.remove();
+      if(nextPanel.nextElementSibling?.matches('.trends-temperature-note'))panel.after(nextPanel.nextElementSibling);
+    }
+    // Discard detached chart models, retaining on-demand entity history charts and their state.
+    const mounted=new Set([...host.querySelectorAll('[data-trend-chart]')].map(chart=>chart.dataset.trendChart));
+    for(const id of hoverCharts.keys())if(!mounted.has(id))hoverCharts.delete(id);
+    setupTooltips(host);bindControls(host);
+  }
+  function draw() {
+    if(root.location.hash!=='#trends')return;
+    hideFloatingTooltip();
+    const bounds=archiveBounds();
+    if(period==='custom'&&bounds&&(customRange.start<bounds.start||customRange.end>bounds.end)){
+      period=30;customRange=null;rangeMessage='The saved range is outside the daily archive. Choose dates within the available window.';
+    }
+    root.BEGDDataStatus?.set('trends',[{label:period==='10y'?'Historical dataset updated':'Trends data updated',value:period==='10y'?history?.generated_at:bundle?.generated_at},...(period==='10y'?[{label:'Historical coverage through',value:history?.end_date}]:[])]);
+    hoverCharts.clear();
+    const host=document.querySelector('#content');host.innerHTML=content();
+    setupTooltips(host);
+    root.BEGDDemandTrends?.bind(host);
+    root.BEGDEntityHistory?.mount(host.querySelector('#entity-histories'),period);
+    root.BEGDCircleAvailability?.mount(host.querySelector('[data-monthly-operations]'),{plot,setupTooltips,releaseCharts},period==='10y');
+    const range=selectedWindow();
+    root.BEGDOperationalEvents?.mount(host.querySelector('#operational-event-explorer'),range.count,range.end);
+    bindControls(host);
+    document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';
+    document.querySelector('#source').textContent=period==='10y'?'Sources: BengalGrid v2 · DOI 10.17632/xx9dhmy9rj.2 · CC BY 4.0; Power Division / Power Cell annual system-loss table. Each panel shows its own coverage.':'Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
+    const sectionButtons=host.querySelectorAll('[data-trend-section]');
+    sectionButtons.forEach(button=>button.addEventListener('click',()=>{
+      activeSection=button.dataset.trendSection;
+      hideFloatingTooltip();
+      sectionButtons.forEach(sectionButton=>{
+        const active=sectionButton===button;
+        sectionButton.setAttribute('aria-pressed',active);
+        host.querySelector('#'+sectionButton.getAttribute('aria-controls')).hidden=!active;
+      });
+    }));
+    host.querySelectorAll('[data-trend-days]').forEach(button=>button.addEventListener('click',()=>{
+      rangeMessage='';period=button.dataset.trendDays==='10y'?'10y':Number(button.dataset.trendDays);draw();
+    }));
+    host.querySelector('[data-trend-custom-range]')?.addEventListener('submit',event=>{
+      event.preventDefault();
+      const form=event.currentTarget;
+      const {trendStart,trendEnd}=form.elements;
+      const start=trendStart.value,end=trendEnd.value;
+      const bounds=archiveBounds();
+      if(!root.BEGDViewCodec.validTrendRange(start,end)||start<bounds.start||end>bounds.end){
+        form.querySelector('[role="status"]').textContent='Choose up to 365 days within the daily archive, with the start date on or before the end date.';
+        return;
+      }
+      customRange={start,end};rangeMessage='';period='custom';
+      draw();
+      host.querySelector('[data-trend-custom-range] button')?.focus({preventScroll:true});
+      root.BEGDView?.commit();
+    });
     host.querySelector('[data-trends-retry]')?.addEventListener('click',()=>{failure=null;pending=null;mount()});
   }
   async function mount() {
     document.querySelectorAll('nav a').forEach(a=>a.classList.toggle('active',a.hash==='#trends'));
     document.querySelector('#title').textContent='Long-term trends';
-    document.querySelector('#subtitle').textContent='Daily generation, demand, reported load shedding, fuel mix and imports · Bangladesh operating dates';
+    document.querySelector('#subtitle').textContent='Explore operating trends in generation, demand, shedding, fuel, imports, plants, substations, and events.';
     ['report-date-controls','date-status','day-sources','error'].forEach(id=>{document.getElementById(id).hidden=true});
     document.querySelector('.header-meta .status').textContent='HISTORICAL OPERATING DATA';
     document.querySelector('#source').textContent='Long-term trends: Power Grid Bangladesh PLC / NLDC operating-day workbooks (P1, P4, En-Curve and GenLog). National trends use published workbook totals.';
     draw();
+    if(!supplementalStarted){
+      supplementalStarted=true;
+      historyPending=true;
+      fetch('bengalgrid-trends.json',{signal:root.AbortSignal?.timeout?.(15000)})
+        .then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()})
+        .then(data=>{history=data})
+        .catch(()=>{history=null})
+        .finally(()=>{historyPending=false;if(period==='10y')draw()});
+      root.BEGDSystemLoss?.load()?.then(()=>{if(period==='10y')draw()});
+      root.BEGDCosts?.load()?.then(()=>{if(bundle&&period!=='10y')draw()});
+    }
     if(!bundle&&!pending&&!failure){
-      pending=Promise.all([fetch('trends-data.json',{cache:'no-store'}).then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()}).then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data;failure=null}),fetch('bengalgrid-trends.json').then(response=>{if(!response.ok)throw Error('History unavailable');return response.json()}).then(data=>{history=data}).catch(()=>{history=null})]).catch(error=>{failure=error}).finally(()=>{pending=null;draw()});
+      pending=fetch('trends-data.json',{cache:'no-store',signal:root.AbortSignal?.timeout?.(15000)})
+        .then(response=>{if(!response.ok)throw Error('Trends unavailable');return response.json()})
+        .then(data=>{if(!Array.isArray(data.days))throw Error('Invalid trends');bundle=data})
+        .catch(error=>{failure=error})
+        .finally(()=>{pending=null;draw()});
     }
     await pending;
   }
-  root.BEGDTrends={getViewState,setViewState,mount,windowDays,total,plot,rollingMean,ratio,tooltipRows,monthTicks,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows};
+  function releaseCharts(host){host.querySelectorAll('[data-trend-chart]').forEach(wrap=>hoverCharts.delete(wrap.dataset.trendChart));}
+  function setPeriod(days){if(![7,30,60,90,365].includes(Number(days)))return;period=Number(days);draw()}
+  root.BEGDTrends={setupTooltips,releaseCharts,getViewState,setViewState,setPeriod,mount,windowDays,total,plot,linearTrend,rollingMean,ratio,tooltipRows,monthTicks,rangeBandSegments,energyValue,temperatureValue,temperatureSeries,weeklyComparisonRows,waterLevelRows};
   root.addEventListener('hashchange',hideFloatingTooltip);
+  let narrowViewport=root.innerWidth<600;
+  root.addEventListener('resize',()=>{const narrow=root.innerWidth<600;if(narrow!==narrowViewport){narrowViewport=narrow;draw()}});
   root.addEventListener('DOMContentLoaded',()=>{if(root.location.hash==='#trends')mount()});
 })(window);

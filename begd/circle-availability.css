@@ -1,0 +1,72 @@
+.availability-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 1rem;
+}
+.availability-controls label {
+  display: grid;
+  gap: 0.3rem;
+}
+.availability-controls select {
+  min-height: 2.25rem;
+  color: inherit;
+  background: var(--panel, Canvas);
+}
+.availability-charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.availability-chart h3 {
+  margin: 0.45rem 0 0;
+  font-size: 1rem;
+}
+.availability-sources {
+  margin-top: 0.8rem;
+}
+.availability-sources summary {
+  cursor: pointer;
+}
+@media (max-width: 850px) {
+  .availability-charts { grid-template-columns: minmax(0, 1fr); }
+}
+.monthly-reliability {
+  margin-top: 1.4rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line, #8885);
+}
+.monthly-reliability h2 { margin: 0; }
+.availability-circle-key {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem 1rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+.availability-circle-key li {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+}
+.availability-circle-key i {
+  width: 1.15rem;
+  height: .2rem;
+}
+.historical-reliability { margin-top: 1.25rem; }
+.monthly-operations {
+  display: grid;
+  gap: 1.5rem;
+  margin-block: 0 1.5rem;
+}
+.monthly-operations .more-information p {
+  margin-block: .55rem;
+}
+
+.availability-circle-key li {
+  font-size: 13px !important;
+  line-height: 1.3 !important;
+}
+.availability-series-dimmed { opacity: .16; }
+.availability-series-highlighted path { stroke-width: 3.5; }

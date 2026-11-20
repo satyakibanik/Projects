@@ -23,9 +23,10 @@ class SearchAssetsTests(unittest.TestCase):
     def test_production_build_copies_search_assets_without_live_requests(self):
         with tempfile.TemporaryDirectory() as directory:
             output = (Path(directory) / 'site').resolve()
-            with patch.object(sys, 'argv', ['build_pages_data.py', '--output-dir', str(output)]), patch.object(build, 'write_data_bundle') as bundle:
+            with patch.object(sys, 'argv', ['build_pages_data.py', '--output-dir', str(output)]), patch.object(build, 'write_data_bundle') as bundle, patch.object(build, 'write_news_bundle') as news:
                 build.main()
             bundle.assert_called_once_with(output / 'begd')
+            news.assert_called_once_with(output / 'begd')
             self.assertEqual((output / 'sitemap.xml').read_text(), (ROOT / 'sitemap.xml').read_text())
             self.assertIn('BEGD', (output / 'index.html').read_text())
             self.assertIn('About BEGD', (output / 'begd/index.html').read_text())
@@ -44,7 +45,7 @@ class SearchAssetsTests(unittest.TestCase):
             self.assertEqual(struct.unpack('>II', raw[16:24]), size)
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'site'
-            with patch.object(sys, 'argv', ['build_pages_data.py', '--output-dir', str(output)]), patch.object(build, 'write_data_bundle'):
+            with patch.object(sys, 'argv', ['build_pages_data.py', '--output-dir', str(output)]), patch.object(build, 'write_data_bundle'), patch.object(build, 'write_news_bundle'):
                 build.main()
             for name in ['social-preview.png', 'favicon.svg', 'favicon-32.png', 'apple-touch-icon.png']:
                 self.assertEqual((output / 'begd' / name).read_bytes(), (ROOT / 'begd' / name).read_bytes())

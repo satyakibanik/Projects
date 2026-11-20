@@ -5,7 +5,7 @@
   const status=message=>{$('#view-status').textContent=message;};
   function capture(){
     const trends=root.BEGDTrends.getViewState();
-    return {date:data?.date,custom:[...customComparisons.keys()],presets:Object.fromEntries(presets.filter(day=>$('#source-'+day).checked).map(day=>[day,comparisonData[day]?.date||pinnedComparisons[day]||'unavailable'])),dispatch:dispatchChartStyle,shed:shedChartStyle,fuel:fuelMixStyle,regional:regionalSnapshotStyle,curve:enCurveChartStyle,table:enCurveTableMode,layers:codec.visibilityOverrides([...chartVisibility]),...trends,trendLayers:codec.visibilityOverrides(trends.trendLayers,true)};
+    return {date:location.hash==='#realtime'?undefined:data?.date,custom:[...customComparisons.keys()],presets:Object.fromEntries(presets.filter(day=>$('#source-'+day).checked).map(day=>[day,comparisonData[day]?.date||pinnedComparisons[day]||'unavailable'])),dispatch:dispatchChartStyle,shed:shedChartStyle,fuel:fuelMixStyle,regional:regionalSnapshotStyle,curve:enCurveChartStyle,table:enCurveTableMode,layers:codec.visibilityOverrides([...chartVisibility]),...trends,trendLayers:codec.visibilityOverrides(trends.trendLayers,true)};
   }
   function commit({replace=false}={}){
     if(!started||restoring)return;
@@ -14,6 +14,8 @@
     history[replace?'replaceState':'pushState']({begd:state},'',url);lastURL=url;
   }
   async function restore(state,warnings=[]){
+    // Live links must not restore a hidden archived operating date.
+    if(location.hash==='#realtime')state={...state,date:undefined};
     const token=++revision;restoring=true;status('Restoring dashboard view…');
     // Cancel pending report/comparison work before applying a history entry.
     request++;previousForecastRequest++;operatingDateRequest++;setReportPickerBusy(true);$('#date-status').textContent='Restoring operating date…';

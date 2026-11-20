@@ -66,6 +66,7 @@ class WorkbookTests(unittest.TestCase):
         self.assertEqual(report['date'], '2026-10-14')
         self.assertEqual(report['forecast']['date'], '2026-10-15')
         self.assertEqual(report['summary']['energy_mwh'], 2400)
+        self.assertIsNone(report['summary']['peak_time'])  # modern layout has no fixed peak timestamp
         self.assertEqual(report['plants'][0]['region'], 'Dhaka')
         plant = report['plant_units'][0]
         self.assertEqual(plant['installed_capacity_mw'], 200)
@@ -74,11 +75,79 @@ class WorkbookTests(unittest.TestCase):
         self.assertEqual(plant['capacity_factor_pct'], 50)
         self.assertEqual(plant['puf_pct'], 50)
 
+    def test_shifted_fuel_headers_with_nuclear(self):
+        book = workbook()
+        # November layout moves Gas to D and adds Nuclear in L.
+        labels = ['Gas', 'Coal', 'HFO', 'HSD', 'Hydro', 'Solar', 'Import', 'Wind', 'Nuclear']
+        for col, label in enumerate(labels, 4):
+            book['P1'].cell(16, col, label)
+            for row in range(17, 27):
+                book['P1'].cell(row, col).value = 0
+        book['P1']['D17'] = book['P1']['D26'] = 2.2
+        book['P1']['J17'] = book['P1']['J26'] = 0.1
+        book['GenLog']['C11'] = 'Nepal import'
+        book['GenLog']['C38'] = 100000
+        book['P1']['L17'] = book['P1']['L26'] = 0.1
+        report = parse(book)
+        self.assertEqual(report['fuels']['Gas'], 2200)
+        self.assertEqual(report['fuels']['Nuclear'], 100)
+        self.assertEqual(report['fuels']['Imports'], 100)
+        self.assertEqual(report['summary']['import_mwh'], 100)
+        self.assertEqual(report['regions'][0]['fuels'], report['fuels'])
+        from trends import extract_trend_workbook
+        content = io.BytesIO()
+        book.save(content)
+        trend = extract_trend_workbook(content.getvalue(), dict(id='1', name='fixture', published_date='2026-10-15', download_url='fixture'))
+        self.assertEqual(trend['fuels'], report['fuels'])
+
+    def test_partial_fuel_headers_are_rejected(self):
+        book = workbook()
+        book['P1']['D16'] = 'Gas'
+        with self.assertRaisesRegex(ValueError, 'Missing P1 fuel headers'):
+            parse(book)
+
+    def test_inconsistent_ancillary_curve_keeps_p4_and_report(self):
+        for total in (100, 138):
+            with self.subTest(total=total):
+                book = workbook()
+                book['P4']['B9'] = dt.time(14, 0)
+                book['P4']['C9'] = 100
+                curve = book.create_sheet('L-Curve')
+                for col, value in enumerate(['14:00', 60, total - 60, total], 1):
+                    curve.cell(4, col, value)
+                report = parse(book)
+                self.assertEqual(report['hourly'][0]['generation_mw'], 100)
+                self.assertEqual(len(report['plants']), 1)
+                if total == 100:
+                    self.assertEqual(report['grid_generation'][0]['total_mw'], 100)
+                else:
+                    self.assertEqual(report['grid_generation'], [])
+                    self.assertIn('38.00 MW', ' '.join(report['quality_notes']))
+
     def test_rejects_inconsistent_energy(self):
         book = workbook()
         book['P2']['I11'] = 100
         with self.assertRaisesRegex(AssertionError, 'Plant energy'):
             parse(book)
+
+    def test_zero_regional_totals_derive_only_from_reconciled_fuel_columns(self):
+        book = workbook()
+        book['P1']['M17'] = 0
+        report = parse(book)
+        self.assertEqual(report['regions'][0]['energy_mwh'], 2400)
+        self.assertEqual(report['regions'][0]['reported_energy_mwh'], 0)
+        self.assertIn('Calculated', report['regions'][0]['energy_source'])
+        self.assertIn('regional total cells are zero', report['quality_notes'][0])
+        self.assertAlmostEqual(sum(row['energy_mwh'] for row in report['regions']), report['summary']['energy_mwh'])
+
+    def test_regional_fallback_does_not_hide_missing_cells_or_inconsistent_fuels(self):
+        for cell, value in [('E17', 2.3), ('E17', None), ('M17', 2.3)]:
+            with self.subTest(cell=cell, value=value):
+                book = workbook()
+                book['P1']['M17'] = 0
+                book['P1'][cell] = value
+                with self.assertRaisesRegex(AssertionError, 'Regional energy'):
+                    parse(book)
 
     def test_string_operating_date(self):
         book = workbook()
@@ -184,6 +253,38 @@ class ServerTests(unittest.TestCase):
             with self.assertRaises(LookupError):
                 server.parse_current_table(minimum_cells=3, url='https://example.test')
 
+    def test_current_day_records_fetch_time_without_inventing_post_time(self):
+        today = dt.datetime.now(server.ZoneInfo('Asia/Dhaka')).date().isoformat()
+        tables = {
+            server.CURRENT_DEMAND_URL: [(today, '22:00', ['date', '22:00', '100', '90', '10', ''])],
+            server.CURRENT_GENERATION_URL: [(today, '21:00', ['date', '21:00'] + ['1'] * 11)],
+            server.CURRENT_INDIA_IMPORT_URL: [(today, '20:00', ['date', '20:00'] + ['1'] * 6)],
+        }
+        with patch.object(server, 'parse_current_table', side_effect=lambda **kwargs: tables[kwargs['url']]):
+            result = server.fetch_current_day()
+        self.assertEqual(result['demand_hourly'][-1]['time'], '22:00')
+        self.assertIsNotNone(dt.datetime.fromisoformat(result['fetched_at']).tzinfo)
+        self.assertIsNone(result['erp_posted_at'])
+        self.assertEqual(result['erp_posted_at_status'], 'not_exposed')
+
+    def test_current_day_nuclear_header_shifts_generation_import_columns(self):
+        today = dt.datetime.now(server.ZoneInfo('Asia/Dhaka')).date().isoformat()
+        generation_row = [today, '21:00', '100', '30', '10', '20', '5', '4', '1',
+                          '7', '8', '9', '10', '11', '']
+        generation_headers = [['Generation(MW)', 'Gas', 'Liquid Fuel', 'Coal',
+                               'Hydro', 'Solar', 'Wind', 'Nuclear',
+                               'Bheramara HVDC', 'Tripura', 'Adani', 'Nepal']]
+        tables = {
+            server.CURRENT_DEMAND_URL: [(today, '21:00', [today, '21:00', '100', '99', '1', ''])],
+            server.CURRENT_GENERATION_URL: ([(today, '21:00', generation_row)], generation_headers),
+            server.CURRENT_INDIA_IMPORT_URL: [(today, '21:00', [today, '21:00', '80', '', '90', '', '100', ''])],
+        }
+        with patch.object(server, 'parse_current_table', side_effect=lambda **kwargs: tables[kwargs['url']]):
+            result = server.fetch_current_day()
+        self.assertEqual(result['generation_hourly'][0]['nuclear_mw'], 7)
+        self.assertEqual(result['generation_hourly'][0]['hydro_mw'], 5)
+        self.assertEqual(next(route for route in result['imports'] if route['name'] == 'Nepal')['hourly'][0]['mw'], 11)
+
     def test_current_day_cache_hit(self):
         with patch.object(server, 'current_day_cache', {'today_date': '2026-10-15'}), patch.object(server, 'current_day_cache_time', 100), patch.object(server.time, 'time', return_value=101), patch.object(server, 'fetch_current_day') as fetch:
             self.assertEqual(server.get_current_day()['today_date'], '2026-10-15')
@@ -191,6 +292,18 @@ class ServerTests(unittest.TestCase):
 
 
 class BuildTests(unittest.TestCase):
+    def setUp(self):
+        history = patch('erp_history.attach_realtime_history')
+        history.start()
+        self.addCleanup(history.stop)
+        costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
+        costs.start()
+        self.addCleanup(costs.stop)
+        from pgcb_forecast import collect_comparisons
+        self.pgcb = patch('pgcb_forecast.collect_comparisons', side_effect=lambda reports,today,refresh: collect_comparisons(reports,today,False))
+        self.pgcb.start()
+        self.addCleanup(self.pgcb.stop)
+
     def test_archive_empty(self):
         with patch.object(server, 'fetch_listing_page', return_value=([], 0)):
             with self.assertRaises(RuntimeError):
@@ -199,7 +312,10 @@ class BuildTests(unittest.TestCase):
     def test_bundle_escapes_script_and_selects_operating_day(self):
         records = [dict(id='2', name='</script>&', published_date='2026-10-15'), dict(id='1', name='Older', published_date='2026-10-16')]
         def parsed(item):
-            return dict(report_id=item['id'], published_date=item['published_date'], date='2026-10-14', name=item['name'])
+            return dict(report_id=item['id'], published_date=item['published_date'], date='2026-10-14', name=item['name'],
+                        operations=dict(event_log_version=1, events=[dict(description=item['name'], outage_time='08:00', restoration_time='—')]),
+                        plants=[dict(name='Test plant', installed_capacity_mw=100, present_capacity_mw=90, peak_mw=75)],
+                        voltages=[dict(name='Test station', voltage_class='132 kV', min_kv=120, max_kv=135)])
         with tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', return_value=records), patch.object(build, 'parse_listing_item', side_effect=parsed), patch.object(server, 'get_highest_generation_day', side_effect=LookupError), patch.object(server, 'get_current_day', return_value={'today_date': '2026-10-15'}):
             output = Path(directory)
             build.write_data_bundle(output)
@@ -213,18 +329,34 @@ class BuildTests(unittest.TestCase):
             self.assertEqual(trends['end_date'], '2026-10-14')
             self.assertEqual(len(trends['days']), 1)
             self.assertEqual(trends['days'][0]['report_id'], '2')
+            events = json.loads((output / 'operational-events.json').read_text())
+            self.assertEqual(events['end_date'], trends['end_date'])
+            self.assertEqual(events['days'][0]['report_id'], '2')
+            self.assertEqual(events['days'][0]['events'][0]['description'], '</script>&')
+            history = json.loads((output / 'entity-history' / 'index.json').read_text())
+            self.assertEqual(history['end_date'], trends['end_date'])
+            self.assertEqual(history['sources']['2026-10-14']['report_id'], '2')
+            self.assertEqual(history['plants'][0]['latest']['utilization_ratio_pct'], 75)
+            station = history['substations'][0]
+            self.assertEqual(station['voltage_class'], '132 kV')
+            self.assertTrue((output / 'entity-history' / 'substations' / (station['id']+'.json')).is_file())
             index = (output / 'index.html').read_text()
             self.assertLess(index.index('live-data.js'), index.index('static-api.js'))
             self.assertLess(index.index('static-api.js'), index.index('src="app.js'))
 
-    def test_bundle_survives_upstream_outage(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', side_effect=RuntimeError), patch.object(server, 'get_highest_generation_day', side_effect=LookupError), patch.object(server, 'get_current_day', side_effect=TimeoutError):
-            build.write_data_bundle(Path(directory))
-            text = (Path(directory) / 'live-data.js').read_text()
-            bundle = json.loads(text.removeprefix('window.BEGD_STATIC_DATA=').strip().removesuffix(';'))
-            self.assertEqual(bundle['reports'], [])
-            self.assertEqual(bundle['failures'], ['archive: RuntimeError'])
-            self.assertEqual(bundle['current_day']['demand_hourly'], [])
+    def test_bundle_refuses_to_replace_site_during_archive_outage(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', side_effect=RuntimeError):
+            with self.assertRaisesRegex(RuntimeError, 'ERP archive is unavailable'):
+                build.write_data_bundle(Path(directory))
+            self.assertFalse((Path(directory) / 'live-data.js').exists())
+
+    def test_recent_failed_or_trends_only_report_blocks_publication(self):
+        records = [dict(id='99999999', name='Newest', published_date='2026-11-03', download_url='fixture')]
+        for error in (RuntimeError('download failed'), AssertionError('Fuel energy does not reconcile')):
+            with self.subTest(error=error), tempfile.TemporaryDirectory() as directory, patch.object(build, 'available_reports', return_value=records), patch.object(build, 'parse_listing_item', side_effect=error), patch.object(server, 'fetch_bytes', return_value=b'fixture'), patch.object(build, 'extract_trend_workbook', return_value=dict(report_id='99999999', _trends_only=True, quality_notes=[])):
+                with self.assertRaisesRegex(RuntimeError, 'recent reports missing.*99999999'):
+                    build.write_data_bundle(Path(directory))
+                self.assertFalse((Path(directory) / 'live-data.js').exists())
 
 
 if __name__ == '__main__':

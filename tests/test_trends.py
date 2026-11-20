@@ -8,6 +8,26 @@ from trends import build_trends, daily_summary
 
 
 class TrendsTests(unittest.TestCase):
+    def test_hourly_demand_preserves_exact_hours_and_conflicts(self):
+        report = {'date':'2026-10-29', 'hourly':[
+            {'time':'00:00', 'demand_mw':0},
+            {'time':'01:00', 'demand_mw':9400}, {'time':'01:00', 'demand_mw':9400},
+            {'time':'02:00', 'demand_mw':9200}, {'time':'02:00', 'demand_mw':9500},
+            {'time':'03:30', 'demand_mw':9800}, {'time':'04:00', 'demand_mw':-1},
+            {'time':'23:00', 'demand_mw':12000}, {'time':'24:00', 'demand_mw':10000},
+        ]}
+        profile = daily_summary(report)['hourly_demand_mw']
+        self.assertEqual(profile, [0, 9400] + [None]*21 + [12000])
+
+    def test_regional_shedding_preserves_snapshots_zero_and_missing(self):
+        row = daily_summary({'date':'2026-10-29', 'hourly':[{'shed_mw':100}],
+                             'regions':[{'name':'Dhaka','shed_mw':0,'demand_mw':225}, {'name':'Khulna','shed_mw':20},
+                                        {'name':'Sylhet','shed_mw':None}, {'name':'Rangpur','shed_mw':-2}]})
+        self.assertEqual(row['regional_shed_mw'], {'Dhaka':0, 'Khulna':20, 'Sylhet':None, 'Rangpur':None})
+        self.assertEqual(row['regional_demand_mw'], {'Dhaka':225, 'Khulna':None, 'Sylhet':None, 'Rangpur':None})
+        self.assertEqual(row['shed_peak_mw'],100)
+        self.assertEqual(daily_summary({'date':'2026-10-29'})['regional_shed_mw'],{})
+
     def test_daily_energy_uses_published_totals_not_hourly_sums(self):
         report = {'date':'2026-10-18', 'summary':{'energy_mwh':2400,'unserved_mwh':0,'import_mwh':120},
                   'hourly':[{'generation_mw':99999,'shed_mw':0},{'shed_mw':35},{'shed_mw':None}],
@@ -65,6 +85,74 @@ class TrendsTests(unittest.TestCase):
         self.assertEqual(result['days'][0]['date'],'2025-10-19')
         self.assertEqual(build_trends([],'now')['days'],[])
 
+    def test_briefing_peaks_and_ramps_use_reported_hourly_values_and_skip_gaps(self):
+        row=daily_summary({'date':'2026-10-18','summary':{'peak_demand_mw':120,'peak_generation_mw':130},
+            'hourly':[{'time':'17:00','demand_mw':100,'shed_mw':0},
+                      {'time':'18:00','demand_mw':140,'shed_mw':5},
+                      {'time':'20:00','demand_mw':300,'shed_mw':2}]})
+        self.assertEqual(row['peak_demand_mw'],120)
+        self.assertEqual(row['peak_demand_time'],None)
+        self.assertEqual(row['daytime_peak_demand_mw'],100)
+        self.assertEqual(row['daytime_peak_demand_time'],'17:00')
+        self.assertEqual(row['evening_peak_demand_mw'],300)
+        self.assertEqual(row['evening_peak_demand_time'],'20:00')
+        self.assertEqual(row['peak_generation_mw'],130)
+        self.assertEqual(row['ramp_up_mw'],40)
+        self.assertEqual(row['ramp_up_interval'],{'value':40,'from':'17:00','to':'18:00'})
+        self.assertIsNone(row['ramp_down_mw'])
+
+    def test_forecast_summary_matches_preceding_report_to_selected_operating_day(self):
+        reports=[
+            {'date':'2026-01-01','published_date':'2026-01-02','report_id':'1',
+             'forecast':{'date':'2026-01-02','demand_hourly':[
+                 {'time':'18:00','demand_mw':100},{'time':'19:00','demand_mw':150}]}},
+            {'date':'2026-01-02','published_date':'2026-01-03','report_id':'2',
+             'hourly':[{'time':'18:00','demand_mw':125},{'time':'19:00','demand_mw':120}]},
+        ]
+        row=build_trends(reports,'now')['days'][-1]
+        self.assertEqual(row['forecast_error_mw'],25)
+        self.assertIsNone(row['forecast_daytime_peak_time_delta_minutes'])
+        self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
+
+    def test_forecast_peak_time_deltas_use_separate_daytime_and_evening_windows(self):
+        reports=[
+            {'date':'2026-11-05','published_date':'2026-11-06','report_id':'1',
+             'forecast':{'date':'2026-11-06','demand_hourly':[
+                 {'time':'00:00','demand_mw':16000},
+                 {'time':'13:00','demand_mw':12000},
+                 {'time':'19:00','demand_mw':14000},
+                 {'time':'22:30','demand_mw':13900}]}},
+            {'date':'2026-11-06','published_date':'2026-11-07','report_id':'2',
+             'hourly':[{'time':'13:00','demand_mw':11900},
+                       {'time':'18:00','demand_mw':13000},
+                       {'time':'20:00','demand_mw':12800}]},
+        ]
+        row=build_trends(reports,'now')['days'][-1]
+        self.assertEqual(row['forecast_daytime_peak_time_delta_minutes'],0)
+        self.assertEqual(row['forecast_evening_peak_time_delta_minutes'],-60)
+        self.assertEqual(row['daytime_peak_demand_mw'],11900)
+        self.assertEqual(row['daytime_peak_demand_time'],'13:00')
+        self.assertEqual(row['evening_peak_demand_mw'],13000)
+        self.assertEqual(row['evening_peak_demand_time'],'18:00')
+
+    def test_import_and_plant_output_changes_compare_previous_available_report(self):
+        reports=[
+            {'date':'2026-01-01','published_date':'2026-01-02','report_id':'1',
+             'summary':{'import_mwh':1000}, 'plants':[
+                 {'name':'Plant A','energy_mwh':100},{'name':'Plant B','energy_mwh':200}]},
+            {'date':'2026-01-03','published_date':'2026-01-04','report_id':'2',
+             'summary':{'import_mwh':600}, 'plants':[
+                 {'name':'Plant A','energy_mwh':400},{'name':'Plant B','energy_mwh':50}]},
+        ]
+        days=build_trends(reports,'now')['days']
+        self.assertIsNone(days[0]['imports_drop_mwh'])
+        self.assertEqual(days[1]['imports_drop_mwh'],400)
+        self.assertEqual(days[1]['plant_output_rise_mwh'],300)
+        self.assertEqual(days[1]['plant_output_rise_detail']['name'],'Plant A')
+        self.assertEqual(days[1]['plant_output_drop_mwh'],150)
+        self.assertEqual(days[1]['plant_output_drop_detail']['name'],'Plant B')
+        self.assertNotIn('_plant_energy_mwh',days[1])
+
 
 class NationalRecoveryTests(unittest.TestCase):
     def test_ancillary_failure_does_not_discard_national_totals(self):
@@ -76,10 +164,16 @@ class NationalRecoveryTests(unittest.TestCase):
         p['E26']=240
         for col in [6,7,8,9,10,11,12]:p.cell(26,col,0)
         book['P4']['E9']=125
+        p['E59']='Zone';p['G59']='Load-Shed';p['I59']='Demand'
+        p['E60']='Dhaka';p['E61']='Chattogram'
+        p['B17']='Dhaka Zone';p['G60']=0
+        p['B18']='Chattogram Zone';p['G61']=25;p['I61']=100
         book['En-Curve']['B2']='bad ancillary date'
         stream=io.BytesIO();book.save(stream)
         report=extract_trend_workbook(stream.getvalue(),{'id':'5129','published_date':'2026-09-12','download_url':'https://erp.powergrid.gov.bd/report'})
         row=daily_summary(report)
+        self.assertEqual(row['regional_shed_mw'],{'Dhaka':0,'Chattogram':25})
+        self.assertEqual(row['regional_demand_mw'],{'Dhaka':None,'Chattogram':100})
         self.assertEqual(row['date'],'2026-09-11');self.assertEqual(row['generation_mwh'],240000)
         self.assertEqual(row['demand_mwh'],245000);self.assertEqual(row['shed_peak_mw'],125)
         self.assertEqual(row['temperature_c'],33.7)
@@ -117,7 +211,13 @@ class BengalGridTests(unittest.TestCase):
 
 
 class FallbackBuildTests(unittest.TestCase):
-    def test_recovered_totals_are_published_without_exposing_partial_full_reports(self):
+    def setUp(self):
+        from unittest.mock import patch
+        costs = patch('bpdb_costs.collect', return_value={'days':[], 'errors':[]})
+        costs.start()
+        self.addCleanup(costs.stop)
+
+    def test_recent_trends_fallback_is_cached_but_blocks_incomplete_deployment(self):
         import tempfile
         import json
         from unittest.mock import patch
@@ -127,10 +227,10 @@ class FallbackBuildTests(unittest.TestCase):
         partial={'date':'2026-09-11','report_id':'91234','published_date':'2026-09-12',
                  '_trends_only':True,'summary':{'energy_mwh':240000},'quality_notes':['National totals only']}
         with tempfile.TemporaryDirectory() as directory, patch.object(build,'ROOT',Path(directory)), patch.object(build,'available_reports',return_value=[item]), patch.object(build,'parse_listing_item',side_effect=AssertionError('Plant mismatch')), patch.object(server,'fetch_bytes',return_value=b'workbook'), patch.object(build,'extract_trend_workbook',return_value=partial), patch.object(server,'get_highest_generation_day',side_effect=LookupError), patch.object(server,'get_current_day',return_value={}):
-            output=Path(directory)/'output';build.write_data_bundle(output)
-            trends=json.loads((output/'trends-data.json').read_text())
-            self.assertEqual(trends['days'][0]['generation_mwh'],240000)
-            self.assertTrue(trends['days'][0]['quality_notes'])
-            bundle=json.loads((output/'live-data.js').read_text().split('=',1)[1].rstrip(';\n'))
-            self.assertEqual(bundle['reports'],[])
-            self.assertEqual(bundle['reports_by_id'],{})
+            output=Path(directory)/'output'
+            with self.assertRaisesRegex(RuntimeError, 'recent reports missing'):
+                build.write_data_bundle(output)
+            cached = json.loads((Path(directory)/'.cache/historical-reports/91234-trends.json').read_text())
+            self.assertEqual(cached['summary']['energy_mwh'],240000)
+            self.assertTrue(cached['quality_notes'])
+            self.assertFalse((output/'live-data.js').exists())

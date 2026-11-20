@@ -2,6 +2,34 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const vm=require('node:vm'),fs=require('node:fs'),path=require('node:path');
 function load(){const window={addEventListener(){}};vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,Date,Map,Set});return window.BEGDTrends}
+test('water overlay labels its own right axis and leaves the primary metric scale independent',()=>{
+ const api=load(),rows=[{date:'2026-10-24',capacity_factor_pct:40,water_level:{mean_ft_msl:102.355417}}];
+ const primary={name:'Capacity factor',color:'#4e9acb',value:r=>r.capacity_factor_pct};
+ const water={name:'Kaptai Lake water level',color:'#087e8b',unit:'ft MSL',axis:'right',value:r=>r.water_level.mean_ft_msl};
+ const html=api.plot(rows,[primary,water],'Hydro','%',false,{fitExtent:true});
+ assert.match(html,/Kaptai Lake water level, right axis \(ft MSL\)/);
+ assert.match(html,/102.36 ft MSL/);assert.match(html,/Capacity factor: 40 %/);
+ assert.doesNotMatch(html,/Maximum temperature, right axis|NaN|undefined/);
+ const tooltip=api.tooltipRows({rows,series:[primary,water],unit:'%'},0);
+ assert.match(tooltip,/40 %/);assert.match(tooltip,/102.36 ft MSL/);
+});
+test('minimum–maximum bands split at missing or reversed extrema and retain isolated days',()=>{
+ const api=load(),rows=[{date:'2026-01-01',lo:.9,hi:1},{date:'2026-01-02',lo:.91,hi:1.01},{date:'2026-01-03',lo:.92},{date:'2026-01-04',lo:.93,hi:1.03},{date:'2026-01-05',lo:1.1,hi:1}];
+ const segments=api.rangeBandSegments(rows,r=>r.lo,r=>r.hi);
+ assert.equal(segments.length,2);assert.equal(segments[0].length,2);assert.equal(segments[1][0].index,3);
+ const series=[{name:'Minimum voltage',color:'#123456',value:r=>r.lo},{name:'Maximum voltage',color:'#abcdef',value:r=>r.hi}];
+ const html=api.plot(rows,series,'Voltage range','p.u.',false,{band:{low:r=>r.lo,high:r=>r.hi,color:'#123456'},reference:{value:1,label:'Nominal · 1 p.u.'},fitExtent:true});
+ assert.equal((html.match(/class="trends-range-band"/g)||[]).length,2);
+ assert.match(html,/Nominal · 1 p.u./);assert.doesNotMatch(html,/NaN|undefined/);
+});
+test('per-unit voltage tooltips and accessible marks retain original kV in brackets',()=>{
+ const api=load(),rows=[{date:'2026-10-24',min_kv:122}],series=[{name:'Minimum voltage',color:'#123456',value:row=>row.min_kv/132,formatValue:(value,row)=>`${value.toFixed(3)} p.u. [${row.min_kv} kV]`}];
+ const html=api.plot(rows,series,'Station minimum','p.u.',false,{fitExtent:true,nonNegative:true,tickDecimals:3});
+ assert.match(html,/Minimum voltage: 0\.924 p\.u\. \[122 kV\]/);
+ assert.match(api.tooltipRows({rows,series,unit:'p.u.'},0),/0\.924 p\.u\. \[122 kV\]/);
+ rows[0].min_kv=null;series[0].value=()=>null;
+ assert.match(api.tooltipRows({rows,series,unit:'p.u.'},0),/Not reported/);
+});
 test('each range is an inclusive calendar window and retains missing dates across leap day',()=>{
  const api=load();for(const count of [30,60,90,365]){const rows=api.windowDays({end_date:'2024-03-01',days:[{date:'2024-02-29',generation_mwh:0}]},count);assert.equal(rows.length,count);assert.equal(rows.at(-1).date,'2024-03-01');assert.equal(rows.at(-2).generation_mwh,0);assert.equal(rows.at(-3).generation_mwh,undefined)}
  assert.equal(api.windowDays({end_date:null,days:[]},30).length,0);
@@ -60,7 +88,7 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  }};
  const history={start_date:'2015-04-17',end_date:'2015-04-18',days:[{date:'2015-04-17',mean_mw:5000,observations:24},{date:'2015-04-18',mean_mw:5500,observations:24}],months:[{month:'2015-04',median_mw:5200,days:2,observations:48}],excluded_records:[],source:'https://data.mendeley.com/datasets/xx9dhmy9rj/2',attribution:'BengalGrid',doi:'10.17632/xx9dhmy9rj.2'};
  const data={end_date:'2026-01-01',days:[{date:'2026-01-01',generation_mwh:2400,temperature_c:25,report_id:'1'}]};
- const window={location:{hash:'#trends'},addEventListener(){}};
+ const window={location:{hash:'#trends'},addEventListener(){},BEGDSystemLoss:{async load(){},panels(){return '<section>Annual system loss</section>'}}};
  const document={querySelector:s=>s==='#content'?host:node(s),querySelectorAll:()=>[],getElementById:node};
  vm.runInNewContext(fs.readFileSync(path.join(__dirname,'../begd/trends.js'),'utf8'),{window,document,fetch:async url=>({ok:true,json:async()=>url==='trends-data.json'?data:history}),Date,Map,Set});
  await window.BEGDTrends.mount();
@@ -93,12 +121,12 @@ test('10y switches to historical panels and recent ranges exclude both decade ch
  host.units.find(control=>control.dataset.unitChart==='imports'&&control.dataset.trendUnit==='MW').handler();
  assert.match(host.innerHTML,/Imports \(MW\)/);
  host.buttons['10y'].handler();
- assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);
+ assert.match(host.innerHTML,/A decade of generation/);assert.match(host.innerHTML,/Seasonality & growth by month/);assert.match(host.innerHTML,/Annual system loss/);assert.match(host.innerHTML,/>Really long-term!<\/button>/);assert.doesNotMatch(host.innerHTML,/BengalGrid historical view · full available record/);
  assert.doesNotMatch(host.innerHTML,/Generation & demand|Total demand requirement/);
  assert.match(host.innerHTML,/data-trend-days="10y" aria-pressed="true"/);
  assert.match(host.innerHTML,/no reported observations/);
  host.buttons['60'].handler();
- assert.match(host.innerHTML,/Generation & demand/);assert.doesNotMatch(host.innerHTML,/A decade of generation|Seasonality & growth by month/);
+ assert.match(host.innerHTML,/Generation & demand/);assert.doesNotMatch(host.innerHTML,/A decade of generation|Seasonality & growth by month|Annual system loss/);
 });
 test('365-day charts label each month and identify a sparse subset for small containers',()=>{
  const api=load(),rows=api.windowDays({end_date:'2026-10-18',days:[]},365);
@@ -169,4 +197,17 @@ test('fitted value axis follows visible data extrema with padding and handles co
  html=api.plot([{date:'2026-01-01',v:250}],series,'Constant range','GWh',false,{fitExtent:true});axis=ticks(html);assert.ok(axis[0]<250&&axis.at(-1)>250);
  html=api.plot([{date:'2026-01-01',v:0}],series,'Zero range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);
  html=api.plot([{date:'2026-01-01',v:null}],series,'Empty range','GWh',false,{fitExtent:true});assert.doesNotMatch(html,/NaN|Infinity/);assert.match(html,/No reported values/);
+});
+
+test('load shedding exposes a master checkbox and retains individual selected series in shared state',()=>{
+ const api=load(),rows=[{date:'2026-10-29',shed:120,region:0}];
+ const series=[{name:'Reported load shedding',color:'#123456',value:r=>r.shed},{name:'Dhaka · P1 evening',color:'#abcdef',value:r=>r.region}];
+ let html=api.plot(rows,series,'Reported load shedding','MW',false,{selectAll:true});
+ assert.match(html,/data-trend-all="load-shedding" checked/);
+ assert.match(html,/Dhaka · P1 evening: 0 MW/);
+ const state=api.getViewState();state.trendLayers=[['load-shedding|dhaka-p1-evening',false]];api.setViewState(state);
+ html=api.plot(rows,series,'Reported load shedding','MW',false,{selectAll:true});
+ assert.doesNotMatch(html,/data-trend-all="load-shedding" checked/);
+ assert.match(html,/data-trend-layer="Dhaka · P1 evening" data-trend-chart-key="load-shedding" >/);
+ assert.doesNotMatch(html,/data-trend-series="Dhaka · P1 evening"/);
 });

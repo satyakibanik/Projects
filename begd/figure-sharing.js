@@ -3,7 +3,7 @@
   'use strict';
   const BRAND='Bangladesh Electric Grid Dashboard';
   const COPYRIGHT='© '+BRAND;
-  const SELECTOR='.realtime-dispatch-plots, .interactive-chart, .fuel-report-chart, .regional-snapshot-chart-wrap, .regional-fuel-svg, .plant-map-panel, .region-map-panel, .vb-combined, .trends-generation-figure, .trends-chart, .trends-heatmap, .region-card';
+  const SELECTOR='.realtime-dispatch-plots, .forecast-subplot, .interactive-chart, .fuel-report-chart, .regional-snapshot-chart-wrap, .regional-fuel-svg, .plant-map-panel, .region-map-panel, .vb-combined, .trends-generation-figure, .trends-chart, .trends-heatmap, .region-card';
   const canonical='https://satyakibanik.github.io/Projects/begd/';
   const cleanText=node=>(node?.innerText||node?.textContent||'').replace(/\s+/g,' ').trim();
   function shareURL(href){const source=new URL(href),url=new URL(canonical);url.search=source.search;url.hash=source.hash;return url.href;}
@@ -11,13 +11,17 @@
   function filename(title){return 'begd-'+title.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,90)+'.png';}
   function describe(target){
     const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail'),svg=target.matches('svg')?target:target.querySelector('svg:not(.series-swatch)');
-    const heading=(target.matches('.trends-generation-figure')?cleanText(panel?.querySelector('h2')):cleanText(target.querySelector('h2,h3')))||cleanText(panel?.querySelector('h2,h3'))||'Grid figure';
+    const heading=(target.matches('.trends-generation-figure,.realtime-dispatch-plots')?cleanText(panel?.querySelector('h2')):cleanText(target.querySelector('h2,h3')))||cleanText(panel?.querySelector('h2,h3'))||'Grid figure';
     const label=target.matches('.fuel-report-chart')?cleanText(target.querySelector('.comparison-strip-label')):target.matches('.trends-chart,.regional-fuel-svg')?svg?.getAttribute('aria-label')?.split('. Missing dates')[0]||'':'';
-    const note=cleanText(panel?.querySelector('.panel-head p'));
-    const source=[...panel?.querySelectorAll('.note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].map(cleanText);
+    const note=cleanText(panel?.querySelector('[data-panel-caption],.panel-head p'));
+    const sourceRoot=target.matches('.forecast-subplot')?target:panel;
+    const source=[...sourceRoot?.querySelectorAll('.note,.information-note,.trends-citation,.plant-map-attribution,.dispatch-bottom')||[]].filter(node=>!node.matches('.chart-help,.chart-touch-help')).map(cleanText);
+    if(target.matches('.forecast-subplot'))source.push(...[...panel?.querySelectorAll('.forecast-body > .note')||[]].map(cleanText));
     if(panel?.matches('.plant-detail'))source.push('Source: GenLog · hourly plant output · MW · Bangladesh time.');
     if(target.matches('.trends-generation-figure')&&panel?.nextElementSibling?.matches('.trends-temperature-note'))source.push(cleanText(panel.nextElementSibling));
     source.push(...[...target.querySelectorAll('.fuel-mix-segment')].map(node=>node.getAttribute('aria-label')));
+    const basemap=target.querySelector('.plant-basemap-credit:not([hidden])');
+    if(basemap)source.push(cleanText(basemap)+' · '+[...basemap.querySelectorAll('a')].map(link=>link.href).join(' · '));
     const footer=[...new Set([note,...source].filter(Boolean))];
     return {title:heading+(label&&label!==heading?' · '+label:''),context:cleanText(document.querySelector('#subtitle')),footer};
   }
@@ -26,58 +30,198 @@
     for(const word of text.split(/\s+/)){if(line&&ctx.measureText(line+' '+word).width>width){result.push(line);line=word;}else line+=(line?' ':'')+word;}
     if(line)result.push(line);return result;
   }
+  function normalizeColorFunctions(doc,root,resolveComputed=false){
+    const canvas=doc.createElement('canvas');canvas.width=canvas.height=1;
+    const context=canvas.getContext('2d');if(!context)return;
+    const cache=new Map();
+    const resolveColor=value=>{
+      if(cache.has(value))return cache.get(value);
+      context.clearRect(0,0,1,1);context.fillStyle='rgba(0,0,0,0)';context.fillStyle=value;context.fillRect(0,0,1,1);
+      const [r,g,b,a]=context.getImageData(0,0,1,1).data;
+      const normalized=`rgba(${r},${g},${b},${Number((a/255).toFixed(4))})`;cache.set(value,normalized);return normalized;
+    };
+    const normalize=value=>{
+      let output='',cursor=0;
+      while(cursor<value.length){
+        const start=value.toLowerCase().indexOf('color(',cursor);if(start<0){output+=value.slice(cursor);break;}
+        output+=value.slice(cursor,start);let depth=1,end=start+6;
+        for(;end<value.length&&depth;end++){if(value[end]==='(')depth++;else if(value[end]===')')depth--;}
+        if(depth){output+=value.slice(start);break;}
+        output+=resolveColor(value.slice(start,end));cursor=end;
+      }
+      return output;
+    };
+    const normalizeDeclaration=declaration=>{
+      for(let i=0;i<declaration.length;i++){
+        const property=declaration.item(i),value=declaration.getPropertyValue(property);
+        if(!value.toLowerCase().includes('color('))continue;
+        const replacement=normalize(value);
+        if(replacement!==value)declaration.setProperty(property,replacement,declaration.getPropertyPriority(property));
+      }
+    };
+    const normalizeRules=rules=>{
+      for(const rule of rules){
+        if(rule.style)normalizeDeclaration(rule.style);
+        if(rule.cssRules)normalizeRules(rule.cssRules);
+        if(rule.styleSheet)try{normalizeRules(rule.styleSheet.cssRules);}catch{}
+      }
+    };
+    for(const sheet of doc.styleSheets)try{normalizeRules(sheet.cssRules);}catch{}
+    // color-mix() with theme variables resolves to color(srgb ...) only in computed styles.
+    const computedProperties=['color','background-color','background-image','border-top-color','border-right-color','border-bottom-color','border-left-color','box-shadow','text-shadow','outline-color'];
+    for(const node of [root,...root.querySelectorAll('*')]){
+      if(resolveComputed&&node.style){
+        const computed=doc.defaultView.getComputedStyle(node);
+        for(const property of computedProperties){
+          const value=computed.getPropertyValue(property);
+          if(value.includes('color('))node.style.setProperty(property,normalize(value),'important');
+        }
+      }
+      if(node.style)normalizeDeclaration(node.style);
+      for(const attribute of ['color','fill','stroke','stop-color','flood-color','lighting-color']){
+        const value=node.getAttribute(attribute);if(value?.toLowerCase().includes('color('))node.setAttribute(attribute,normalize(value));
+      }
+    }
+  }
+  function simplifySingleLayerLegends(clone){
+    const chartSelector='[data-chart], [data-trend-chart], [data-fuel-controls]';
+    const layerSelector='[data-toggle-series], [data-trend-layer], [data-fuel-layer]';
+    const charts=[...clone.querySelectorAll(chartSelector)];
+    if(clone.matches(chartSelector))charts.unshift(clone);
+    for(const chart of charts){
+      const selected=[...chart.querySelectorAll(layerSelector)].filter(input=>input.checked&&input.closest(chartSelector)===chart);
+      if(selected.length!==1)continue;
+      const input=selected[0],label=input.closest('label');
+      if(!label||label.closest('[hidden]'))continue;
+      const legends=[...chart.querySelectorAll('.legend,.trends-legend,.fuel-legend,.forecast-layer')]
+        .filter(legend=>legend.closest(chartSelector)===chart&&!legend.parentElement.closest('.legend,.trends-legend,.fuel-legend,.forecast-layer'));
+      if(!legends.length)continue;
+      const legend=clone.ownerDocument.createElement('div');
+      legend.className='legend';
+      legends[0].before(legend);
+      legend.append(label);
+      input.remove();
+      // The dashboard legend reserves a grid column for its checkbox.
+      label.style.display='flex';
+      label.style.alignItems='center';
+      label.style.gap='8px';
+      legends.forEach(item=>item.remove());
+      chart.querySelector('.fuel-layer-actions')?.remove();
+    }
+  }
+  async function inlinePlantIcons(clone){
+    const images=[...clone.querySelectorAll('.plant-slide-symbol image[href]')];
+    const sources=new Set(images.map(image=>image.getAttribute('href')));
+    const dataURLs=new Map(await Promise.all([...sources].map(async source=>{
+      const response=await fetch(new URL(source,document.baseURI)).catch(()=>null);
+      if(!response?.ok)return [source,null];
+      const blob=await response.blob();
+      const dataURL=await new Promise(resolve=>{
+        const reader=new FileReader();
+        reader.onload=()=>resolve(reader.result);reader.onerror=()=>resolve(null);
+        reader.readAsDataURL(blob);
+      });
+      return [source,dataURL];
+    })));
+    for(const image of images){
+      const dataURL=dataURLs.get(image.getAttribute('href'));
+      if(dataURL)image.setAttribute('href',dataURL);
+    }
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
+    // Browser download tests inject a deterministic PNG to check every button
+    // without repeatedly rasterizing large SVGs. Still run the Color 4 clone
+    // normalization on the power-plant map so its regression stays covered.
+    if(typeof Blob!=='undefined'&&root.__BEGD_FIGURE_TEST_PNG instanceof Blob){
+      if(target.matches('.plant-map-panel')){
+        const doc=document.implementation.createHTMLDocument(''),clone=target.cloneNode(true);doc.body.append(clone);normalizeColorFunctions(doc,clone);
+        root.__BEGD_FIGURE_TEST_NORMALIZED_COLOR=clone.style.getPropertyValue('outline-color');
+      }
+      return root.__BEGD_FIGURE_TEST_PNG;
+    }
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
-    const captureScale=info.dashboard?2:4,outputScale=2;
+    const bounds=info.dashboard?capture.getBoundingClientRect():null;
+    const widthBeforeClone=bounds?Math.max(bounds.width,capture.scrollWidth):0;
+    const heightBeforeClone=bounds?Math.max(bounds.height,capture.scrollHeight):0;
+    // Keep long tabs within browser canvas limits while retaining all panels.
+    const captureScale=info.dashboard?dashboardCanvasScale(widthBeforeClone,heightBeforeClone):4;
+    const hasPlantMap=target.matches('.plant-map-panel')||
+      (info.dashboard&&Boolean(target.querySelector('.plant-map-panel')));
+    // Capture the theme once so chart, title and footer use the same palette.
+    const theme=getComputedStyle(document.body),background=theme.backgroundColor,ink=theme.color;
     let contentBounds;
-    const shot=await root.html2canvas(capture,{backgroundColor:getComputedStyle(document.body).backgroundColor,scale:captureScale,logging:false,
+    const shot=await root.html2canvas(capture,{backgroundColor:background,scale:captureScale,logging:false,useCORS:hasPlantMap,
       // Expand clipped chart/table containers only in the detached export document.
-      onclone:(doc,clone)=>{
+      onclone:async(doc,clone)=>{
         const style=doc.createElement('style');
-        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "legend"}}';
+        style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.forecast-subplot-controls label,.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend" "daylight legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "daylight" "legend"}}';
         doc.head.append(style);
-        doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
+        if(!info.dashboard){
+          doc.querySelectorAll('.regional-snapshot-chart-scroll,.table-wrap').forEach(node=>{node.style.overflow='visible';node.style.maxHeight='none';});
+        }
         clone.style.width=Math.ceil(Math.max(capture.getBoundingClientRect().width,capture.scrollWidth))+'px';
         clone.style.height='auto';clone.style.minHeight='0';clone.style.maxHeight='none';
+        simplifySingleLayerLegends(clone);
         clone.querySelectorAll('.en-curve-chart>svg.chart').forEach(svg=>{
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
           const extra=Math.max(0,ink.y+ink.height-view.y-view.height);
           if(extra){const height=view.height+extra+4;svg.style.height=(bounds.height*height/view.height)+'px';svg.style.maxHeight='none';svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.width} ${height}`);}
         });
+        // Keep circular fuel SVGs self-contained. Copying every computed CSS
+        // property into their serialized image can suppress the SVG artwork.
+        clone.querySelectorAll('svg.fuel-mix-chart').forEach(svg=>{
+          const bounds=svg.getBoundingClientRect();
+          const properties=['fill','stroke','stroke-width','stroke-dasharray','stroke-dashoffset','stroke-linecap','stroke-linejoin','fill-opacity','stroke-opacity','opacity','font-family','font-size','font-weight','letter-spacing','text-anchor','dominant-baseline'];
+          const nodes=[svg,...svg.querySelectorAll('*')];
+          const styles=nodes.map(node=>{const computed=doc.defaultView.getComputedStyle(node);return properties.map(property=>property+':'+computed.getPropertyValue(property)).join(';');});
+          nodes.forEach((node,index)=>node.setAttribute('style',styles[index]));
+          svg.setAttribute('width',bounds.width);svg.setAttribute('height',bounds.height);
+          // The 25px ring stroke extends beyond the original 144px viewport.
+          if(svg.matches('.fuel-mix-ring'))svg.setAttribute('viewBox','-4 -4 152 152');
+        });
         // Measure after removing controls/help so their former height is not exported.
         const bounds=clone.getBoundingClientRect();
         const visible=[...clone.querySelectorAll('svg:not(.series-swatch),.legend,.trends-legend,.regional-snapshot-legend,.comparison-strip-label,.composition-strip,table')].filter(node=>node.getBoundingClientRect().height>0);
         if(!info.dashboard&&visible.length&&!target.matches('.plant-map-panel,.region-map-panel'))contentBounds={height:Math.max(...visible.map(node=>node.getBoundingClientRect().bottom))-bounds.top+4};
+        // html2canvas does not parse CSS Color 4 color(srgb ...) values.
+        normalizeColorFunctions(doc,clone,info.dashboard||hasPlantMap);
+        if(hasPlantMap)await inlinePlantIcons(clone);
       },
       ignoreElements:node=>node.hasAttribute('data-html2canvas-ignore')||node.matches('.chart-tooltip,.trends-tooltip,.fuel-tooltip,.chart-cursor,.trends-cursor,.vb-reading,.vb-stats')||
         // Cloning unrelated 365-day SVG panels makes single-figure exports needlessly slow.
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
     const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*captureScale)):shot.height;
-    const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width/outputScale),pad=32;
+    const canvas=document.createElement('canvas'),width=Math.max(1200,info.dashboard?Math.ceil(widthBeforeClone):shot.width/2),pad=32;
     // Render the chart and all annotations at twice the previous PNG resolution.
-    canvas.width=width*outputScale;const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
+    const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
     const heading=lines(ctx,info.title,width-pad*2);ctx.font='22px sans-serif';const context=lines(ctx,info.context,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
     const top=pad+heading.length*40+context.length*30+16,bottom=notes.length*28+100;
-    const figureHeight=captureHeight*width/shot.width;canvas.height=Math.ceil((top+figureHeight+bottom)*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,canvas.height);ctx.fillStyle='#163529';ctx.font='bold 32px sans-serif';
+    const figureHeight=captureHeight*width/shot.width;
+    const height=top+figureHeight+bottom;
+    const outputScale=info.dashboard?dashboardCanvasScale(width,height):2;
+    canvas.width=Math.floor(width*outputScale);canvas.height=(info.dashboard?Math.floor:Math.ceil)(height*outputScale);ctx.scale(outputScale,outputScale);ctx.fillStyle=background;ctx.fillRect(0,0,width,canvas.height/outputScale);ctx.fillStyle=ink;ctx.font='bold 32px sans-serif';
     let y=pad;for(const line of heading){y+=40;ctx.fillText(line,pad,y);}ctx.font='22px sans-serif';for(const line of context){y+=30;ctx.fillText(line,pad,y);}
     ctx.drawImage(shot,0,0,shot.width,captureHeight,0,top,width,figureHeight);y=top+figureHeight+8;ctx.font='20px sans-serif';for(const line of notes){y+=28;ctx.fillText(line,pad,y);}
     ctx.textAlign='right';ctx.font='bold 22px sans-serif';ctx.fillText(COPYRIGHT,width-pad,canvas.height/outputScale-48);
     ctx.font='18px sans-serif';ctx.fillText(canonical,width-pad,canvas.height/outputScale-22);
     return new Promise((resolve,reject)=>canvas.toBlob(blob=>blob?resolve(blob):reject(new Error('Could not create the PNG.')),'image/png'));
   }
+  function dashboardCanvasScale(width,height){
+    return Math.min(2,16000/Math.max(width,height),Math.sqrt(15000000/(width*height)));
+  }
   async function exportDashboardPNG(){
-    const main=document.querySelector('main'),target=document.createElement('main');
-    target.className='dashboard-export';
-    target.style.cssText='position:absolute;left:-100000px;top:0;margin:0;width:'+Math.ceil(main.getBoundingClientRect().width)+'px;max-width:none;';
-    const brand=document.querySelector('.brand').cloneNode(true),intro=document.querySelector('.intro').cloneNode(true);
-    intro.querySelector('h1').textContent='National overview';
-    intro.querySelector('#subtitle').innerHTML=reportSubtitle('overview',data);
-    target.append(brand,intro);
-    const content=document.createElement('div');content.innerHTML=overviewSnapshotMarkup();target.append(content);document.body.append(target);
-    try{return await exportPNG(target,{title:'BEGD · National overview',context:'',footer:[],dashboard:true});}
-    finally{target.remove();}
+    const content=document.querySelector('#content');
+    if(!content?.firstElementChild||!content.getBoundingClientRect().height){
+      throw new Error('Wait for the dashboard tab to load, then try again.');
+    }
+    return exportPNG(content,{
+      title:'BEGD · '+cleanText(document.querySelector('#title')),
+      context:cleanText(document.querySelector('#subtitle')),
+      footer:[],
+      dashboard:true
+    });
   }
   function copyDashboard(){
     if(!root.isSecureContext||!navigator.clipboard?.write||!root.ClipboardItem)throw new Error('Image copy is unavailable here.');
@@ -139,7 +283,9 @@
     if(!dialog){dialog=document.createElement('dialog');dialog.className='figure-share-dialog';dialog.setAttribute('data-html2canvas-ignore','');document.body.append(dialog);}
     dialog.replaceChildren();const title=document.createElement('h2');title.id='figure-share-title';title.textContent='Share dashboard';dialog.setAttribute('aria-labelledby',title.id);dialog.append(title);
     const label=document.createElement('label');label.textContent='Custom message';label.htmlFor='figure-share-message';const message=document.createElement('textarea');message.id=label.htmlFor;message.rows=4;message.value='Check out Bangladesh Electric Grid Dashboard. See how the grid is performing live or any given day!';dialog.append(label,message);
-    const hint=document.createElement('p');hint.textContent='Copies National overview for the selected report as a PNG, without comparison controls. Paste the image into your X post.';dialog.append(hint);
+    const hint=document.createElement('p');const tabTitle=cleanText(document.querySelector('#title'))||'the current tab';
+    const period=cleanText(document.querySelector('#subtitle .operating-date-highlight'));
+    hint.textContent='Copies '+tabTitle+(period?' ('+period+')':'')+' as a PNG. Paste the image into your X post.';dialog.append(hint);
     // Share one stable, crawlable URL instead of a separately cached card for every view.
     const url=canonical,link=document.createElement('p');link.className='figure-share-link';link.textContent=url;dialog.append(link);
     const actions=toolbar(),x=document.createElement('a');x.className='dashboard-x-link x-share-control';x.setAttribute('aria-label','Share dashboard on X.com');x.title='Share dashboard on X.com';x.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONS.x+'</svg><span aria-hidden="true">.com</span>';
@@ -160,7 +306,7 @@
       if(target.matches('.plant-map-panel,.region-map-panel'))bar.append(save);else bar.append(save,copy,share);
       if(target.matches('svg,table')){const holder=document.createElement('div');holder.className='figure-export-wrap';target.before(holder);holder.append(target);}
       const panel=target.closest('.panel,.dispatch-main,.energy-band,.plant-detail');
-      const heading=target.matches('.fuel-report-chart')?target.querySelector('.comparison-strip-label'):target.matches('.regional-fuel-svg')?panel?.querySelector('[data-regional-fuel-selected]'):target.matches('.trends-generation-figure')?panel?.querySelector('h2'):target.querySelector('h2,h3')||panel?.querySelector('h2,h3');
+      const heading=target.matches('.fuel-report-chart')?target.querySelector('.comparison-strip-label'):target.matches('.regional-fuel-svg')?panel?.querySelector('[data-regional-fuel-selected]'):target.matches('.trends-generation-figure,.realtime-dispatch-plots')?panel?.querySelector('h2'):target.querySelector('h2,h3')||target.closest('.availability-chart')?.querySelector('h3')||panel?.querySelector('h2,h3');
       if(target.matches('.fuel-report-chart')){
         let host=panel.querySelector('.fuel-export-actions');if(!host){host=document.createElement('div');host.className='fuel-export-actions';panel.querySelector('.fuel-chart-style').after(host);}
         if(panel.querySelectorAll('.fuel-report-chart').length>1){const label=document.createElement('span');label.className='fuel-export-label';label.textContent=cleanText(heading);bar.prepend(label);}

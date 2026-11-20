@@ -19,7 +19,77 @@ WINDOW_DAYS = 14
 sys.path.insert(0, str(SCRIPTS))
 import server
 from import_report import parse_report
+from energy_curve import energy_curve_cache_current
+from p1_sections import p1_sections_cache_current
 from trends import build_trends, extract_trend_workbook
+from operational_events import build_event_log, event_cache_current
+from entity_history import write_entity_history
+
+
+def attach_forecasts(records, reports_by_id, current_day, cache_dir, refresh_pgcb=False):
+    """Keep realtime forecasts independent of the report selected in the browser."""
+    from daily_forecast import prepare_forecasts
+    today = current_day.get('today_date')
+    if not isinstance(today, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', today):
+        current_day['pgcb_forecast'] = None
+        current_day['independent_forecast'] = dict(status='unavailable', reason='Missing operating date')
+        return {}
+    forecasts = prepare_forecasts(records, current_day, cache_dir)
+    current_day['independent_forecast'] = forecasts[today]
+    # Expose previously issued curves with dated ERP actuals without changing
+    # their immutable forecast files. The browser never borrows another day.
+    from daily_forecast import VERSION, valid_forecast
+    history = dict(forecasts)
+    for path in (cache_dir/VERSION).glob('*.json'):
+        try:
+            value=json.loads(path.read_text())
+            if valid_forecast(value,path.stem):history[path.stem]=value
+        except (OSError,ValueError,TypeError):
+            pass
+    from pgcb_forecast import collect_comparisons
+    scenarios, generation_demand, generation_demand_sources = collect_comparisons(reports_by_id, today, refresh_pgcb)
+    current_day['pgcb_forecast'] = scenarios.get(today)
+    fields=('version','status','date','issued_at','target_basis','models','hourly','input_cutoff_date','max_actual_input_date','publication_kind')
+    ready_history={day:value for day,value in history.items() if valid_forecast(value,day)}
+    yesterday = (dt.date.fromisoformat(today)-dt.timedelta(days=1)).isoformat()
+    dates=sorted(set(history)|set(scenarios)|set(generation_demand)|{today, yesterday})[-35:]
+    # Actuals are display data, not model inputs. Refresh yesterday even when
+    # every forecast is cached, or model preparation failed before ERP loading.
+    from erp_history import load_range
+    actuals, actual_errors = {}, {}
+    start = max(min(dates), (dt.date.fromisoformat(today)-dt.timedelta(days=34)).isoformat())
+    end = (dt.date.fromisoformat(today)-dt.timedelta(days=1)).isoformat()
+    for kind in ('demand','generation'):
+        try:
+            manifest = load_range(kind, start, end, cache_dir) if start <= end else {}
+            actuals[kind] = manifest.get('days', {})
+            actual_errors[kind] = manifest.get('failures', {})
+        except Exception as error:
+            actual_errors[kind] = {'refresh': f'{type(error).__name__}: {error}'}
+            path = cache_dir/'erp-history'/kind/'manifest.json'
+            try: actuals[kind] = json.loads(path.read_text())['days']
+            except (OSError, ValueError, KeyError, TypeError): actuals[kind] = {}
+    # Today's generation-side demand can be unavailable even when substation
+    # demand is live. Never substitute one measurement basis for the other.
+    if refresh_pgcb and today in scenarios:
+        try:
+            manifest = load_range('generation_demand', today, today, cache_dir)
+            generation_demand[today] = manifest.get('days', {}).get(today, [])
+            generation_demand_sources[today] = dict(basis='ERP generation side', source_url=manifest.get('source'))
+            actual_errors['generation_demand'] = manifest.get('failures', {})
+        except Exception as error:
+            actual_errors['generation_demand'] = {today: str(error)}
+    current_day['generation_side_demand_hourly'] = generation_demand.get(today, [])
+    current_day['generation_side_demand_source'] = generation_demand_sources.get(today)
+    current_day['forecast_actual_errors'] = actual_errors
+    current_day['forecast_history']={day:dict(forecast={k:ready_history[day].get(k) for k in fields} if day in ready_history else None,
+        demand_hourly=actuals['demand'].get(day,[]),
+        generation_hourly=[dict(time=r['time'],total_mw=r.get('generation_mw')) for r in actuals['generation'].get(day,[])],
+        generation_side_demand_hourly=generation_demand.get(day, []),
+        generation_side_demand_source=generation_demand_sources.get(day),
+        forecast_error=history.get(day,{}).get('reason'),
+        pgcb_forecast=scenarios.get(day)) for day in dates}
+    return forecasts
 
 
 def available_reports():
@@ -56,8 +126,7 @@ def write_data_bundle(output_dir):
         records = available_reports()
     except Exception as error:
         print(f"Report archive unavailable: {type(error).__name__}: {error}")
-        records = []
-        failures.append(f"archive: {type(error).__name__}")
+        raise RuntimeError("Cannot publish: ERP archive is unavailable; retaining the deployed site") from error
 
     reports_by_id = {}
     trend_reports = []
@@ -65,6 +134,7 @@ def write_data_bundle(output_dir):
         latest = max(dt.date.fromisoformat(item["published_date"]) for item in records)
         recent_start = latest - dt.timedelta(days=WINDOW_DAYS - 1)
     else:
+        latest = dt.date.today()
         recent_start = dt.date.today() - dt.timedelta(days=WINDOW_DAYS - 1)
     cache_dir = ROOT / ".cache" / "historical-reports"
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -76,14 +146,14 @@ def write_data_bundle(output_dir):
         if not is_recent and cache_path.is_file():
             try:
                 cached = json.loads(cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"]:
+                if cached.get("report_id") == item["id"] and energy_curve_cache_current(cached) and p1_sections_cache_current(cached) and event_cache_current(cached, item["published_date"], latest):
                     return cached
             except (OSError, ValueError):
                 pass
         if not is_recent and trend_cache_path.is_file():
             try:
                 cached = json.loads(trend_cache_path.read_text(encoding="utf-8"))
-                if cached.get("report_id") == item["id"] and cached.get("_trends_only") and "temperature_c" in cached.get("summary", {}):
+                if cached.get("report_id") == item["id"] and cached.get("_trends_only") and p1_sections_cache_current(cached) and "temperature_c" in cached.get("summary", {}) and "water_level" in cached and "regions" in cached and event_cache_current(cached, item["published_date"], latest):
                     return cached
             except (OSError, ValueError):
                 pass
@@ -110,7 +180,19 @@ def write_data_bundle(output_dir):
                 if not report.get("_trends_only"):
                     reports_by_id[report["report_id"]] = report
             except Exception as error:
-                failures.append(f"{item['published_date']}: {type(error).__name__}")
+                failures.append(f"{item['published_date']} report {item['id']}: {type(error).__name__}: {error}")
+
+    # A successful deployment must not silently retreat to an older date when
+    # fresh workbooks fail parsing (including a trends-only fallback).
+    missing_recent = [item for item in records
+                      if dt.date.fromisoformat(item["published_date"]) >= recent_start
+                      and item["id"] not in reports_by_id]
+    if missing_recent:
+        details = "; ".join(f"{item['published_date']} (report {item['id']})" for item in missing_recent)
+        for report in trend_reports:
+            if report.get("_trends_only"):
+                print(f"::warning::Report {report['report_id']}: {report.get('quality_notes', [])}")
+        raise RuntimeError(f"Cannot publish: recent reports missing from dashboard: {details}. {'; '.join(failures)}")
 
     reports = [{key: item[key] for key in ("id", "name", "published_date")}
                for item in records if item["id"] in reports_by_id]
@@ -155,6 +237,9 @@ def write_data_bundle(output_dir):
                        "source_dates": {}, "source_urls": [],
                        "error": "ERP readings were unavailable during this build."}
 
+    forecasts = attach_forecasts(records, reports_by_id, current_day, ROOT / '.cache' / 'daily-forecasts', refresh_pgcb=True)
+    from erp_history import attach_realtime_history
+    attach_realtime_history(current_day, ROOT / '.cache' / 'daily-forecasts')
     built_at = dt.datetime.now(dt.timezone.utc).isoformat()
     bundle = {
         "generated_at": built_at,
@@ -166,12 +251,34 @@ def write_data_bundle(output_dir):
         "failures": failures,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
+    forecast_dir = output_dir / 'daily-forecasts'
+    forecast_dir.mkdir(exist_ok=True)
+    for day, forecast in forecasts.items():
+        (forecast_dir / f'{day}.json').write_text(json.dumps(forecast, allow_nan=False, separators=(',', ':')))
+    # Preserve earlier issued forecasts for later scoring; never replace them with a refit.
+    from daily_forecast import VERSION, valid_forecast
+    for saved in (ROOT / '.cache' / 'daily-forecasts' / VERSION).glob('*.json'):
+        try:
+            value = json.loads(saved.read_text())
+            if valid_forecast(value, saved.stem):
+                shutil.copy2(saved, forecast_dir / saved.name)
+        except (OSError, ValueError, TypeError):
+            pass
     (output_dir / "current-day.json").write_text(
         json.dumps(current_day, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8")
+    trends = build_trends(trend_reports, built_at)
+    (output_dir / "operational-events.json").write_text(
+        json.dumps(build_event_log(trend_reports, built_at, trends["end_date"]), ensure_ascii=False, separators=(",", ":")),
+        encoding="utf-8")
+    write_entity_history(trend_reports, output_dir / 'entity-history', built_at, trends['end_date'])
     (output_dir / "trends-data.json").write_text(
-        json.dumps(build_trends(trend_reports, built_at), ensure_ascii=False,
+        json.dumps(trends, ensure_ascii=False,
                    separators=(",", ":")), encoding="utf-8")
+    # BPDB costs are independent from the Power Grid workbook archive.
+    from bpdb_costs import collect
+    costs = collect(ROOT / ".cache" / "bpdb-costs")
+    (output_dir / "costs-data.json").write_text(json.dumps(costs, allow_nan=False, separators=(",", ":")))
     archive_dir = output_dir / "archive"
     archive_dir.mkdir(parents=True, exist_ok=True)
     for report_id, report in reports_by_id.items():
@@ -206,6 +313,28 @@ def write_data_bundle(output_dir):
         print(f"Skipped {len(failures)} report(s): {', '.join(failures)}")
 
 
+def write_system_loss_bundle(output_dir):
+    """Annual Power Division data uses a monthly cache, independent of ERP refreshes."""
+    from system_loss import collect
+    bundle = collect(ROOT / ".cache" / "system-loss")
+    (output_dir / "system-loss-data.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
+def write_news_bundle(output_dir):
+    """News collection is independent of workbook and forecast calculations."""
+    from grid_news import collect
+    news = collect(ROOT / ".cache" / "grid-news", published_url="https://satyakibanik.github.io/Projects/begd/news-data.json")
+    (output_dir / "news-data.json").write_text(json.dumps(news, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
+def write_fuel_bundle(output_dir):
+    from fuel import collect
+    bundle = collect(DASHBOARD / "fuel-data.json", ROOT / ".cache" / "fuel")
+    (output_dir / "fuel-data.json").write_text(
+        json.dumps(bundle, ensure_ascii=False, allow_nan=False, separators=(",", ":")), encoding="utf-8")
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--output-dir", default="_site")
@@ -217,7 +346,13 @@ def main():
     shutil.copy2(ROOT / "index.html", output / "index.html")
     shutil.copy2(ROOT / "sitemap.xml", output / "sitemap.xml")
     shutil.copytree(DASHBOARD, output / "begd")
+    from publication_timing import BUNDLE, CACHE
+    if CACHE.is_file():
+        shutil.copy2(CACHE, output / "begd" / BUNDLE)
     write_data_bundle(output / "begd")
+    write_news_bundle(output / "begd")
+    write_fuel_bundle(output / "begd")
+    write_system_loss_bundle(output / "begd")
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@
   const title='Voltage distribution · box-and-whisker plots',text='Separate boxes summarize station minima and maxima by voltage class. Box = middle 50%; center line = median; whiskers = full observed range. Dots show station readings, spread horizontally only to reduce overlap. All values are per unit of the respective class rating.';
   const nonempty=groups.filter(g=>g.length),rows=nonempty.flat(),id='vb-analysis';
   if(!rows.length)return {title,text,html:'<p class="vb-empty">No valid voltage readings match the chart filters.</p>'};
-  const W=1000,H=390,L=75,R=30,T=30,B=65,pw=W-L-R,ph=H-T-B;
+  const W=1000,H=390,L=typeof window!=='undefined'&&window.innerWidth<750?110:75,R=30,T=30,B=65,pw=W-L-R,ph=H-T-B;
   const lo=Math.min(1,...rows.map(r=>r.min_pu)),hi=Math.max(1,...rows.map(r=>r.max_pu)),pad=Math.max(.015,(hi-lo)*.1),low=lo-pad,high=hi+pad,y=v=>T+(high-v)/(high-low)*ph;
   let plot='';
   for(let i=0;i<=5;i++){const v=low+(high-low)*i/5;plot+=`<line class="vb-gridline" x1="${L}" x2="${W-R}" y1="${y(v)}" y2="${y(v)}"/><text class="vb-axis" x="${L-12}" y="${y(v)+4}" text-anchor="end">${v.toFixed(3)}</text>`}

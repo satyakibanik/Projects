@@ -46,7 +46,7 @@ header{position:relative;padding-top:56px;flex-wrap:wrap;gap:16px}
 [data-theme=dark] .plant-map-key i.district-boundary-key{border-top-color:#7391a5}
 [data-theme=dark] .plant-map-key i.division-boundary-key{border-top-color:#c5d9e6}
 [data-theme=dark] .plant-map-marker circle[fill="#19374b"]{fill:#91bfd9;stroke:#102332}
-[data-theme=dark] .plant-map-marker text{fill:#102332}
+[data-theme=dark] .plant-map-marker>text{fill:#102332}
 [data-theme=dark] .plant-map-marker:is(.is-active,:focus-visible) circle{stroke:#fff;filter:drop-shadow(0 0 3px #000)}
 [data-theme=dark] .plant-map-key i[style*="#19374b"]{background:#91bfd9!important}
 [data-theme=dark] .planning-region{stroke:#c1d5e4}
@@ -71,7 +71,7 @@ footer{flex-wrap:wrap;gap:10px 24px}
 @keyframes operating-date-pulse{0%,100%{box-shadow:0 0 0 0 #c4872210}50%{box-shadow:0 0 0 5px #c4872233}}
 [data-theme=dark] #subtitle .operating-date-highlight{background:#352b1b;color:#ffe0a2;border-color:#dba74d}
 nav a.nav-live,nav a.nav-live.active,[data-theme=dark] nav a.nav-live,[data-theme=dark] nav a.nav-live.active{background:transparent;border-radius:0}
-nav a.nav-live.active:before{display:none}
+nav a.nav-live.active:before{display:block}
 .nav-section-divider{width:calc(100% - 20px);margin:10px 10px 14px;border:0;border-top:1px solid var(--line)}
 @media(prefers-reduced-motion:reduce){#subtitle .operating-date-highlight{animation:none}}
 @media(max-width:800px){.nav-section-divider{flex:0 0 24px;align-self:center;width:24px;margin:0}#subtitle .operating-date-highlight{font-size:15px}}
@@ -101,3 +101,134 @@ nav a.nav-live.active:before{display:none}
 .about-begd{margin:28px 0 20px;padding-top:20px;border-top:1px solid var(--line)}
 .about-begd h2{margin:0 0 10px;font:600 24px var(--heading,var(--body));color:var(--ink)}
 .about-begd p{max-width:85ch;margin:8px 0;color:var(--muted);font:13px/1.6 var(--body)}
+.forecast-layer{margin:12px 0;padding:10px 14px;border:1px solid var(--line,#ccd4d8);border-radius:8px;min-width:0}
+.forecast-layer legend{padding:0 7px;font-weight:700;font-size:12px}
+.forecast-layer legend label{display:inline-flex;align-items:center;gap:8px}
+.forecast-layer .legend{margin:0}
+
+/* A stable clock footprint keeps the top bar still as seconds change. */
+.bangladesh-clock{display:flex;flex-direction:column;gap:4px;text-align:right;font:11px var(--mono,monospace);color:var(--muted);font-variant-numeric:tabular-nums}
+.bangladesh-clock>span{font-size:10px;letter-spacing:.03em}
+.bangladesh-clock time{white-space:nowrap;color:var(--ink)}
+.data-updated{font:11px/1.7 var(--mono,monospace);color:var(--muted);margin:0 0 18px;overflow-wrap:anywhere}
+@media(max-width:700px){.header-title-row{flex-wrap:wrap}header .header-title-row>.brand{flex-basis:100%}.header-title-row .header-actions{width:100%;justify-content:flex-end}.bangladesh-clock{margin-right:auto;text-align:left}}
+
+.data-updated[data-view="realtime"]{white-space:nowrap;overflow-x:auto;overflow-wrap:normal;padding-bottom:4px}
+.data-updated[data-view="realtime"]:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+
+/* The original date controls stay available without pinning the large brand header. */
+.operating-date-bar{position:sticky;top:0;z-index:35;display:flex;align-items:flex-end;justify-content:space-between;gap:12px 20px;margin-left:var(--rail);padding:10px 36px;background:var(--surface);border-bottom:1px solid var(--line);box-shadow:0 3px 8px #0000000a}
+.operating-date-bar:has(#report-date-controls[hidden]){display:none}
+.operating-date-bar .status,.operating-date-bar #report-date-help{display:none}
+.operating-date-bar #report-date-controls{flex:1 1 auto;min-width:0}
+.operating-date-bar #date-status{flex:0 1 220px;max-width:220px;padding-bottom:6px}
+/* Global scroll padding makes native focus scroll sticky controls back to their original position. */
+main :target{scroll-margin-top:150px}
+@media(max-width:1100px){.operating-date-bar{padding-inline:25px}.operating-date-bar #date-status{display:none}}
+@media(max-width:800px){.operating-date-bar{margin-left:0;width:auto;flex-direction:row;align-items:flex-end;padding:10px 24px}.operating-date-bar #report-date-controls{width:100%}}
+@media(max-width:600px){
+ .operating-date-bar{padding:8px 18px}
+ .operating-date-bar .report-picker-row{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px}
+ .operating-date-bar #report-date-controls #report-date{width:100%;max-width:none}
+ .operating-date-bar .report-day-nav{justify-content:flex-start}
+ .operating-date-bar .dashboard-button{padding:7px 10px}
+}
+
+.operating-date-bar #date-status{min-height:calc(4.65em + 6px)}
+
+/* Keep the counter slot stable without showing its value before it has loaded. */
+.site-hit-counter strong{display:inline-block;min-width:4ch;text-align:right;visibility:hidden}
+.site-hit-counter strong[data-loaded="true"]{visibility:visible}
+
+/* Theme-specific comparison surfaces distinguish the controls from the report. */
+:root {
+  --comparison-fill:#eef5fa;
+  --comparison-border:#b5cdda;
+}
+:root[data-theme=dark] {
+  --comparison-fill:#1c3042;
+  --comparison-border:#516f87;
+}
+#day-sources {
+  background:var(--comparison-fill);
+  border-color:var(--comparison-border);
+}
+#day-sources legend {
+  background:var(--comparison-fill);
+  color:var(--ink);
+  border:1px solid var(--comparison-border);
+  border-radius:3px;
+}
+#day-sources :is(#comparison-date,#add-comparison,#custom-comparisons button):not(:hover) {
+  border-color:var(--comparison-border);
+}
+
+/* Solarized Light with darker foregrounds for small dashboard text. */
+:root[data-theme=solarized] {
+  color-scheme:light;
+  --bg:#fdf6e3;
+  --surface:#f7efd9;
+  --inset:#eee8d5;
+  --panel:var(--surface);
+  --ink:#073642;
+  --muted:#495f64;
+  --line:#c5b998;
+  --green:#17628f;
+  --blue:#17628f;
+  --lime:#80640b;
+  --red:#a13328;
+  --comparison-fill:#eee8d5;
+  --comparison-border:#a99973;
+}
+[data-theme=solarized] body {background:var(--bg);color:var(--ink)}
+[data-theme=solarized] :is(header,footer,nav,.dispatch-readings,.chart-selector,.tag,th) {
+  background:var(--inset);
+  color:var(--muted);
+}
+[data-theme=solarized] header {border-top-color:var(--blue)}
+[data-theme=solarized] :is(.brand,.brand-title) {color:var(--ink)}
+[data-theme=solarized] .brand .mark {background:#17628f;color:#fdf6e3}
+[data-theme=solarized] nav a {color:var(--muted)}
+[data-theme=solarized] nav a.active {background:#e2dcc8;color:var(--ink)}
+[data-theme=solarized] .rail-diagram svg {fill:var(--inset);stroke:#91a1a0}
+[data-theme=solarized] .rail-diagram circle {stroke:var(--blue)}
+[data-theme=solarized] :is(.panel,.region-card,.metrics,.dispatch-layout,.chart-tooltip,.trends-tooltip,.plant-tooltip) {
+  background:var(--surface);
+  color:var(--ink);
+}
+[data-theme=solarized] :is(select,input,button) {background:var(--surface);color:var(--ink);border-color:var(--line)}
+[data-theme=solarized] :is(button:hover,button:focus-visible) {background:#eee8d5;color:var(--ink);border-color:var(--blue)}
+[data-theme=solarized] :is(.metric:first-child .value,.method summary,.dispatch-title em) {color:var(--blue)}
+[data-theme=solarized] :is(.region-card:hover,tbody tr:hover) {background:#f2ead5}
+[data-theme=solarized] .chart text {fill:var(--muted)}
+[data-theme=solarized] .chart .axis {stroke:var(--line)}
+[data-theme=solarized] .chart-cursor {stroke:var(--muted)}
+[data-theme=solarized] .chart-tooltip.regional-snapshot-tooltip {
+  background:color-mix(in srgb,var(--tooltip-color, var(--line)) 12%,var(--surface));
+  color:var(--ink);
+}
+[data-theme=solarized] .daylight-day {fill:#f5e5a8;background:#f5e5a8}
+[data-theme=solarized] .daylight-night {fill:#e3ece1;background:#e3ece1}
+
+[data-theme=solarized] :is(
+  .region-map-panel .region-map-frame,.region-map-panel .region-map-detail,
+  .plant-map-frame,.plant-map-sidebar,.ewic-map-frame,.plant-table .plant-expanded>td
+) {background:var(--inset)}
+[data-theme=solarized] :is(
+  .plant-table .plant-expanded .plant-detail,.plant-map-fuels img,.fuel-tooltip
+) {background:var(--surface)}
+[data-theme=solarized] .plant-map-country {fill:#e5dbc0;stroke:#8d856c}
+[data-theme=solarized] .plant-map-district-boundary {stroke:#a29a82}
+[data-theme=solarized] .plant-map-division-boundary {stroke:#817861}
+[data-theme=solarized] .region-map-key .region-key-item.is-active {background:#e5dbc0;border-color:var(--blue)}
+
+:root[data-theme=solarized] {
+  scrollbar-color:#8c7753 var(--inset);
+}
+[data-theme=solarized] .region-card .track {
+  --green:#073642;
+  height:9px;
+  background:#efe4c3;
+  border:1px solid #82734f;
+}
+[data-theme=solarized] .region-card :is(.label,.mini) {color:var(--ink)}

@@ -1,19 +1,19 @@
 /* Public, versioned URL contract. Chart/series IDs are independent of render order. */
 (function(root){
   const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&Number.isFinite(Date.parse(value+'T00:00:00Z'))&&new Date(value+'T00:00:00Z').toISOString().slice(0,10)===value;
-  const choices={dispatch:['line','bar'],shed:['line','bar'],fuel:['bar','pie','ring'],regional:['line','stacked'],curve:['area','line'],table:['energy','mw'],days:['30','60','90','365','10y'],generationUnit:['GWh','MW'],importsUnit:['GWh','MW'],temperatureUnit:['C','F'],detail:['auto','daily','weekly']};
-  const defaults={dispatch:'line',shed:'bar',fuel:'bar',regional:'stacked',curve:'area',table:'energy',days:'30',generationUnit:'GWh',importsUnit:'GWh',temperatureUnit:'C',detail:'auto'};
-  const names=['date','compare','yesterday','tomorrow','highest','layers','trendLayers','hide','show','v',...Object.keys(choices)];
+  const choices={dispatch:['line','bar'],shed:['line','bar'],fuel:['bar','pie','ring'],regional:['line','stacked'],curve:['area','line'],table:['energy','mw'],days:['7','30','60','90','365','10y','custom'],generationUnit:['GWh','MW'],importsUnit:['GWh','MW'],temperatureUnit:['C','F'],detail:['auto','daily','weekly'],costTrend:['off','linear']};
+  const defaults={dispatch:'line',shed:'bar',fuel:'bar',regional:'stacked',curve:'area',table:'energy',days:'30',generationUnit:'GWh',importsUnit:'GWh',temperatureUnit:'C',detail:'auto',costTrend:'off'};
+  const names=['date','compare','yesterday','tomorrow','highest','layers','trendLayers','hide','show','v','costAverageDays','trendStart','trendEnd',...Object.keys(choices)];
   // Append-only aliases: these IDs must not depend on chart/legend render order.
-  const dailyCharts={'overview:dispatch':'od','overview:shed':'os','en-curve:en-curve':'ec','en-curve:shortage_mw':'es','imports:total_mw':'it'};
-  const dailySeries={generation_mw:'g',demand_mw:'d',shed_mw:'s',forecasted_demand_mw:'f',east_grid_mw:'e',west_grid_mw:'w',shortage_mw:'q',total_mw:'i',mw:'m',output_selected:'o'};
+  const dailyCharts={'overview:dispatch':'od','overview:shed':'os','en-curve:en-curve':'ec','en-curve:shortage_mw':'es','imports:total_mw':'it','realtime:total_mw':'rt'};
+  const dailySeries={generation_mw:'g',demand_mw:'d',shed_mw:'s',forecasted_demand_mw:'f',east_grid_mw:'e',west_grid_mw:'w',shortage_mw:'q',total_mw:'i',mw:'m',output_selected:'o',independent_generation_mw:'ig',independent_demand_mw:'id'};
   const trendCharts={'generation-demand':'tg','load-shedding':'tl','fuel-mix':'tf',imports:'ti','dependence-renewables':'td','unserved-share':'tu','historical-generation':'th','temperature-subplot':'tt'};
   const trendSeries={tg:{generation_mwh:'g',demand_mwh:'d',temperature_c:'t'},tl:{shed_peak_mw:'s'},tf:{gas:'g',coal:'c',hfo:'o',hsd:'d',hydro:'h',solar:'s',imports:'i',wind:'w'},ti:{imports_mwh:'i'},td:{'import-share':'i','renewable-share':'r'},tu:{'unserved-share':'u'},th:{'daily-mean':'d','rolling-mean':'r'},tt:{temperature_c:'t'}};
   const lookup=(map,key)=>Object.hasOwn(map,key)?map[key]:undefined;
   const reverse=map=>Object.fromEntries(Object.entries(map).map(([key,value])=>[value,key]));
   const dailyChartNames=reverse(dailyCharts),dailySeriesNames=reverse(dailySeries),trendChartNames=reverse(trendCharts);
   const trendSeriesNames=Object.fromEntries(Object.entries(trendSeries).map(([chart,series])=>[chart,reverse(series)]));
-  function defaultVisible(id,trends=false){return trends?id!=='generation-demand|temperature_c':!['overview:dispatch|east_grid_mw','overview:dispatch|west_grid_mw'].includes(id);}
+  function defaultVisible(id,trends=false){return trends?(id.startsWith('bpdb-cost|')?id==='bpdb-cost|reported-total':id!=='generation-demand|temperature_c'):!['realtime:total_mw|forecasted_demand_mw','realtime:total_mw|independent_generation_mw','realtime:total_mw|independent_demand_mw'].includes(id);}
   function visibilityOverrides(pairs,trends=false){
     return [...new Map(pairs||[])].filter(([id,visible])=>visible!==defaultVisible(id,trends)).sort(([a],[b])=>a.localeCompare(b));
   }
@@ -46,11 +46,18 @@
     }
     throw Error();
   }
+  const validTrendRange=(start,end)=>validDate(start)&&validDate(end)&&start<=end&&
+    (Date.parse(end)-Date.parse(start))/86400000<365;
   function decode(input){
     const p=new URL(input,'https://example.test').searchParams,warnings=[],state={...defaults,custom:[],presets:{},layers:[],trendLayers:[]};
     if(p.has('v')&&!['1','2'].includes(p.get('v')))warnings.push('This link uses an unknown view version; supported settings were restored.');
     if(p.has('date')){if(validDate(p.get('date')))state.date=p.get('date');else warnings.push('Invalid operating date; showing the latest available report.');}
     for(const key of Object.keys(choices))if(p.has(key)){if(choices[key].includes(p.get(key)))state[key]=p.get(key);else warnings.push('Unsupported '+key+' setting; using its default.');}
+    if(state.days==='custom'){
+      const start=p.get('trendStart'),end=p.get('trendEnd');
+      if(validTrendRange(start,end)){state.trendStart=start;state.trendEnd=end;}
+      else{state.days=defaults.days;warnings.push('Invalid Trends date range; using 30 days.');}
+    }
     for(const key of ['yesterday','tomorrow','highest'])if(p.has(key)){const value=p.get(key);if(validDate(value)||value==='unavailable')state.presets[key]=value;else warnings.push('Invalid '+key+' comparison was ignored.');}
     for(const date of p.getAll('compare').flatMap(value=>value.split(','))){if(validDate(date)){if(!state.custom.includes(date)&&!Object.values(state.presets).includes(date))state.custom.push(date);else warnings.push('Duplicate comparison date '+date+' was included once.');}else warnings.push('Invalid comparison date was ignored.');}
     for(const key of ['layers','trendLayers'])if(p.has(key))try{
@@ -76,11 +83,15 @@
     const custom=(state.custom||[]).filter(validDate);if(custom.length)url.searchParams.set('compare',custom.join(','));
     for(const [key,value] of Object.entries(state.presets||{}))if(validDate(value)||value==='unavailable')url.searchParams.set(key,value);
     for(const key of Object.keys(choices))if(choices[key].includes(String(state[key]))&&String(state[key])!==defaults[key])url.searchParams.set(key,String(state[key]));
+    if(state.days==='custom'&&validTrendRange(state.trendStart,state.trendEnd)){
+      url.searchParams.set('trendStart',state.trendStart);
+      url.searchParams.set('trendEnd',state.trendEnd);
+    }else if(state.days==='custom')url.searchParams.delete('days');
     const hide=[],show=[];
     for(const field of ['layers','trendLayers'])for(const [id,visible] of visibilityOverrides(state[field],field==='trendLayers'))(visible?show:hide).push(packLayer(id,field==='trendLayers'));
     if(hide.length)url.searchParams.set('hide',hide.join(','));
     if(show.length)url.searchParams.set('show',show.join(','));
     return url.href;
   }
-  root.BEGDViewCodec={validDate,decode,encode,defaults,visibilityOverrides};
+  root.BEGDViewCodec={validDate,validTrendRange,decode,encode,defaults,visibilityOverrides};
 })(window);

@@ -1,0 +1,32 @@
+name: Fuel source diagnostics
+on:
+  push:
+    branches: [codex/fuel-fetch-diagnostics]
+    paths:
+      - scripts/fuel.py
+      - scripts/diagnose_fuel.py
+      - .github/workflows/fuel-diagnostics.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -r requirements.txt
+      - name: Test fetch diagnostics and fallback behavior
+        run: python -m unittest discover -s tests -p 'test_*fuel*.py' -v
+      - name: Probe official sources without publishing
+        run: python scripts/diagnose_fuel.py --output fuel-diagnostics.json
+      - name: Save diagnostic report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuel-source-diagnostics
+          path: fuel-diagnostics.json
+          retention-days: 7
