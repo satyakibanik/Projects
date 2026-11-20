@@ -128,6 +128,21 @@
       if(dataURL)image.setAttribute('href',dataURL);
     }
   }
+  function legendSize(){
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--begd-legend-size'))||13;
+  }
+  function scaleExportLegend(clone,outputWidth){
+    const width=Math.ceil(clone.getBoundingClientRect().width);
+    if(!width)return;
+    // The chart will be resampled to outputWidth. Compensate before rasterizing.
+    const size=legendSize()*width/outputWidth;
+    clone.style.setProperty('--begd-legend-size',size+'px');
+    for(const label of clone.querySelectorAll('[data-text-role="legend-chart"]')){
+      const matrix=label.getScreenCTM?.();
+      const scale=matrix?Math.hypot(matrix.c,matrix.d):1;
+      label.style.setProperty('--readable-svg-size',size/(scale||1)+'px');
+    }
+  }
   async function exportPNG(target,info=describe(target)){
     if(!target.isConnected)throw new Error('The figure changed. Select it again.');
     // Browser download tests inject a deterministic PNG to check every button
@@ -143,7 +158,7 @@
     // html2canvas requires an HTML root; capturing an SVG root fails during cloning.
     const capture=target.matches('svg,table')?target.closest('.figure-export-wrap'):target;
     const preview=info.preview;
-    const captureScale=preview?2:4;
+    const captureScale=info.measure?0.5:preview?2:4;
     const hasPlantMap=target.matches('.plant-map-panel,.plant-map-frame');
     // Capture the theme once so chart, title and footer use the same palette.
     const theme=getComputedStyle(document.body),background=theme.backgroundColor,ink=theme.color;
@@ -167,11 +182,19 @@
         clone.style.height='auto';clone.style.minHeight='0';clone.style.maxHeight='none';
         if(info.prepare)info.prepare(clone);
         simplifySingleLayerLegends(clone);
+        const cloneWidth=Math.ceil(clone.getBoundingClientRect().width);
+        if(info.legendWidth)scaleExportLegend(clone,info.legendWidth);
+        else if(!preview)scaleExportLegend(clone,Math.max(2400,cloneWidth*captureScale));
         clone.querySelectorAll('.en-curve-chart>svg.chart').forEach(svg=>{
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
           const extra=Math.max(0,ink.y+ink.height-view.y-view.height);
           if(extra){const height=view.height+extra+4;svg.style.height=(bounds.height*height/view.height)+'px';svg.style.maxHeight='none';svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.width} ${height}`);}
         });
+        if(info.measure){
+          // The first pass only needs the layout bounds.
+          clone.style.opacity='0';
+          return;
+        }
         // Keep circular fuel SVGs self-contained. Copying every computed CSS
         // property into their serialized image can suppress the SVG artwork.
         clone.querySelectorAll('svg.fuel-mix-chart').forEach(svg=>{
@@ -258,6 +281,7 @@
       const color=clone.ownerDocument.createElement('span');
       color.style.cssText='width:12px;height:12px;flex:none;background:'+slice.firstElementChild.getAttribute('fill');
       const icon=[...clone.querySelectorAll('[data-cost-row]')].find(row=>row.dataset.costRow===name)?.querySelector('img');
+      item.dataset.textRole='legend';
       item.append(color);
       if(icon)item.append(icon.cloneNode());
       item.append(name);legend.append(item);
@@ -286,7 +310,7 @@
       }
     }
   }
-  async function dashboardPreviewRows(tab,date,themeName){
+  async function dashboardPreviewRows(tab,date,themeName,legendWidths){
     const staged=['trends','plants','operations','fuel','organogram'].includes(tab);
     let frame;
     try{
@@ -306,14 +330,17 @@
         if(themeName)doc.documentElement.dataset.theme=themeName;
       }
       const find=selector=>doc.querySelector('#content '+selector);
+      let captureIndex=0;
       const capture=async(read,title,prepare)=>{
         const target=await waitForPreview(typeof read==='string'?()=>find(read):read);
         const section=target.closest('.trends-section[hidden]');
         if(section)doc.querySelector('[aria-controls="'+section.id+'"]')?.click();
-        const shot=await exportPNG(target,{preview:true,prepare});
+        const index=captureIndex++;
+        const shot=await exportPNG(target,{preview:true,prepare,measure:!legendWidths,legendWidth:legendWidths?.[index]});
+
         if(!shot.width||!shot.height)throw new Error('Could not create the dashboard preview.');
         const label=title??describe(target).title;
-        return {shot,title:label==='Grid figure'?'':label};
+        return {shot,index,title:label==='Grid figure'?'':label};
       };
       if(tab==='trends'){
         return [
@@ -404,7 +431,7 @@
     const operatingDate=date?new Intl.DateTimeFormat('en-GB',{
       dateStyle:'long',timeZone:'Asia/Dhaka'
     }).format(new Date(date+'T12:00:00+06:00')):'Unavailable';
-    const rows=previews.map(row=>{
+    const pack=figures=>figures.map(row=>{
       const columnWidth=(width-pad*2-gap*(row.length-1))/row.length;
       return row.map(figure=>({
         ...figure,columnWidth,
@@ -413,19 +440,23 @@
     });
     const rowHeight=(row,factor)=>Math.max(...row.map(({shot,columnWidth,chrome})=>
       (columnWidth/shot.width)*shot.height*factor+chrome));
-    const totalHeight=factor=>rows.reduce((total,row)=>total+rowHeight(row,factor),gap*(rows.length-1));
+    const totalHeight=(rows,factor)=>rows.reduce((total,row)=>total+rowHeight(row,factor),gap*(rows.length-1));
+    const measured=pack(previews);
     const availableHeight=maxHeight-figureTop-footerHeight;
     let factor=1;
-    if(totalHeight(1)>availableHeight){
+    if(totalHeight(measured,1)>availableHeight){
       let low=0,high=1;
       for(let i=0;i<16;i++){
         const mid=(low+high)/2;
-        if(totalHeight(mid)>availableHeight)high=mid;
+        if(totalHeight(measured,mid)>availableHeight)high=mid;
         else low=mid;
       }
       factor=low;
     }
-    const height=Math.ceil(figureTop+totalHeight(factor)+footerHeight);
+    const legendWidths=[];
+    for(const row of measured)for(const item of row)legendWidths[item.index]=item.columnWidth*factor;
+    const rows=pack(await dashboardPreviewRows(tab,date,themeName,legendWidths));
+    const height=Math.ceil(figureTop+totalHeight(rows,factor)+footerHeight);
     canvas.width=width;canvas.height=height;
     const ctx=canvas.getContext('2d');
     ctx.fillStyle=backgroundColor;ctx.fillRect(0,0,width,height);
@@ -448,7 +479,7 @@
           ctx.fillText(title,Math.min(left,columnLeft+Math.max(0,columnWidth-ctx.measureText(title).width)),top+21,columnWidth);
         }
         ctx.drawImage(shot,left,top+headingSpace,imageWidth,imageHeight);
-        ctx.font='16px sans-serif';
+        ctx.font=legendSize()+'px sans-serif';
         const legendWidth=Math.min(columnWidth,650)/2,legendLeft=columnLeft+(columnWidth-legendWidth*2)/2;
         legend.forEach(({name,color,dash},i)=>{
           const x=legendLeft+i%2*legendWidth,y=top+headingSpace+imageHeight+16+Math.floor(i/2)*21;

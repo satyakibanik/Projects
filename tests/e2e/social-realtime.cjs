@@ -29,14 +29,32 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
   await page.evaluate(()=>{
     const original=window.html2canvas;
     window.html2canvas=(figure,options)=>{
-      window.previewFigures.push({
+      if(options.scale<=1)return original(figure,options);
+      const info={
         id:figure.id,
         date:data.date,
         realtime:figure.matches('.realtime-dispatch-plots'),
         plants:figure.matches('.plant-map-panel'),
         trends:figure.matches('.trends-generation-figure,.trends-chart')
-      });
-      return original(figure,options);
+      };
+      window.previewFigures.push(info);
+      return original(figure,{...options,async onclone(doc,clone){
+        await options.onclone(doc,clone);
+        const width=Math.ceil(clone.getBoundingClientRect().width);
+        info.legendRatios=[...clone.querySelectorAll('[data-text-role="legend"],[data-text-role="legend-chart"]')]
+          .filter(label=>label.getBoundingClientRect().height>0).map(label=>{
+            const matrix=label.getScreenCTM?.();
+            const scale=matrix?Math.hypot(matrix.c,matrix.d):1;
+            return parseFloat(doc.defaultView.getComputedStyle(label).fontSize)*scale/width;
+          });
+      }});
+    };
+    const drawImage=CanvasRenderingContext2D.prototype.drawImage;
+    CanvasRenderingContext2D.prototype.drawImage=function(source,...args){
+      if(this.canvas.width===1050&&args.length===4&&source instanceof HTMLCanvasElement){
+        window.previewWidths.push(args[2]);
+      }
+      return drawImage.call(this,source,...args);
     };
     const write=navigator.clipboard.write.bind(navigator.clipboard);
     navigator.clipboard.write=items=>{
@@ -45,7 +63,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
     };
   });
   async function shareTab(hash,title,contentKey){
-    const opened=await page.evaluate(()=>{window.previewFigures=[];return window.opened.length;});
+    const opened=await page.evaluate(()=>{window.previewFigures=[];window.previewWidths=[];return window.opened.length;});
     await page.locator('#share-dashboard').click();
     const dialog=page.locator('.figure-share-dialog[open]');
     assert.match(await dialog.innerText(),new RegExp('Copies a figure preview of '+title));
@@ -61,6 +79,11 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
     assert.ok(figures.length>0&&figures.length<=3);
     assert.ok(figures.some(figure=>figure[contentKey]));
     assert.ok(figures.every(figure=>figure.id!=='content'&&figure.date===initial.date));
+    const widths=await page.evaluate(()=>window.previewWidths);
+    assert.equal(widths.length,figures.length);
+    const legendSizes=figures.flatMap(({legendRatios},i)=>legendRatios.map(ratio=>ratio*widths[i]));
+    assert.ok(legendSizes.length>0);
+    assert.ok(legendSizes.every(size=>Math.abs(size-13)<0.1),'Exported legends should match the 13 px dashboard reference');
     assert.equal(await page.evaluate(()=>location.hash),hash);
     const url=new URL(await page.evaluate(()=>window.opened.at(-1)));
     assert.equal(url.searchParams.get('text'),'Bangladesh grid today');
@@ -70,7 +93,7 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict');
     }));
     assert.equal(png.subarray(1,4).toString(),'PNG');
     assert.equal(png.readUInt32BE(16),1050);
-    assert.ok(png.readUInt32BE(20)>0&&png.readUInt32BE(20)<=1400);
+    assert.ok(png.readUInt32BE(20)>0&&png.readUInt32BE(20)<=1800);
     return png;
   }
   const realtime=await shareTab('#realtime','Real time','realtime');

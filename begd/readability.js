@@ -4,7 +4,7 @@
  */
 (()=>{'use strict';
 function roleFor(el,doc,nativeSize){
- if(el.closest('.legend,.fuel-legend,.trends-legend,.event-chart-legend,.event-mark-legend,.event-density-legend,.daylight-key,.regional-snapshot-legend,.composition-key,.vb-legend,.region-map-key,.chart-legend,.forecast-layer>legend'))return el.namespaceURI==='http://www.w3.org/2000/svg'?'legend-chart':'legend';
+ if(el.closest('.legend,.fuel-legend,.trends-legend,.event-chart-legend,.event-plot-legend,.event-fixed-legend,.event-mark-legend,.event-density-legend,.daylight-key,.regional-snapshot-legend,.composition-key,.vb-legend,.region-map-key,.chart-legend,.forecast-layer>legend,.import-map-legend,.history-series-key,.regional-metric-keys,.regional-date-keys,.plant-icon-key,.plant-category-key,.plant-gradient-key,.plant-map-key,.district-boundary-key,.division-boundary-key,.insight-series-legend,.insight-fuel-legend,.insight-scenario-legend,.insight-disturbance-legend,.demand-heatmap-labels,.availability-circle-key'))return el.namespaceURI==='http://www.w3.org/2000/svg'?'legend-chart':'legend';
  if(el.closest('.ewic-map-readings'))return 'controls';
  if(el.matches('.plant-table-hint'))return 'controls';
  if(el.closest('.brand-acronym'))return 'brand-acronym';
@@ -83,7 +83,8 @@ function refresh(){
  // Batch reads before writes to avoid a forced layout for every table cell or map label.
  const assignments=elements.map(el=>{if(!nativeSizes.has(el))nativeSizes.set(el,parseFloat(getComputedStyle(el).fontSize));return [el,roleFor(el,document,nativeSizes.get(el))];});
  for(const [el,role] of assignments)if(el.dataset.textRole!==role)el.dataset.textRole=role;
- const labels=assignments.filter(([,role])=>role==='chart'||role==='legend-chart').map(([el,role])=>[el,((role==='legend-chart'?12:13)/svgScale(el)).toFixed(3)+'px']);
+ const legendSize=parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--begd-legend-size'))||13;
+ const labels=assignments.filter(([,role])=>role==='chart'||role==='legend-chart').map(([el,role])=>[el,((role==='legend-chart'?legendSize:13)/svgScale(el)).toFixed(3)+'px']);
  for(const [el,size] of labels)if(el.style.getPropertyValue('--readable-svg-size')!==size)el.style.setProperty('--readable-svg-size',size);
 
  }finally{observer.observe(document.body,{childList:true,subtree:true});}
