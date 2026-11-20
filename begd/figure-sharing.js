@@ -191,7 +191,8 @@
           if(extra){const height=view.height+extra+4;svg.style.height=(bounds.height*height/view.height)+'px';svg.style.maxHeight='none';svg.setAttribute('viewBox',`${view.x} ${view.y} ${view.width} ${height}`);}
         });
         if(info.measure){
-          // The first pass only needs the layout bounds.
+          // The first pass only needs the layout bounds, but still parses the root style.
+          normalizeColorFunctions(doc,clone,true);
           clone.style.opacity='0';
           return;
         }
