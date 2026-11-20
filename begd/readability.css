@@ -54,8 +54,9 @@
 .temperature-subplot-heading{flex-wrap:wrap}
 
 /* Compact legends retain the same series controls and readable wrapping. */
-[data-text-role="legend"]{font-size:13px!important;line-height:1.3!important}
-[data-text-role="legend-chart"]{font-size:var(--readable-svg-size,12px)!important}
+:root{--begd-legend-size:13px}
+[data-text-role="legend"]{font-size:var(--begd-legend-size)!important;line-height:1.3!important}
+[data-text-role="legend-chart"]{font-size:var(--readable-svg-size,var(--begd-legend-size))!important}
 :is(.legend,.fuel-legend,.trends-legend,.event-mark-legend,.event-density-legend,.daylight-key,.regional-snapshot-legend,.vb-legend,.region-map-key,.chart-legend){gap:4px 12px;margin-top:8px;margin-bottom:8px}
 :is(.legend,.fuel-legend,.trends-legend,.vb-legend,.chart-legend) :is(label,button){min-height:26px;padding-top:2px;padding-bottom:2px;gap:5px}
 :is(.legend,.fuel-legend,.trends-legend,.chart-legend) input[type="checkbox"]{width:13px;height:13px;min-height:0;padding:0;flex:0 0 13px}
