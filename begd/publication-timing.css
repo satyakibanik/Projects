@@ -223,3 +223,10 @@
 .timing-disclosure[open] > summary {
   margin-bottom: 1rem;
 }
+
+.timing-key-charts > section {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: .4rem;
+}

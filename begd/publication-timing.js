@@ -11,6 +11,7 @@
     timeZone: 'Asia/Dhaka', year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23'
   });
+  const bangladeshDate = new Intl.DateTimeFormat('sv-SE', {timeZone: 'Asia/Dhaka'});
   const format = instant => instant ? dateTime.format(new Date(instant)) : '—';
   const offset = (day, timestamp) => (timestamp - Date.parse(day.date + 'T00:00:00+06:00')) / minute;
 
@@ -84,7 +85,7 @@
     return {start, end, ticks};
   }
 
-  function plot(rows, name, band) {
+  function plot(rows, name, band, scale = plotScale(rows, band)) {
     const frame = element('div');
     frame.className = 'timing-plot';
     frame.setAttribute('role', 'region');
@@ -94,7 +95,7 @@
     chart.className = 'timing-plot-chart';
     frame.append(chart);
 
-    const {start, end, ticks} = plotScale(rows, band);
+    const {start, end, ticks} = scale;
     const position = value => (value - start) / (end - start) * 100 + '%';
     const axis = element('div');
     axis.className = 'timing-plot-row timing-plot-axis';
@@ -102,7 +103,7 @@
     const labels = element('div');
     labels.className = 'timing-plot-track';
     for (const tick of ticks) {
-      const label = element('span', wallTime(tick));
+      const label = element('span', tick === 1440 && start === 0 ? '24:00' : wallTime(tick));
       label.style.left = position(tick);
       labels.append(label);
     }
@@ -184,6 +185,11 @@
       || Number(b.report_id) - Number(a.report_id));
   }
 
+  function clockMinutes(instant) {
+    const parts = Object.fromEntries(dateTime.formatToParts(instant).map(part => [part.type, Number(part.value)]));
+    return parts.hour * 60 + parts.minute + parts.second / 60;
+  }
+
   function workbookPlotRows(reports) {
     // Compare local clock times across different listing dates. Keep the full
     // workbook timestamp and original date in the table and plot tooltip.
@@ -191,8 +197,7 @@
       if (!value || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return NaN;
       const date = new Date(value);
       if (!Number.isFinite(date.getTime())) return NaN;
-      const parts = Object.fromEntries(dateTime.formatToParts(date).map(part => [part.type, Number(part.value)]));
-      return parts.hour * 60 + parts.minute + parts.second / 60;
+      return clockMinutes(date);
     };
     return reports.flatMap(row => {
       const marks = [
@@ -405,6 +410,76 @@
     return section;
   }
 
+  function erpArrivalRows(feeds) {
+    const groups = new Map();
+    const keys = ['demand', 'generation', 'imports'];
+    for (const source of keys) {
+      for (const row of feeds[source]?.observations || []) {
+        const instant = Date.parse(row.first_seen_at);
+        if (!Number.isFinite(instant)) continue;
+        const date = bangladeshDate.format(instant);
+        if (!groups.has(date)) groups.set(date, new Map());
+        const group = groups.get(date);
+        if (!group.has(source)) group.set(source, new Set());
+        group.get(source).add(instant);
+      }
+    }
+    return [...groups].sort(([a], [b]) => b.localeCompare(a)).slice(0, 3).map(([date, group]) => ({
+      date,
+      rows: keys.filter(key => group.has(key)).map(key => {
+        const times = [...new Set([...group.get(key)].map(instant => Math.floor(clockMinutes(new Date(instant)))))].sort((a, b) => a - b);
+        const label = {demand: 'Demand', generation: 'Generation', imports: 'India imports'}[key];
+        return {label, range: times, marks: times.map(time => ({time, type: 'slot'})),
+          description: label + ' · ' + times.map(wallTime).join(', ')};
+      })
+    }));
+  }
+
+  function keyTimingCharts(feeds, workbookDays, workbookEstimate, archive, minimum) {
+    const section = element('section');
+    section.className = 'timing-key-charts';
+    const workbook = element('section');
+    const erp = element('section');
+    workbook.append(element('h2', 'When is the daily workbook posted?'));
+    const estimate = workbookEstimate.lower === undefined
+      ? 'Usual posting window: too early to tell.'
+      : 'Estimated posting window: ' + wallTime(workbookEstimate.lower) + ' – ' + wallTime(workbookEstimate.upper) + '.';
+    workbook.append(element('p', estimate));
+    if (workbookDays.length) {
+      const recent = workbookDays.slice(0, 7);
+      workbook.append(element('p', 'First found by BEGD: ' + recent.slice(0, 2).map(day => format(day.upper)).join(' and ') + '.'),
+        element('p', 'Dots show the first successful fetch. Lines span the previous poll that found the workbook absent and the first fetch.'),
+        observedPlot(recent, workbookEstimate));
+    }
+    if (workbookEstimate.lower === undefined) {
+      workbook.append(element('p', 'The estimate needs ' + minimum + ' days with short gaps between polls. So far: ' + workbookEstimate.count + '.'));
+    }
+    const reports = workbookHistory(archive, feeds.operations?.observations);
+    const lateMorning = reports.filter(report => {
+      const value = report.excel_modified_at;
+      if (!value || !/(?:Z|[+-]\d{2}:\d{2})$/i.test(value)) return false;
+      const instant = new Date(value);
+      if (!Number.isFinite(instant.getTime())) return false;
+      const clock = clockMinutes(instant);
+      return bangladeshDate.format(instant) === report.listed_date && clock >= 600 && clock < 780;
+    }).length;
+    if (reports.length) workbook.append(element('p', 'Workbook preparation clue: ' + lateMorning + ' of '
+      + reports.length + ' files were last modified between 10:00 and 13:00 on their listing date. This is file metadata.'));
+    erp.append(element('h2', 'When do ERP readings arrive?'),
+      element('p', 'Each dot marks a minute when a poll found new readings.'));
+    const groups = erpArrivalRows(feeds);
+    const clockScale = {start: 0, end: 1440, ticks: [0, 360, 720, 1080, 1440]};
+    for (const {date, rows} of groups) {
+      erp.append(element('h3', date), plot(rows, 'ERP arrivals on ' + date, null, clockScale));
+      const times = [...new Set(rows.flatMap(row => row.range.map(wallTime)))].sort();
+      erp.append(disclosure('Exact poll times by source', ...rows.map(row => element('p', row.description))));
+      if (times.length) erp.append(element('p', times.length + ' distinct arrival minutes across sources.'));
+    }
+    if (!groups.length) erp.append(element('p', 'No ERP arrivals have been observed yet.'));
+    section.append(element('p', 'All times are Bangladesh time.'), workbook, erp);
+    return section;
+  }
+
   function show(panel, bundle, archive, readings) {
     const {feeds, max_window_minutes: maxWindow, min_estimate_days: minimum} = bundle;
     const daysBySource = Object.fromEntries(Object.keys(sources).map(key => [key, dailyRows(feeds[key], maxWindow)]));
@@ -499,7 +574,10 @@
     const excel = disclosure('Excel file timestamps', workbook.section);
     const directWorkbook = new URLSearchParams(location.search).get('timing') === 'workbooks';
     excel.open = directWorkbook;
-    panel.replaceChildren(...(directWorkbook ? [excel, overview, daily, comparison] : [overview, daily, comparison, excel]));
+    const keyCharts = keyTimingCharts(feeds, daysBySource.operations, estimates.operations, archive, minimum);
+    const latest = disclosure('Latest arrival by source', overview);
+    panel.replaceChildren(...(directWorkbook ? [excel, keyCharts, latest, daily, comparison]
+      : [keyCharts, latest, daily, comparison, excel]));
     if (bundle.unavailable) panel.prepend(element('p', 'Publication timing history is unavailable. Try reloading the page.'));
   }
 
@@ -524,6 +602,6 @@
     show(panel, bundle, archive, history.value?.version === 1 ? history.value : null);
   }
 
-  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows, archiveHistory};
+  if (typeof module === 'object') module.exports = {dailyRows, estimate, wallTime, plotScale, workbookTime, workbookHistory, workbookPlotRows, archiveHistory, erpArrivalRows};
   else root.BEGDPublicationTiming = {mount};
 })(typeof window === 'undefined' ? null : window);
