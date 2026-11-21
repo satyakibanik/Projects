@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use the Bangladesh Electric Grid Dashboard, please cite it using this metadata."
+title: "Bangladesh Electric Grid Dashboard (BEGD)"
+type: software
+authors:
+  - family-names: Banik
+    given-names: Satyaki
+url: "https://satyakibanik.github.io/Projects/begd/"
+repository-code: "https://github.com/satyakibanik/Projects"

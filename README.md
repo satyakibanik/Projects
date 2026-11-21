@@ -28,20 +28,20 @@ BEGD is an independent website for exploring Bangladesh’s electricity grid. It
 
 | Tab | What’s inside |
 | --- | --- |
-| Real time | Latest ERP demand, supply, load shedding, generation mix, India imports, and BEGD forecasts. |
-| Long-term trends | Daily and historical electricity trends, generation costs, system losses, and an operational event explorer. |
-| Overview | Daily briefing, hourly demand and generation, peak conditions, fuel mix, and reported energy totals. |
-| Energy Curve | Half-hourly generation by source and reported shortage, plus daily BPDB costs when a matching report is available. |
-| Regions | Regional generation and energy mix, evening-peak demand, and load shedding. |
-| Power plants | Searchable map and table with fuel, capacity, status, and hourly unit output. |
-| Insight | Exploratory operating metrics and interactive grid scenarios. |
-| Imports | Hourly power and daily energy by cross-border route, plus import share. |
-| Substations | Maximum served load and daily voltage ranges for 400, 230, and 132 kV stations. |
-| Operations | Planned and forced shutdowns, event logs, and east–west interconnector flows. |
-| Forecast | Official generation availability, BEGD demand and generation forecasts, and comparisons with published scenarios and actuals. |
-| Fuel | Daily gas supply, power-sector allocations, and annual Barapukuria coal production. |
-| News | Searchable English and Bangla power-sector news with links to publishers. |
-| Organogram | Institutional roles and links to official data across the electricity, fuel, and nuclear sectors. |
+| [Real time](https://satyakibanik.github.io/Projects/begd/#realtime) | Latest ERP demand, supply, load shedding, generation mix, India imports, and BEGD forecasts. |
+| [Long-term trends](https://satyakibanik.github.io/Projects/begd/#trends) | Daily and historical electricity trends, generation costs, system losses, and an operational event explorer. |
+| [Overview](https://satyakibanik.github.io/Projects/begd/#overview) | Daily briefing, hourly demand and generation, peak conditions, fuel mix, and reported energy totals. |
+| [Energy Curve](https://satyakibanik.github.io/Projects/begd/#en-curve) | Half-hourly generation by source and reported shortage, plus daily BPDB costs when a matching report is available. |
+| [Regions](https://satyakibanik.github.io/Projects/begd/#regions) | Regional generation and energy mix, evening-peak demand, and load shedding. |
+| [Power plants](https://satyakibanik.github.io/Projects/begd/#plants) | Searchable map and table with fuel, capacity, status, and hourly unit output. |
+| [Insight](https://satyakibanik.github.io/Projects/begd/#insight) | Exploratory operating metrics and interactive grid scenarios. |
+| [Imports](https://satyakibanik.github.io/Projects/begd/#imports) | Hourly power and daily energy by cross-border route, plus import share. |
+| [Substations](https://satyakibanik.github.io/Projects/begd/#substations) | Maximum served load and daily voltage ranges for 400, 230, and 132 kV stations. |
+| [Operations](https://satyakibanik.github.io/Projects/begd/#operations) | Planned and forced shutdowns, event logs, and east–west interconnector flows. |
+| [Forecast](https://satyakibanik.github.io/Projects/begd/#forecast) | Official generation availability, BEGD demand and generation forecasts, and comparisons with published scenarios and actuals. |
+| [Fuel](https://satyakibanik.github.io/Projects/begd/#fuel) | Daily gas supply, power-sector allocations, and annual Barapukuria coal production. |
+| [News](https://satyakibanik.github.io/Projects/begd/#news) | Searchable English and Bangla power-sector news with links to publishers. |
+| [Organogram](https://satyakibanik.github.io/Projects/begd/#organogram) | Institutional roles and links to official data across the electricity, fuel, and nuclear sectors. |
 
 ## License and attribution
 
