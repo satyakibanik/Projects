@@ -773,7 +773,9 @@ function realTime(){
  const yesterdayRows=history.demand_hourly||[],previousGeneration=previous.generation_hourly||history.generation_hourly||[],previousRoutes=previous.imports||[];
  const demandForecastFor=window.BEGDIndependentStudy?.realtimeDemandForecast;
  const forecastToday=demandForecastFor?.(todayDate);
- const todayForecast=forecastToday?.rows||[],yesterdayForecast=yesterday?demandForecastFor?.(yesterday)?.rows||[]:[];
+ const todayForecast=forecastToday?.adjusted===true?forecastToday.rows:[];
+ const previousForecast=yesterday?demandForecastFor?.(yesterday):null;
+ const yesterdayForecast=todayForecast.length&&previousForecast?.adjusted===true?previousForecast.rows:[];
  const hasHistory=yesterdayForecast.length||yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
  const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
  const intraday=latest.demand===todayDate?intradayDemandForecast(rows,todayForecast):[];

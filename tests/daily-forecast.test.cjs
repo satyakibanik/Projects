@@ -13,7 +13,9 @@ test('today forecast waits safely while the ERP snapshot is loading',()=>{
  assert.equal(vm.runInContext('window.BEGDIndependentStudy.renderToday()',c),'');
 });
 test('first panel combines substation-side readings and the BEGD demand forecast',()=>{
- const {c}=live();const html=vm.runInContext('realTime()',c),models=vm.runInContext('[...chartData.values()].filter(p=>p.syncGroup)',c);
+ const {c}=live();
+ for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=13500+Number(row.time.slice(0,2));
+ const html=vm.runInContext('realTime()',c),models=vm.runInContext('[...chartData.values()].filter(p=>p.syncGroup)',c);
  assert.equal(models.length,2);assert.deepEqual(Array.from(models[0].series,s=>s.key),['demand_mw','supply_mw','demand_forecast_mw']);
  assert.deepEqual(Array.from(models[1].series,s=>s.key),['shed_mw']);
  assert.equal(models[0].rows[23].demand_forecast_mw,13523);
@@ -22,13 +24,13 @@ test('first panel combines substation-side readings and the BEGD demand forecast
  assert.match(html,/demand − supply/);assert.doesNotMatch(html.split('id="independent-study-panel"')[0],/Generation · realtime|forecasted_demand_mw|independent_generation_mw/);
  assert.deepEqual(Array.from(models[0].rows,r=>r.time),Array.from(models[1].rows,r=>r.time));
 });
-test('realtime demand overlay starts unchecked and defaults on only for an adjusted current day',()=>{
+test('realtime demand overlay is unavailable until the current day has a complete bias correction',()=>{
  const {c}=live();
  const render=()=>vm.runInContext('chartData.clear();realTime()',c);
- const visibility=()=>vm.runInContext('[...chartData.values()].find(m=>m.scope==="realtime-demand-supply").series.find(s=>s.key==="demand_forecast_mw").defaultVisible',c);
- render();assert.equal(visibility(),false);
+ const visibility=()=>vm.runInContext('[...chartData.values()].find(m=>m.scope==="realtime-demand-supply").series.find(s=>s.key==="demand_forecast_mw")?.defaultVisible',c);
+ render();assert.equal(visibility(),undefined);
  c.fixture.independent_forecast.hourly[0].adjusted_demand_mw=13000;
- render();assert.equal(visibility(),false);
+ render();assert.equal(visibility(),undefined);
  for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=13000;
  render();assert.equal(visibility(),true);
  vm.runInContext("chartVisibility.set('realtime-demand-supply|demand_forecast_mw',false)",c);
@@ -37,7 +39,7 @@ test('realtime demand overlay starts unchecked and defaults on only for an adjus
 test('dispatch uses the matching archived curve at rollover and joins hourly forecasts across off-hour readings',()=>{
  const {c}=live();
  const issued=c.fixture.independent_forecast;
- const dated=(date,value)=>({...issued,date,hourly:issued.hourly.map(row=>({...row,demand_models:{...row.demand_models,Trees:value}}))});
+ const dated=(date,value)=>({...issued,date,hourly:issued.hourly.map(row=>({...row,adjusted_demand_mw:value,demand_models:{...row.demand_models,Trees:value}}))});
  c.fixture.independent_forecast=null;
  c.fixture.forecast_history={
   '2026-10-21':{forecast:dated('2026-10-21',12000)},
@@ -58,8 +60,8 @@ test('dispatch uses the matching archived curve at rollover and joins hourly for
  assert.equal((group.match(/<polyline/g)||[]).length,1);
  c.fixture.today_date='2026-10-24';
  render();
- assert.equal(dispatch().rows[0].demand_forecast_mw,14000);
- assert.equal(dispatch().rows.find(row=>row.minute===1440).demand_forecast_mw,undefined);
+ assert.equal(dispatch().rows[0].demand_forecast_mw,undefined);
+ assert.ok(dispatch().rows.every(row=>row.demand_forecast_mw===undefined));
 });
 test('expanded live forecast has all 24 horizons while future demand and generation actuals stay absent',()=>{
  const {c,open}=live();open();const html=vm.runInContext('realTime()',c),model=plot(c);
@@ -153,6 +155,8 @@ test('intraday demand shifts future hours only and keeps the issued curve availa
   {time:'02:00',demand_mw:14702},
   {time:'02:30',demand_mw:14600}
  );
+ assert.doesNotMatch(render(),/BEGD intraday demand estimate/);
+ for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=row.demand_models.Trees;
  assert.match(render(),/BEGD intraday demand estimate/);
  const chart=dispatch();
  assert.equal(chart.rows.find(r=>r.time==='02:00').intraday_demand_mw,undefined);
