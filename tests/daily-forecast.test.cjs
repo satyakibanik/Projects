@@ -143,3 +143,23 @@ test('live refresh preserves rank-one predictions and legend visibility',()=>{
  assert.equal(before,13500);assert.equal(plot(c).rows[0].demand_forecast_mw,before);assert.equal(plot(c).rows[1].demand_mw,14400);
  assert.equal(vm.runInContext('[...chartData.values()].filter(p=>p.series.some(s=>s.key==="generation_forecast_mw")).at(-1).series.find(s=>s.key==="generation_forecast_mw").defaultVisible',c),false);
 });
+
+test('intraday demand shifts future hours only and keeps the issued curve available',()=>{
+ const {c}=live();
+ const render=()=>vm.runInContext('chartData.clear();realTime()',c);
+ const dispatch=()=>vm.runInContext('[...chartData.values()].find(p=>p.scope==="realtime-demand-supply")',c);
+ c.fixture.demand_hourly.push(
+  {time:'01:00',demand_mw:14801},
+  {time:'02:00',demand_mw:14702},
+  {time:'02:30',demand_mw:14600}
+ );
+ assert.match(render(),/BEGD intraday demand estimate/);
+ const chart=dispatch();
+ assert.equal(chart.rows.find(r=>r.time==='02:00').intraday_demand_mw,undefined);
+ assert.equal(chart.rows.find(r=>r.time==='03:00').intraday_demand_mw,14703);
+ assert.equal(chart.rows.find(r=>r.time==='03:00').demand_forecast_mw,13503);
+ assert.equal(plot(c).rows[3].demand_forecast_mw,13503);
+ assert.equal(chart.series.find(s=>s.key==='demand_forecast_mw').defaultVisible,false);
+ c.fixture.source_dates.demand='2026-10-22';
+ assert.doesNotMatch(render(),/BEGD intraday demand estimate/);
+});

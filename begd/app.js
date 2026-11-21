@@ -748,6 +748,21 @@ function realtimeDispatchRows(readings,forecast){
  for(const row of forecast)byTime.set(row.time,{...byTime.get(row.time),...row});
  return [...byTime.values()].sort((a,b)=>a.time.localeCompare(b.time));
 }
+function intradayDemandForecast(readings, forecast){
+ const valid=row=>/^([01]\d|2[0-3]):[0-5]\d$/.test(row.time)&&Number.isFinite(row.demand_mw)&&row.demand_mw>=0;
+ const actual=new Map(readings.filter(valid).map(row=>[row.time,row.demand_mw]));
+ const latest=[...actual.keys()].sort().at(-1);
+ if(!latest)return [];
+ const minute=time=>Number(time.slice(0,2))*60+Number(time.slice(3));
+ const cutoff=minute(latest);
+ const matched=forecast.filter(row=>actual.has(row.time)&&cutoff-minute(row.time)<=240)
+  .sort((a,b)=>a.time.localeCompare(b.time)).slice(-3);
+ if(matched.length<3||cutoff-minute(matched.at(-1).time)>60)return [];
+ const residuals=matched.map(row=>actual.get(row.time)-row.demand_forecast_mw).sort((a,b)=>a-b);
+ return forecast.filter(row=>row.time>latest).map(row=>({
+  time:row.time,intraday_demand_mw:Math.max(0,row.demand_forecast_mw+residuals[1])
+ }));
+}
 function realTime(){
  const independentStudyPanel=window.BEGDIndependentStudy?.renderToday()||'';
  if(!currentDayData)return independentStudyPanel+`<section class="panel full"><p id="current-status" role="status">${currentDayError?'ERP readings unavailable. Retrying shortly.':'Fetching latest ERP readings…'}</p></section>`;
@@ -761,12 +776,15 @@ function realTime(){
  const todayForecast=forecastToday?.rows||[],yesterdayForecast=yesterday?demandForecastFor?.(yesterday)?.rows||[]:[];
  const hasHistory=yesterdayForecast.length||yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
  const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
- const demandRows=realtimeDispatchRows(rows,todayForecast),previousDemandRows=realtimeDispatchRows(yesterdayRows,yesterdayForecast);
+ const intraday=latest.demand===todayDate?intradayDemandForecast(rows,todayForecast):[];
+ const demandRows=realtimeDispatchRows(rows,[...todayForecast,...intraday]),previousDemandRows=realtimeDispatchRows(yesterdayRows,yesterdayForecast);
  const demandSeries=[{key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},{key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}];
- if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true,defaultVisible:forecastToday?.adjusted===true});
+ if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true,defaultVisible:!intraday.length&&forecastToday?.adjusted===true});
+ if(intraday.length)demandSeries.push({key:'intraday_demand_mw',name:'BEGD intraday demand estimate',color:'#805ca8',dashArray:'6 4',marker:'circle'});
  const dispatchOptions={syncGroup:'realtime-dispatch',sparseRows:true};
  const combinedPanel=panel('Demand and Supply at the Substation side',`Demand / supply ERP page · ${dateFor('demand')} · ${rows.length} readings · substation side`,
   '<div class="realtime-dispatch-plots">'+realtimePlot(demandRows,demandSeries,previousDemandRows,{...dispatchOptions,key:'realtime-demand-supply'})+
+  (intraday.length?'<p class="note">The intraday estimate shifts the remaining day-ahead curve by the median error at the three latest matched ERP hours. The Forecast tab keeps the issued forecast for scoring.</p>':'')+
   '<h3>Reported load shedding</h3>'+realtimePlot(demandRows,[{key:'shed_mw',name:'Load shedding · substation side',color:'#b95442'}],previousDemandRows,{...dispatchOptions,height:160,key:'realtime-shedding'})+
   '<p class="note">Substation-side load shedding = demand − supply at the same timestamp. Yesterday’s comparison uses the previous calendar day of the snapshot in Bangladesh time.</p>'+
   (!rows.length?'<p class="note">No reported load shedding readings available for today.</p>':'')+'</div>');
