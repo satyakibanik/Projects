@@ -1,8 +1,14 @@
 # Bangladesh Electric Grid Dashboard (BEGD)
 
+[![Live dashboard](docs/readme/live-dashboard.svg)](https://satyakibanik.github.io/Projects/begd/) [![GPL v3.0](docs/readme/license.svg)](LICENSE.md)
+
 BEGD is an independent website for exploring Bangladesh’s electricity grid. It brings together daily operating reports, recent ERP readings, historical trends, maps, and forecasts for demand, generation, load shedding, and cross-border imports.
 
 [Open the dashboard](https://satyakibanik.github.io/Projects/begd/)
+
+[![BEGD National overview showing hourly generation by grid area for 19 November 2026](docs/readme/overview.png)](https://satyakibanik.github.io/Projects/begd/#overview)
+
+*National Overview · Operating date 19 November 2026 (Bangladesh time).*
 
 ## Data sources
 
@@ -23,6 +29,14 @@ BEGD is an independent website for exploring Bangladesh’s electricity grid. It
 - **Grid data and news** are checked by GitHub Actions every 15 minutes. GitHub can delay scheduled builds, and new readings appear after a successful deployment. Open Real time and News tabs check for new published snapshots every three minutes.
 - **Daily workbooks and fuel reports** follow their publishers’ schedules. **BPDB costs** are checked at most every six hours and **system-loss statistics** at most every 30 days. **BEGD forecasts** are published by operating day.
 - **Map geometry, reviewed coordinates, the organogram, and the BengalGrid release** change with source or catalog revisions. All operating dates and times use Bangladesh time (Asia/Dhaka). Operating and publication dates can differ.
+
+## Explore the dashboard
+
+[![Bangladesh power plant map showing present capacity and fuel types for 19 November 2026](docs/readme/power-plants.png)](https://satyakibanik.github.io/Projects/begd/#plants)
+
+*Power plants · Operating date 19 November 2026 (Bangladesh time).*
+
+Open the map to browse plants by fuel, compare available capacity, and inspect hourly output.
 
 ## Dashboard tabs
 
