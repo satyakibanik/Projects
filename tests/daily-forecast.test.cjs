@@ -155,15 +155,13 @@ test('intraday demand shifts future hours only and keeps the issued curve availa
   {time:'02:00',demand_mw:14702},
   {time:'02:30',demand_mw:14600}
  );
- assert.doesNotMatch(render(),/BEGD intraday demand estimate/);
- for(const row of c.fixture.independent_forecast.hourly)row.adjusted_demand_mw=row.demand_models.Trees;
  assert.match(render(),/BEGD intraday demand estimate/);
  const chart=dispatch();
  assert.equal(chart.rows.find(r=>r.time==='02:00').intraday_demand_mw,undefined);
  assert.equal(chart.rows.find(r=>r.time==='03:00').intraday_demand_mw,14703);
- assert.equal(chart.rows.find(r=>r.time==='03:00').demand_forecast_mw,13503);
+ assert.equal(chart.rows.find(r=>r.time==='03:00').demand_forecast_mw,undefined);
  assert.equal(plot(c).rows[3].demand_forecast_mw,13503);
- assert.equal(chart.series.find(s=>s.key==='demand_forecast_mw').defaultVisible,false);
+ assert.equal(chart.series.some(s=>s.key==='demand_forecast_mw'),false);
  c.fixture.source_dates.demand='2026-10-22';
  assert.doesNotMatch(render(),/BEGD intraday demand estimate/);
 });

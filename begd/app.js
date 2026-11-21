@@ -778,7 +778,7 @@ function realTime(){
  const yesterdayForecast=todayForecast.length&&previousForecast?.adjusted===true?previousForecast.rows:[];
  const hasHistory=yesterdayForecast.length||yesterdayRows.length||previousGeneration.length||previousRoutes.some(route=>route.hourly?.length)||history.forecast?.hourly?.length||history.pgcb_forecast?.hourly?.length;
  const yesterdayControl=`<div class="realtime-comparison-controls"><label><input type="checkbox" id="realtime-yesterday"${realtimeYesterday?' checked':''}${hasHistory?'':' disabled'}> Yesterday’s data</label><span class="note" id="realtime-yesterday-status">${esc(shortDate(yesterday))} · ${hasHistory?'all realtime plots · shown before today':'ERP readings unavailable'}</span></div>`;
- const intraday=latest.demand===todayDate?intradayDemandForecast(rows,todayForecast):[];
+ const intraday=latest.demand===todayDate?intradayDemandForecast(rows,forecastToday?.rows||[]):[];
  const demandRows=realtimeDispatchRows(rows,[...todayForecast,...intraday]),previousDemandRows=realtimeDispatchRows(yesterdayRows,yesterdayForecast);
  const demandSeries=[{key:'demand_mw',name:'Demand · substation side',color:'#b46c13',marker:'circle'},{key:'supply_mw',name:'Supply · substation side',color:'#71818c',marker:'plus'}];
  if(todayForecast.length||realtimeYesterday&&yesterdayForecast.length)demandSeries.push({key:'demand_forecast_mw',name:'BEGD demand forecast · substation side',color:'#805ca8',dashArray:'6 4',noMarkers:true,defaultVisible:!intraday.length&&forecastToday?.adjusted===true});
