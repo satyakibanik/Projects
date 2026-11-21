@@ -32,6 +32,8 @@ BEGD is an independent website for exploring Bangladesh’s electricity grid. It
 
 ## Explore the dashboard
 
+![Animated walkthrough of the BEGD dashboard](docs/readme/BEGD-walkthrough-readme-2.gif)
+
 [![Bangladesh power plant map showing present capacity and fuel types for 19 November 2026](docs/readme/power-plants.png)](https://satyakibanik.github.io/Projects/begd/#plants)
 
 *Power plants · Operating date 19 November 2026 (Bangladesh time).*
