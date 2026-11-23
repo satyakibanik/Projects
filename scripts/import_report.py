@@ -456,8 +456,9 @@ def parse_report(report_bytes, source_file):
             "Fuel energy does not reconcile"
         assert abs(sum(region["energy_mwh"] for region in regions) - data["summary"]["energy_mwh"]) < 0.1, \
             "Regional energy does not reconcile"
-        assert abs(sum(route["energy_mwh"] for route in imports) - data["summary"]["import_mwh"]) < 0.1, \
-            "Import energy does not reconcile"
+        if abs(sum(route["energy_mwh"] for route in imports) - data["summary"]["import_mwh"]) >= 0.1:
+            data["imports"] = []
+            quality_notes.append("Reported import route subtotals do not reconcile; route breakdown omitted.")
     return data
 
 

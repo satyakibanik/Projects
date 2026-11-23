@@ -124,6 +124,21 @@ class WorkbookTests(unittest.TestCase):
                     self.assertEqual(report['grid_generation'], [])
                     self.assertIn('38.00 MW', ' '.join(report['quality_notes']))
 
+    def test_inconsistent_import_routes_keep_reconciled_report(self):
+        book = workbook()
+        book['P1']['E17'] = book['P1']['E26'] = 2.3
+        book['P1']['K17'] = book['P1']['K26'] = 0.1
+        book['GenLog']['C11'] = 'Nepal import'
+        book['GenLog']['C38'] = 90000
+
+        report = parse(book)
+
+        self.assertEqual(report['summary']['import_mwh'], 100)
+        self.assertEqual(report['fuels']['Imports'], 100)
+        self.assertEqual(report['summary']['energy_mwh'], 2400)
+        self.assertEqual(report['imports'], [])
+        self.assertIn('Reported import route subtotals do not reconcile; route breakdown omitted.', report['quality_notes'])
+
     def test_rejects_inconsistent_energy(self):
         book = workbook()
         book['P2']['I11'] = 100
