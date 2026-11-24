@@ -1,0 +1,613 @@
+/* Paper-and-ink theme tokens and component overrides. */
+:root[data-theme="paper-and-ink"] {
+  --bg: #EAE6DF;
+  --surface: #F4F1EA;
+  --ink: #1F1F1F;
+  --muted: #5C5A54;
+  --green: #6A8D73;
+  --blue: #5B7C99;
+  --red: #C85A32;
+  --lime: var(--red);
+  --action: #5E54D6;
+  --line: var(--ink);
+  --inset: var(--bg);
+  --panel: var(--surface);
+  --comparison-fill: var(--surface);
+  --comparison-border: var(--line);
+  --body: var(--mono);
+  --display: var(--mono);
+  --heading: var(--mono);
+  --paper-rule: 1px solid var(--ink);
+  --paper-radius: 3px;
+  --paper-shadow: 4px 4px 0 var(--ink);
+  --paper-gridline: #B8B1A5;
+  --paper-sage: color-mix(in srgb, var(--green) 23%, var(--surface));
+  --paper-steel: color-mix(in srgb, var(--blue) 19%, var(--surface));
+  --paper-clay: color-mix(in srgb, var(--red) 19%, var(--surface));
+  --paper-daylight: color-mix(in srgb, var(--red) 9%, var(--surface));
+  --paper-night: color-mix(in srgb, var(--blue) 10%, var(--surface));
+  --paper-ochre: #A18447;
+  --paper-teal: #597F7D;
+  --paper-plum: #887281;
+  scrollbar-color: var(--muted) var(--bg);
+}
+
+[data-theme="paper-and-ink"] {
+  body {
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  /* Component font shorthands would otherwise reset inherited numeric styling. */
+  body, body :where(*) {
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  :is(header, footer, nav, .operating-date-bar) {
+    background: var(--surface);
+  }
+
+  header {
+    border-top: 4px solid var(--ink);
+  }
+
+  .operating-date-bar {
+    box-shadow: none;
+  }
+
+  .brand .mark {
+    background: var(--ink);
+    color: var(--surface);
+    border-radius: var(--paper-radius);
+    transform: none;
+  }
+
+  .brand-acronym,
+  .brand-title {
+    color: var(--ink);
+  }
+
+  .brand-title {
+    font-size: clamp(.875rem, 1.6vw, 1.25rem);
+    line-height: 1.25;
+  }
+
+  #title {
+    font-size: clamp(1.85rem, 4vw, 3.25rem);
+    font-weight: 600;
+    line-height: 1.1;
+    letter-spacing: -.045em;
+  }
+
+  .intro {
+    animation: none;
+  }
+
+  nav a,
+  nav a > span:first-child {
+    color: var(--muted);
+  }
+
+  nav a:is(:hover, .active, .nav-live.active),
+  #mobile-nav-drawer nav a.active {
+    background: var(--paper-sage);
+    color: var(--ink);
+  }
+
+  .nav-arrow { color: var(--ink); }
+
+  nav a.active::before {
+    background-color: var(--ink);
+  }
+
+  .rail-diagram svg {
+    fill: var(--surface);
+    stroke: var(--muted);
+  }
+
+  .rail-diagram circle {
+    stroke: var(--green);
+  }
+
+  :is(.grid, .dispatch-layout, .metrics, .briefing-rows, .plant-map-layout, .region-map-layout) {
+    row-gap: 12px;
+  }
+
+  :is(.grid, .briefing-rows, .plant-map-layout, .region-map-layout) {
+    column-gap: 12px;
+  }
+
+  .dispatch-layout {
+    gap: 0;
+    border: var(--paper-rule);
+  }
+
+  :is(.panel, .daily-briefing, .briefing-loading, .briefing-row, .region-card,
+      .dispatch-layout, .metrics, .chart-selector, .plant-detail, .forecast-layer,
+      .news-card, .timing-overview-card, .insight-condition-card, .fuel-kpi,
+      .fuel-panel, .availability-chart, #day-sources,
+      #error) {
+    background: var(--surface);
+    border-radius: var(--paper-radius);
+    box-shadow: none;
+  }
+
+  :is(.dispatch-readings, .chart-selector, th, .track, .briefing-row,
+      .region-map-panel .region-map-detail, .plant-map-sidebar) {
+    background: var(--bg);
+  }
+
+  .metrics {
+    border: var(--paper-rule);
+    background: var(--bg);
+    gap: 1px;
+    padding: 0;
+  }
+
+  .metrics > .metric {
+    min-width: 0;
+    padding-inline: clamp(8px, 1.4vw, 20px);
+    background: var(--surface);
+  }
+
+  :is(tbody tr:hover, .region-card:hover, .plant-list li.active, .plant-list li:hover,
+      .plant-table .plant-row.active, .substation-row.active,
+      .plant-filter.active, .plant-table-toolbar .plant-filter.active,
+      .region-map-key .region-key-item.is-active, .regional-fuel-option[aria-pressed="true"]) {
+    background: var(--paper-sage);
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+
+  :is(.plant-list li.active, .plant-table .plant-row.active td:first-child,
+      .insight-condition-card:has(input:checked), .compact-report-table thead th,
+      .history-table-scroll :is(thead th, tbody th)) {
+    box-shadow: none;
+  }
+
+  :is(.panel-head :is(h2, h3), .figure-title-row :is(h2, h3), .energy-band h2,
+      .about-begd h2, .briefing-row h3, .briefing-kicker, .section-number, .label,
+      .metric:first-child .label, .plant-metrics .plant-metric-title, th,
+      fieldset > legend, .header-meta label, #day-sources label, .bangladesh-clock > span,
+      .toolbar > label, label[for], .region-map-kicker, .ewic-map-kicker,
+      .fuel-mix-heading > h2, .fuel-panel-title h2, .fuel-kpi > div,
+      .event-plot-heading h3, .insight-scenario-head h2) {
+    font: 600 .7rem/1.45 var(--mono);
+    /* The readability script assigns font sizes through data attributes. */
+    font-size: .7rem !important;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+  }
+
+  .panel-head :is(h2, h3),
+  .energy-band h2,
+  .figure-title-row .dispatch-title,
+  th {
+    color: var(--ink);
+  }
+
+  .briefing-header h2 {
+    font-size: clamp(.95rem, 1.6vw, 1.25rem);
+    font-weight: 600;
+  }
+
+  :is(.value, .region-card .value) {
+    font-size: clamp(1.375rem, 2.5vw, 2.25rem);
+    font-weight: 600;
+    letter-spacing: -.04em;
+  }
+
+  .dispatch-readings .metric .value {
+    font-size: clamp(1.5rem, 2.2vw, 2.125rem) !important;
+  }
+
+  :is(.metric:first-child .value, .dispatch-title em, .method summary,
+      .briefing-links a, .plant-map-attribution a, .plant-map-osm a, .plant-status.is-running) {
+    color: var(--ink);
+  }
+
+  #subtitle .operating-date-highlight {
+    animation: none;
+    background: var(--paper-clay);
+    color: var(--ink);
+    border: var(--paper-rule);
+    border-radius: var(--paper-radius);
+    font-size: .875rem;
+  }
+
+  /* Controls keep their existing hit areas and get printed-inset and pressed states. */
+  :is(button, select, input:where(:not([type="checkbox"], [type="radio"], [type="range"]))),
+  #report-date-controls #report-date,
+  #day-sources #comparison-date,
+  #mobile-nav-toggle,
+  .mobile-nav-close {
+    border-color: var(--ink);
+    border-radius: var(--paper-radius);
+    background: var(--surface);
+    color: var(--ink);
+  }
+
+  :is(.header-actions, .report-picker-row, .custom-comparison-controls, .toolbar)
+    :is(button, select, input:not([type="checkbox"], [type="radio"], [type="range"])):enabled,
+  #mobile-nav-toggle {
+    box-shadow: var(--paper-shadow);
+  }
+
+  :is(button, select):enabled:hover,
+  :is(button, select):focus-visible {
+    box-shadow: 2px 2px 0 var(--ink);
+  }
+
+  :is(button, select):enabled:hover {
+    background: var(--bg);
+    color: var(--ink);
+    border-color: var(--ink);
+  }
+
+  /* Show the selection even when a control retains hover or keyboard focus. */
+  button:is([aria-pressed="true"], [aria-selected="true"],
+      [aria-current="page"], [aria-current="true"], .plant-filter.active),
+  [role="tab"][aria-selected="true"] {
+    background: var(--paper-sage);
+    color: var(--ink);
+    border-color: var(--ink);
+    font-weight: 600;
+  }
+
+  :is(.fuel-tabs, .plant-slide-tabs, .event-explorer-tabs, .trends-section-picker)
+    :is(button[aria-pressed="true"], [aria-selected="true"]) {
+    background: var(--ink);
+    color: var(--surface);
+    border-color: var(--ink);
+    box-shadow: none;
+  }
+
+  :is(#load-report, #add-comparison, #share-dashboard) {
+    background: var(--action);
+    color: #fff;
+  }
+
+  :is(#load-report, #add-comparison, #share-dashboard):enabled:hover {
+    background: color-mix(in srgb, var(--action) 85%, var(--ink));
+    color: #fff;
+  }
+
+  :is(button, select, input, a, summary):focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 3px;
+  }
+
+  :is(input[type="checkbox"], input[type="radio"], input[type="range"]) {
+    accent-color: var(--ink);
+  }
+
+  :is(dialog, #mobile-nav-drawer[open]) {
+    background: var(--surface);
+    color: var(--ink);
+    border: var(--paper-rule);
+    border-radius: var(--paper-radius);
+    box-shadow: var(--paper-shadow);
+  }
+
+  dialog::backdrop {
+    background: rgb(31 31 31 / 45%);
+  }
+
+  /* Status text is retained. The dot scale is decorative and adds a second visual cue. */
+  :is(.tag, .status, .briefing-severity, .briefing-experimental-mark, .plant-status,
+      .plant-status-badge, .nav-live-badge, .nav-test-badge, .news-new) {
+    display: inline-flex;
+    align-items: center;
+    gap: .35em;
+    max-width: 100%;
+    padding: 2px 7px;
+    border: var(--paper-rule);
+    border-radius: 999px;
+    background: var(--surface);
+    color: var(--ink);
+    font: 600 .625rem/1.4 var(--mono);
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    white-space: normal;
+  }
+
+  /* The report badge follows the date bar's existing visibility rules. */
+  .operating-date-bar .status {
+    display: none;
+  }
+
+  :is(.nav-live-badge, .plant-status.is-running, .briefing-typical) {
+    background: var(--paper-sage);
+  }
+
+  .briefing-typical { --severity-dots: "○ ○ ○"; }
+  .briefing-insufficient-data { --severity-dots: "○ ○ ○"; color: var(--muted); }
+
+  .briefing-watch {
+    --severity-dots: "● ○ ○";
+    background: var(--paper-steel);
+  }
+
+  .briefing-unusual {
+    --severity-dots: "● ● ○";
+    background: var(--paper-clay);
+  }
+
+  .briefing-extreme {
+    --severity-dots: "● ● ●";
+    background: color-mix(in srgb, var(--red) 66%, var(--surface));
+  }
+
+  .briefing-severity::before {
+    content: var(--severity-dots, "○ ○ ○") / "";
+    white-space: nowrap;
+    letter-spacing: 0;
+  }
+
+  .briefing-status-palette { gap: 4px; }
+  .briefing-palette-swatch {
+    width: 8px;
+    height: 8px;
+    border: var(--paper-rule);
+    border-radius: 50%;
+  }
+
+  .briefing-palette-typical { background: var(--green); }
+  .briefing-palette-watch { background: var(--blue); }
+  .briefing-palette-unusual { background: var(--paper-clay); }
+  .briefing-palette-extreme { background: var(--red); }
+  .briefing-ramp-summary {
+    background: var(--paper-sage);
+    border-color: var(--green);
+    border-radius: var(--paper-radius);
+  }
+  .briefing-ramp-summary strong { color: var(--ink); }
+
+  .briefing-sparkline span {
+    color: var(--muted);
+    font-size: .625rem !important;
+    white-space: normal;
+  }
+
+  :is(.metric-method-trigger, .metric-method-dialog, .metric-method-heading h3) {
+    font-family: var(--mono);
+  }
+
+  /* Flat callouts, axis rules and marks for the SVG-based telemetry views. */
+  :is(.chart-tooltip, .trends-tooltip, .plant-tooltip, .fuel-tooltip,
+      .bpdb-pie-tooltip, .import-map-tooltip, .event-tooltip, .event-context-tooltip,
+      .insight-tooltip, .insight-fuel-tooltip, .insight-contribution-tooltip,
+      .regional-snapshot-tooltip, .geomap-viewport > .map-controls,
+      .plant-fullscreen-legend, .figure-download-status) {
+    background: var(--surface);
+    color: var(--ink);
+    border-color: var(--ink);
+    border-radius: var(--paper-radius);
+    box-shadow: none;
+  }
+
+  .chart text { fill: var(--muted); }
+
+  .energy-curve-table thead th {
+    background: var(--bg) !important;
+    color: var(--ink) !important;
+    border-bottom: var(--paper-rule);
+  }
+
+  .energy-curve-table tbody .energy-curve-shortage {
+    color: color-mix(in srgb, var(--red) 66%, var(--ink)) !important;
+  }
+
+  :is(.chart .axis, .fuel-grid, .vb-axis, .timing-plot-grid, .event-plot-grid,
+      .event-time-grid, .event-density-grid, .event-density-time-grid) {
+    stroke: var(--paper-gridline);
+    stroke-width: 1;
+    stroke-dasharray: none;
+    opacity: 1;
+    vector-effect: non-scaling-stroke;
+  }
+
+  :is(.chart-cursor, .chart-day-boundary, .timing-plot-axis, .event-axis-line,
+      .briefing-sparkline polyline, .briefing-sparkline-current) {
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .briefing-sparkline .briefing-sparkline-current { fill: #C4A35A; }
+
+  :is(.chart, .trends-chart, .history-chart, .insight-chart, .event-context-svg,
+      .event-timeline-svg, .event-density-svg, .timing-plot-chart,
+      .fuel-chart, .availability-chart, .vb-chart)
+    :is(polyline[stroke], path[stroke][fill="none"]):not([stroke="none"]) {
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .interactive-chart .chart [data-series].is-highlighted,
+  :is(.event-series-highlight, .event-time-marker, .event-linked-dot,
+      .event-period-marker .event-duration, .event-dial-event :is(.event-dial-span,
+      .event-dial-point, .event-dial-endpoint), .event-series-point circle,
+      .insight-focus, .insight-rocof-focus, .plant-slide-symbol, .plant-map-marker circle,
+      .plant-map-frame.has-plant-basemap[data-basemap="satellite"]
+        :is(.plant-map-boundaries, .plant-map-country)) {
+    filter: none;
+  }
+
+  .interactive-chart .chart [data-series].is-highlighted polyline {
+    stroke-width: 2.5;
+  }
+
+  .event-chronograph-panel {
+    --event-outage: var(--red);
+    --event-restoration: var(--green);
+    --event-period: var(--paper-clay);
+    --event-demand: var(--red);
+    --event-generation: var(--blue);
+  }
+
+  .event-chronograph-list-item.is-selected {
+    background: var(--paper-clay);
+    box-shadow: none;
+  }
+
+  .daylight-day { fill: var(--paper-daylight); background: var(--paper-daylight); }
+  .daylight-night { fill: var(--paper-night); background: var(--paper-night); }
+
+  .fuel-dashboard { --fuel-accent: var(--green); }
+  .organogram [data-sector="Governance"] { --org-accent: var(--blue); }
+  .organogram [data-sector="Electricity"] { --org-accent: #496653; }
+  .organogram [data-sector="Fuel & minerals"] { --org-accent: #77573B; }
+  .organogram [data-sector="Nuclear"] { --org-accent: #66546E; }
+  .organogram [data-sector="Regulation"] { --org-accent: #87535B; }
+  .organogram button.organogram-node[aria-current="true"] {
+    background: var(--paper-sage);
+    border-color: var(--ink);
+    box-shadow: none;
+  }
+  .news-lab :is(.news-count, .news-card) { border-color: var(--ink); }
+  .news-card-new { background: var(--paper-clay); }
+  .news-card h2 { font-family: var(--mono); }
+  .news-card .news-new { background: var(--surface); color: var(--ink); border-color: var(--ink); }
+
+  /* The renderers share these SVG presentation colors with their legend samples. */
+  svg :is([fill="#4e79a7" i], [fill="#347baf" i], [fill="#1976b9" i]) { fill: var(--blue); }
+  svg :is([stroke="#4e79a7" i], [stroke="#347baf" i], [stroke="#1976b9" i]) { stroke: var(--blue); }
+  svg :is([fill="#147d58" i], [fill="#59a14f" i], [fill="#50a57a" i], [fill="#36a77b" i]) { fill: var(--green); }
+  svg :is([stroke="#147d58" i], [stroke="#59a14f" i], [stroke="#50a57a" i], [stroke="#36a77b" i]) { stroke: var(--green); }
+  svg :is([fill="#b95442" i], [fill="#e15759" i]) { fill: var(--red); }
+  svg :is([stroke="#b95442" i], [stroke="#e15759" i]) { stroke: var(--red); }
+  svg [fill="#f28e2b" i] { fill: #AE7044; }
+  svg [stroke="#f28e2b" i] { stroke: #AE7044; }
+  svg :is([fill="#edc948" i], [fill="#c48722" i], [fill="#b46c13" i]) { fill: var(--paper-ochre); }
+  svg :is([stroke="#edc948" i], [stroke="#c48722" i], [stroke="#b46c13" i]) { stroke: var(--paper-ochre); }
+  svg [fill="#76b7b2" i] { fill: var(--paper-teal); }
+  svg [stroke="#76b7b2" i] { stroke: var(--paper-teal); }
+  svg :is([fill="#b07aa1" i], [fill="#a178c2" i], [fill="#805ca8" i]) { fill: var(--paper-plum); }
+  svg :is([stroke="#b07aa1" i], [stroke="#a178c2" i], [stroke="#805ca8" i]) { stroke: var(--paper-plum); }
+  svg [fill="#8b5bc7" i] { fill: #66546E; }
+  svg [stroke="#8b5bc7" i] { stroke: #66546E; }
+  svg [fill="#df6f9b" i] { fill: #A8646C; }
+  svg [stroke="#df6f9b" i] { stroke: #A8646C; }
+  svg [fill="#263238" i] { fill: var(--ink); }
+  svg [stroke="#263238" i] { stroke: var(--ink); }
+
+  /* The stacked fuel view uses HTML segments with inline backgrounds. */
+  .fuel-mix-bar [data-fuel="Gas"] { background-color: var(--blue) !important; }
+  .fuel-mix-bar [data-fuel="HFO"] { background-color: #AE7044 !important; }
+  .fuel-mix-bar [data-fuel="HSD"] { background-color: var(--red) !important; }
+  .fuel-mix-bar [data-fuel="Hydro"] { background-color: var(--green) !important; }
+  .fuel-mix-bar [data-fuel="Solar"] { background-color: var(--paper-ochre) !important; }
+  .fuel-mix-bar [data-fuel="Wind"] { background-color: var(--paper-teal) !important; }
+  .fuel-mix-bar [data-fuel="Imports"] { background-color: var(--paper-plum) !important; }
+  .fuel-mix-bar [data-fuel="Nuclear"] { background-color: #66546E !important; }
+
+  :is(.region-map-panel .region-map-frame, .plant-map-frame, .ewic-map-frame, .import-map-frame,
+      .insight-scenario-lab) {
+    background: var(--bg);
+    border-color: var(--ink);
+    border-radius: var(--paper-radius);
+  }
+
+  :is(.region-map-panel .region-map-detail, .plant-map-sidebar, .plant-gradient) {
+    border-radius: var(--paper-radius);
+  }
+
+  :is(.planning-region, .plant-map-country, .plant-map-division-boundary) {
+    stroke: var(--ink);
+    stroke-width: 1.5;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .plant-map-country { fill: var(--paper-sage); }
+
+  .plant-map-district-boundary { stroke: var(--muted); }
+
+  :is(.import-map-line, .ewic-route-line) { stroke-width: 1.5; }
+  .import-map-halo { stroke: var(--surface); stroke-width: 3.5; }
+  .import-map-frame g:is(.is-active, :focus-visible) .import-map-line { stroke-width: 3; }
+
+  :is(.plant-slide-tabs button, .plant-icon-key button, .plant-category-key button,
+      .plant-gradient-key button, .x-share-control) {
+    font-family: var(--mono);
+  }
+
+  .plant-slide-tabs button[aria-selected="true"] > span { color: var(--surface); }
+
+  /* Match each plant-map category across its dots, rings, and legend keys. */
+  .plant-slide-symbol [fill="#2878cd"] { fill: var(--blue); }
+  .plant-slide-symbol [stroke="#2878cd"] { stroke: var(--blue); }
+  .plant-slide-symbol [fill="#e67e28"] { fill: #AE7044; }
+  .plant-slide-symbol [stroke="#e67e28"] { stroke: #AE7044; }
+  .plant-slide-symbol [fill="#df527b"] { fill: #A8646C; }
+  .plant-slide-symbol [stroke="#df527b"] { stroke: #A8646C; }
+  .plant-slide-symbol [fill="#159d9c"] { fill: var(--paper-teal); }
+  .plant-slide-symbol [stroke="#159d9c"] { stroke: var(--paper-teal); }
+  .plant-slide-symbol [fill="#e0b91d"] { fill: var(--paper-ochre); }
+  .plant-slide-symbol [stroke="#e0b91d"] { stroke: var(--paper-ochre); }
+  .plant-slide-symbol [fill="#4c9e48"] { fill: var(--green); }
+  .plant-slide-symbol [stroke="#4c9e48"] { stroke: var(--green); }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#2878cd"] { background-color: var(--blue) !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#e67e28"] { background-color: #AE7044 !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#df527b"] { background-color: #A8646C !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#159d9c"] { background-color: var(--paper-teal) !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#e0b91d"] { background-color: var(--paper-ochre) !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#4c9e48"] { background-color: var(--green) !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#b07aa1"] { background-color: var(--paper-plum) !important; }
+  :is(.plant-icon-key, .plant-fullscreen-legend, .plant-category-key) i[style*="#8b5bc7"] { background-color: #66546E !important; }
+
+  .plant-map-heat > circle {
+    fill: var(--red);
+    opacity: .18;
+  }
+
+  .planning-region:is(:hover, :focus-visible, .is-hovered, .is-selected) {
+    stroke: var(--ink);
+    stroke-width: 2.5;
+    filter: none;
+  }
+
+  :is(.planning-region[fill="#a87930"], i[style*="#a87930"]) { --region-ink: #B6A17A; }
+  :is(.planning-region[fill="#86e89a"], i[style*="#86e89a"]) { --region-ink: #90A58A; }
+  :is(.planning-region[fill="#dbe97c"], i[style*="#dbe97c"]) { --region-ink: #B1A971; }
+  :is(.planning-region[fill="#d3ad59"], i[style*="#d3ad59"]) { --region-ink: #CEBA8C; }
+  :is(.planning-region[fill="#16c6d7"], i[style*="#16c6d7"]) { --region-ink: #83A6A2; }
+  :is(.planning-region[fill="#2225d0"], i[style*="#2225d0"]) { --region-ink: #A99EAA; }
+  :is(.planning-region[fill="#2018a8"], i[style*="#2018a8"]) { --region-ink: #8798AA; }
+  :is(.planning-region[fill="#a77a31"], i[style*="#a77a31"]) { --region-ink: #C99178; }
+  :is(.planning-region[fill="#1599e7"], i[style*="#1599e7"]) { --region-ink: #A4B4C3; }
+
+  .planning-region { fill: var(--region-ink); }
+  :is(.region-key-item, .region-map-detail h3) i {
+    background: var(--region-ink, var(--region-color));
+    border: var(--paper-rule);
+  }
+
+  .region-map-labels {
+    font-family: var(--mono);
+    fill: var(--ink);
+    stroke: var(--surface);
+  }
+
+  .plant-gradient {
+    border: var(--paper-rule);
+  }
+
+  .insight-assumptions {
+    container-type: inline-size;
+    border-radius: var(--paper-radius);
+  }
+
+  @container (max-width: 27rem) {
+    .insight-assumption-grid { grid-template-columns: minmax(0, 1fr); }
+  }
+
+  #error { background: var(--paper-clay); color: var(--ink); }
+  ::selection { background: var(--paper-steel); color: var(--ink); }
+
+  @media (max-width: 600px) {
+    :is(.daily-briefing, .briefing-row) { padding-inline: 12px; }
+    .briefing-row-main { gap: 8px; flex-wrap: wrap; }
+    .report-picker-row { row-gap: 9px; }
+  }
+}

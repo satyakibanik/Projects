@@ -1,7 +1,7 @@
 /* Apply the saved theme before the dashboard renders. */
 (function(){
  const root=document.documentElement,storageKey='begd-theme';
- const themes=['light','dark','solarized'];
+ const themes=['light','dark','solarized','paper-and-ink'];
  let theme='light';
  try{
   const saved=localStorage.getItem(storageKey);
