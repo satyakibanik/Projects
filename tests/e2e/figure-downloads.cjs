@@ -89,6 +89,25 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(await shareChart.locator('.legend input').count(),3,'Export must leave the interactive legend intact');
   for(const key of ['import_dependence_pct','renewable_share_pct'])await shareChart.locator(`[data-toggle-series="${key}"]`).check();
   await page.setViewportSize({width:1440,height:1000});
+  const multipleLabels=await shareChart.evaluate(async chart=>{
+   const render=window.html2canvas;
+   let labels;
+   try{
+    window.html2canvas=(target,options)=>render(target,{...options,async onclone(doc,clone){
+     await options.onclone(doc,clone);
+     const checkboxes=[...clone.querySelectorAll('input[type="checkbox"]')];
+     if(!checkboxes.length||checkboxes.some(input=>doc.defaultView.getComputedStyle(input).display!=='none')){
+      throw Error('Checkboxes must be hidden in the multi-layer PNG');
+     }
+     labels=[...clone.querySelectorAll('.legend [data-series-label]')].map(label=>label.textContent.trim());
+    }});
+    const png=await window.BEGDFigures.exportPNG(chart);
+    if(png.type!=='image/png'||!png.size)throw Error('The multi-layer export should produce a PNG');
+    return labels;
+   }finally{window.html2canvas=render;}
+  });
+  assert.deepEqual(multipleLabels,layerLabels);
+  assert.equal(await shareChart.locator('.legend input:visible').count(),3,'Export must keep the live checkboxes visible');
   await useFastRenderer();await clickEveryFigure('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');await clickEveryFigure('fuel-ring');

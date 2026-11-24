@@ -166,11 +166,12 @@
       onclone:async(doc,clone)=>{
         const style=doc.createElement('style');
         style.textContent='*,*::before,*::after{animation:none!important;transition:none!important}.forecast-subplot-controls label,.dispatch-chart-style,.map-controls,.regional-snapshot-controls,.temperature-subplot-heading .trends-unit-control,.chart-help,.metric-method,.vb-reading,.vb-stats,.figure-actions,.chart-tooltip,.trends-tooltip,.fuel-tooltip{display:none!important}.dispatch-main .chart{margin-left:0!important;width:100%!important}.en-curve-chart{grid-template-areas:"plot legend" "daylight legend";grid-template-rows:auto}.en-curve-chart>.legend{max-height:none!important;overflow:visible!important}@media(max-width:760px){.en-curve-chart{grid-template-areas:"plot" "daylight" "legend"}}';
+        style.textContent+='input[type=checkbox]{display:none!important}'
+          +'label:has(>input[type=checkbox]):has(>.series-swatch){grid-template-columns:auto minmax(0,1fr)!important}'
+          +'.source-legend-group legend label:has(>input[type=checkbox]){grid-template-columns:minmax(0,1fr)!important}';
         doc.head.append(style);
         if(preview){
-          style.textContent+='.preview-figure :is(p,details,.news-meta,.organogram-node-arrow,.fuel-layer-actions,.fuel-window,.chart-style,.layer-actions,input[type=checkbox],select){display:none!important}'
-            +'.preview-figure label:has(>.series-swatch){grid-template-columns:32px minmax(0,1fr)!important}'
-            +'.preview-figure .source-legend-group legend label{grid-template-columns:minmax(0,1fr)!important}'
+          style.textContent+='.preview-figure :is(p,details,.news-meta,.organogram-node-arrow,.fuel-layer-actions,.fuel-window,.chart-style,.layer-actions,select){display:none!important}'
             +'.preview-figure.en-curve-chart{grid-template-columns:minmax(0,1fr) 245px}.preview-figure.en-curve-chart>.legend{margin:0;gap:2px}.preview-figure .event-dial-list,.preview-figure .plant-map-sidebar,.preview-figure .plant-map-options,.preview-figure .plant-slide-controls{display:none!important}.preview-figure.event-dial-layout{display:block}.preview-figure .event-dial-svg{display:block;margin:auto;width:min(100%,440px)}';
           clone.classList.add('preview-figure');
         }else{
