@@ -100,6 +100,40 @@ class WorkbookTests(unittest.TestCase):
         trend = extract_trend_workbook(content.getvalue(), dict(id='1', name='fixture', published_date='2026-10-15', download_url='fixture'))
         self.assertEqual(trend['fuels'], report['fuels'])
 
+    def test_genlog_uses_the_total_label_after_extra_readings(self):
+        from trends import extract_trend_workbook
+
+        for total_row in (38, 39):
+            with self.subTest(total_row=total_row):
+                book = workbook()
+                book['P1']['E17'] = book['P1']['E26'] = 2.3
+                book['P1']['K17'] = book['P1']['K26'] = 0.1
+                log = book['GenLog']
+                log['C11'] = 'Nepal import'
+                log.cell(total_row, 1, 'Total KWH')
+                log.cell(total_row, 2, 2400000)
+                log.cell(total_row, 3, 100000)
+                if total_row == 39:
+                    log['A36'] = dt.time(22, 0)
+                    log['A37'] = '22:30:00'
+                    log['A38'] = '23:00'
+                    log['B38'] = 120
+                    log['C38'] = 6
+
+                report = parse(book)
+                self.assertEqual(report['imports'][0]['energy_mwh'], 100)
+                self.assertEqual(report['imports'][0]['hourly'][-1]['time'], '23:00')
+                self.assertEqual(report['plant_units'][0]['energy_mwh'], 2400)
+                if total_row == 39:
+                    self.assertEqual(report['imports'][0]['hourly'][-1]['mw'], 6)
+                    self.assertEqual(report['imports'][0]['hourly'][-2]['time'], '22:30')
+                    self.assertEqual(report['plant_units'][0]['peak_mw'], 120)
+                content = io.BytesIO()
+                book.save(content)
+                trend = extract_trend_workbook(content.getvalue(), dict(
+                    id='1', name='fixture', published_date='2026-10-15', download_url='fixture'))
+                self.assertEqual(trend['imports'][0]['energy_mwh'], 100)
+
     def test_partial_fuel_headers_are_rejected(self):
         book = workbook()
         book['P1']['D16'] = 'Gas'
