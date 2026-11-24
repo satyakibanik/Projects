@@ -7,6 +7,7 @@ on:
     - cron: '11,26,41,56 * * * *'
   workflow_dispatch:
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -150,9 +151,35 @@ jobs:
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
+        id: pages-artifact
         uses: actions/upload-pages-artifact@v4
         with:
           path: _site
+      - name: Wait for Pages artifact metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PAGES_ARTIFACT_ID: ${{ steps.pages-artifact.outputs.artifact_id }}
+        run: |
+          if [[ ! "$PAGES_ARTIFACT_ID" =~ ^[0-9]+$ ]]; then
+            echo "::error::The Pages upload did not return an artifact ID."
+            exit 1
+          fi
+
+          endpoint="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts?name=github-pages"
+          for attempt in {1..12}; do
+            if timeout 5s gh api "$endpoint" --jq '.artifacts[] | select(.expired == false) | .id' | grep -Fxq "$PAGES_ARTIFACT_ID"; then
+              echo "Pages artifact $PAGES_ARTIFACT_ID is visible for run $GITHUB_RUN_ID."
+              exit 0
+            fi
+
+            if (( attempt < 12 )); then
+              echo "Waiting for Pages artifact $PAGES_ARTIFACT_ID (attempt $attempt of 12)."
+              sleep 5
+            fi
+          done
+
+          echo "::error::Pages artifact $PAGES_ARTIFACT_ID did not become visible for run $GITHUB_RUN_ID after 12 checks."
+          exit 1
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
