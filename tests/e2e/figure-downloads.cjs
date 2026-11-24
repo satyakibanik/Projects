@@ -60,10 +60,17 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    const render=window.html2canvas;
    let legend;
    try{
-    window.html2canvas=(target,options)=>render(target,{...options,onclone(doc,clone){
-     options.onclone(doc,clone);
+    window.html2canvas=(target,options)=>render(target,{...options,async onclone(doc,clone){
+     await options.onclone(doc,clone);
      const seriesLabels=clone.querySelectorAll('.legend label [data-series-label]');
      legend=Array.from(seriesLabels,label=>label.textContent.trim());
+     const outputWidth=Math.max(1200,Math.ceil(clone.getBoundingClientRect().width)*options.scale/2);
+     for(const label of [seriesLabels[0],clone.querySelector('.daylight-key [data-text-role="legend"]')]){
+      if(!label)throw Error('The export should retain both series and daylight legends');
+      const fontSize=parseFloat(doc.defaultView.getComputedStyle(label).fontSize);
+      const outputFontSize=fontSize*outputWidth/clone.getBoundingClientRect().width*2;
+      if(Math.abs(outputFontSize-48)>1)throw Error('Expected a 48px PNG legend, received '+outputFontSize+'px');
+     }
      const text=doc.createRange();text.selectNodeContents(seriesLabels[0]);
      if(text.getClientRects().length!==1)throw Error('The selected series name should fit on one line');
      const plot=clone.querySelector('svg.chart');
@@ -82,6 +89,25 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
   assert.equal(await shareChart.locator('.legend input').count(),3,'Export must leave the interactive legend intact');
   for(const key of ['import_dependence_pct','renewable_share_pct'])await shareChart.locator(`[data-toggle-series="${key}"]`).check();
   await page.setViewportSize({width:1440,height:1000});
+  const multipleLabels=await shareChart.evaluate(async chart=>{
+   const render=window.html2canvas;
+   let labels;
+   try{
+    window.html2canvas=(target,options)=>render(target,{...options,async onclone(doc,clone){
+     await options.onclone(doc,clone);
+     const checkboxes=[...clone.querySelectorAll('input[type="checkbox"]')];
+     if(!checkboxes.length||checkboxes.some(input=>doc.defaultView.getComputedStyle(input).display!=='none')){
+      throw Error('Checkboxes must be hidden in the multi-layer PNG');
+     }
+     labels=[...clone.querySelectorAll('.legend [data-series-label]')].map(label=>label.textContent.trim());
+    }});
+    const png=await window.BEGDFigures.exportPNG(chart);
+    if(png.type!=='image/png'||!png.size)throw Error('The multi-layer export should produce a PNG');
+    return labels;
+   }finally{window.html2canvas=render;}
+  });
+  assert.deepEqual(multipleLabels,layerLabels);
+  assert.equal(await shareChart.locator('.legend input:visible').count(),3,'Export must keep the live checkboxes visible');
   await useFastRenderer();await clickEveryFigure('overview');
   if(await page.locator('#fuel-mix-style').count()){
    await page.locator('#fuel-mix-style').selectOption('ring');await clickEveryFigure('fuel-ring');
