@@ -60,10 +60,17 @@ const {chromium}=require('playwright'),assert=require('node:assert/strict'),fs=r
    const render=window.html2canvas;
    let legend;
    try{
-    window.html2canvas=(target,options)=>render(target,{...options,onclone(doc,clone){
-     options.onclone(doc,clone);
+    window.html2canvas=(target,options)=>render(target,{...options,async onclone(doc,clone){
+     await options.onclone(doc,clone);
      const seriesLabels=clone.querySelectorAll('.legend label [data-series-label]');
      legend=Array.from(seriesLabels,label=>label.textContent.trim());
+     const outputWidth=Math.max(1200,Math.ceil(clone.getBoundingClientRect().width)*options.scale/2);
+     for(const label of [seriesLabels[0],clone.querySelector('.daylight-key [data-text-role="legend"]')]){
+      if(!label)throw Error('The export should retain both series and daylight legends');
+      const fontSize=parseFloat(doc.defaultView.getComputedStyle(label).fontSize);
+      const outputFontSize=fontSize*outputWidth/clone.getBoundingClientRect().width*2;
+      if(Math.abs(outputFontSize-48)>1)throw Error('Expected a 48px PNG legend, received '+outputFontSize+'px');
+     }
      const text=doc.createRange();text.selectNodeContents(seriesLabels[0]);
      if(text.getClientRects().length!==1)throw Error('The selected series name should fit on one line');
      const plot=clone.querySelector('svg.chart');

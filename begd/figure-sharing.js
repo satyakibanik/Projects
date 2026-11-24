@@ -128,14 +128,12 @@
       if(dataURL)image.setAttribute('href',dataURL);
     }
   }
-  function legendSize(){
-    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--begd-legend-size'))||13;
-  }
-  function scaleExportLegend(clone,outputWidth){
-    const width=Math.ceil(clone.getBoundingClientRect().width);
+  const figureLegendSize=24,dashboardLegendSize=16;
+  const minimumFigureWidth=1200;
+  function scaleExportLegend(clone,width,outputWidth,fontSize){
     if(!width)return;
-    // The chart will be resampled to outputWidth. Compensate before rasterizing.
-    const size=legendSize()*width/outputWidth;
+    // Work in canvas drawing units. Pixel density is applied to the entire PNG later.
+    const size=fontSize*width/outputWidth;
     clone.style.setProperty('--begd-legend-size',size+'px');
     for(const label of clone.querySelectorAll('[data-text-role="legend-chart"]')){
       const matrix=label.getScreenCTM?.();
@@ -183,8 +181,11 @@
         if(info.prepare)info.prepare(clone);
         simplifySingleLayerLegends(clone);
         const cloneWidth=Math.ceil(clone.getBoundingClientRect().width);
-        if(info.legendWidth)scaleExportLegend(clone,info.legendWidth);
-        else if(!preview)scaleExportLegend(clone,Math.max(2400,cloneWidth*captureScale));
+        if(info.legendWidth)scaleExportLegend(clone,cloneWidth,info.legendWidth,dashboardLegendSize);
+        else if(!preview){
+          const outputWidth=Math.max(minimumFigureWidth,cloneWidth*captureScale/2);
+          scaleExportLegend(clone,cloneWidth,outputWidth,figureLegendSize);
+        }
         clone.querySelectorAll('.en-curve-chart>svg.chart').forEach(svg=>{
           const view=svg.viewBox.baseVal,ink=svg.getBBox(),bounds=svg.getBoundingClientRect();
           const extra=Math.max(0,ink.y+ink.height-view.y-view.height);
@@ -221,7 +222,7 @@
         Boolean(node.closest('body')&&!node.contains(capture)&&!capture.contains(node))});
     if(preview)return shot;
     const captureHeight=contentBounds?Math.min(shot.height,Math.ceil(contentBounds.height*captureScale)):shot.height;
-    const canvas=document.createElement('canvas'),width=Math.max(1200,shot.width/2),pad=32;
+    const canvas=document.createElement('canvas'),width=Math.max(minimumFigureWidth,shot.width/2),pad=32;
     // Render the chart and all annotations at twice the previous PNG resolution.
     const ctx=canvas.getContext('2d');ctx.font='bold 32px sans-serif';
     const heading=lines(ctx,info.title,width-pad*2);ctx.font='20px sans-serif';const notes=(info.footer||[]).flatMap(text=>lines(ctx,text,width-pad*2));
@@ -480,7 +481,7 @@
           ctx.fillText(title,Math.min(left,columnLeft+Math.max(0,columnWidth-ctx.measureText(title).width)),top+21,columnWidth);
         }
         ctx.drawImage(shot,left,top+headingSpace,imageWidth,imageHeight);
-        ctx.font=legendSize()+'px sans-serif';
+        ctx.font=dashboardLegendSize+'px sans-serif';
         const legendWidth=Math.min(columnWidth,650)/2,legendLeft=columnLeft+(columnWidth-legendWidth*2)/2;
         legend.forEach(({name,color,dash},i)=>{
           const x=legendLeft+i%2*legendWidth,y=top+headingSpace+imageHeight+16+Math.floor(i/2)*21;
