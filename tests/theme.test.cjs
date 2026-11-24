@@ -12,16 +12,17 @@ test('theme defaults to light and each explicit selection survives a reload',()=
  const {root,picker,writes}=boot(null);
  assert.equal(root.dataset.theme,'light');
  assert.equal(picker.value,'light');
- for(const theme of ['solarized','dark','light']){
+ for(const theme of ['solarized','dark','paper-and-ink','light']){
   picker.value=theme;picker.change();
   assert.equal(root.dataset.theme,theme);
   assert.equal(boot(theme).picker.value,theme);
  }
- assert.deepEqual(writes,['solarized','dark','light'].map(theme=>['begd-theme',theme]));
+ assert.deepEqual(writes,['solarized','dark','paper-and-ink','light'].map(theme=>['begd-theme',theme]));
  assert.equal(boot('invalid').root.dataset.theme,'light');
 });
 test('theme remains usable when browser storage is unavailable',()=>{
  const {root,picker}=boot(null,true);
  picker.value='solarized';picker.change();assert.equal(root.dataset.theme,'solarized');
  picker.value='dark';picker.change();assert.equal(root.dataset.theme,'dark');
+ picker.value='paper-and-ink';picker.change();assert.equal(root.dataset.theme,'paper-and-ink');
 });
