@@ -4,7 +4,7 @@ No hourly MW sums or inferred load shedding; missing fields stay null.
 """
 import datetime as dt
 import math
-from import_report import fuel_columns
+from import_report import fuel_columns, genlog_total_row
 from p1_sections import regional_snapshot, key as region_key
 from water_level import extract_water_level, water_level_summary
 from operational_events import extract_event_log
@@ -292,10 +292,11 @@ def extract_trend_workbook(content, item):
     routes = []
     if 'GenLog' in workbook.sheetnames:
         log = workbook['GenLog']
+        total_row = genlog_total_row(log)
         for col in range(2, log.max_column + 1):
             name = str(log.cell(11, col).value or '')
             if any(token in name.lower() for token in ['hvdc','tripura','adani','nepal']):
-                kwh = number(log.cell(38, col).value)
+                kwh = number(log.cell(total_row, col).value) if total_row is not None else None
                 routes.append({'name':name, 'energy_mwh':round(kwh / 1000, 6) if kwh is not None else None})
     snapshot = regional_snapshot(sheet)
     report = {'p1_sections_version':2, 'regional_snapshot':{key:value for key,value in snapshot.items() if key != 'readings'}, 'date':day.isoformat(), 'report_id':item['id'], 'published_date':item['published_date'],

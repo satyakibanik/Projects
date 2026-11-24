@@ -38,6 +38,33 @@ def fuel_columns(sheet):
     return dict(zip(DEFAULT_FUELS, range(5, 13)))
 
 
+def genlog_total_row(sheet):
+    """Find the published energy totals after the time-stamped GenLog rows."""
+    for (cell,) in sheet.iter_rows(min_row=13, max_col=1):
+        label = "".join(str(cell.value or "").lower().split())
+        if label == "totalkwh":
+            return cell.row
+    # Older layouts can have an unlabeled totals row at the fixed position.
+    if sheet.cell(38, 1).value in (None, ""):
+        return 38
+    return None
+
+
+def genlog_readings(sheet, total_row):
+    """Return the source row and normalized clock time for each reading."""
+    stop = total_row if total_row is not None else sheet.max_row + 1
+    readings = []
+    for row in range(13, stop):
+        value = sheet.cell(row, 1).value
+        time = value.strftime("%H:%M") if hasattr(value, "strftime") else str(value or "").strip()
+        match = re.fullmatch(r"(\d{1,2}):([0-5]\d)(?::[0-5]\d)?", time)
+        if match:
+            hour, minute = map(int, match.groups())
+            if hour < 24 or (hour == 24 and minute == 0):
+                readings.append((row, f"{hour:02}:{minute:02}"))
+    return readings
+
+
 def parse_report(report_bytes, source_file):
     """Return dashboard data from workbook bytes and the source filename."""
     workbook = openpyxl.load_workbook(io.BytesIO(report_bytes), data_only=True)
@@ -214,6 +241,8 @@ def parse_report(report_bytes, source_file):
             )
 
     generation_log = workbook["GenLog"] if "GenLog" in workbook.sheetnames else None
+    total_row = genlog_total_row(generation_log) if generation_log is not None else None
+    genlog_times = genlog_readings(generation_log, total_row) if generation_log is not None else []
     plant_units = []
     for col in range(2, generation_log.max_column + 1) if generation_log is not None else []:
         name = str(generation_log.cell(11, col).value or "").strip()
@@ -228,16 +257,11 @@ def parse_report(report_bytes, source_file):
             match = re.search(r"[-+]?\d[\d,]*(?:\.\d+)?", raw_capacity)
             capacity = float(match.group(0).replace(",", "")) if match else None
 
-        plant_hourly = []
-        for row in range(13, 38):
-            raw_time, mw = generation_log.cell(row, 1).value, generation_log.cell(row, col).value
-            if raw_time is None:
-                continue
-            time = raw_time.strftime("%H:%M") if hasattr(raw_time, "strftime") else str(raw_time)[:5]
-            plant_hourly.append(dict(time=time, mw=number(mw)))
+        plant_hourly = [dict(time=time, mw=number(generation_log.cell(row, col).value))
+                        for row, time in genlog_times]
         values = [row["mw"] for row in plant_hourly if row["mw"] is not None]
         peak = max(values) if values else None
-        energy_kwh = number(generation_log.cell(38, col).value)
+        energy_kwh = number(generation_log.cell(total_row, col).value) if total_row is not None else None
         p2 = source_match(p2_by_name, name) or {}
         forecast = source_match(forecast_by_name, name) or {}
         energy_mwh = energy_kwh / 1000 if energy_kwh is not None else None
@@ -299,16 +323,15 @@ def parse_report(report_bytes, source_file):
             ))
 
     imports = []
-    for col in range(2, generation_log.max_column + 1) if "GenLog" in workbook.sheetnames else []:
+    for col in range(2, generation_log.max_column + 1) if total_row is not None else []:
         name = str(generation_log.cell(11, col).value or "")
         if any(token in name.lower() for token in ["hvdc", "tripura", "adani", "nepal"]):
-            if isinstance(generation_log.cell(38, col).value, (int, float)):
+            if isinstance(generation_log.cell(total_row, col).value, (int, float)):
                 imports.append(dict(
                     name=name,
-                    energy_mwh=generation_log.cell(38, col).value / 1000,
-                    hourly=[dict(time=str(generation_log.cell(row, 1).value),
-                                 mw=generation_log.cell(row, col).value)
-                            for row in range(13, 38)],
+                    energy_mwh=generation_log.cell(total_row, col).value / 1000,
+                    hourly=[dict(time=time, mw=generation_log.cell(row, col).value)
+                            for row, time in genlog_times],
                 ))
 
     # P3 lists three side-by-side blocks of substations and their maximum
